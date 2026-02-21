@@ -59,8 +59,8 @@ export function useSwarmData(): SwarmData {
       const [rawTasks, rawAgents, taskCount, agentCount] = await Promise.all([
         board.getAllTasks().catch(() => []),
         registry.getAllAgents().catch(() => []),
-        board.getTotalTasks().catch(() => 0n),
-        registry.getTotalAgents().catch(() => 0n),
+        board.getTotalTasks().catch(() => BigInt(0)),
+        registry.getTotalAgents().catch(() => BigInt(0)),
       ]);
 
       const parsedTasks: TaskListing[] = (rawTasks as unknown[]).map((t: unknown) => {
