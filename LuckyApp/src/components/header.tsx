@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { DynamicWidget, useDynamicContext, DynamicConnectButton } from '@dynamic-labs/sdk-react-core';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAccount } from 'wagmi';
 import { useTeam } from '@/contexts/TeamContext';
 
 const navLinks = [
@@ -15,9 +16,8 @@ const navLinks = [
 
 export function Header() {
   const pathname = usePathname();
-  const { primaryWallet } = useDynamicContext();
+  const { isConnected } = useAccount();
   const { currentTeam, teams, selectTeam } = useTeam();
-  const isConnected = !!primaryWallet;
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
@@ -57,15 +57,7 @@ export function Header() {
               ))}
             </select>
           )}
-          {isConnected ? (
-            <DynamicWidget />
-          ) : (
-            <DynamicConnectButton>
-              <button className="px-6 py-2 text-sm font-medium rounded-md bg-green-500 hover:bg-green-600 text-white transition-colors">
-                Connect Wallet
-              </button>
-            </DynamicConnectButton>
-          )}
+          <ConnectButton />
         </div>
       </div>
     </header>

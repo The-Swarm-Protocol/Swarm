@@ -1,8 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
-import { useDynamicContext, getAuthToken } from '@dynamic-labs/sdk-react-core';
-import { getTeamsByWallet, createTeam as createTeamInFirestore } from '@/lib/firestore';
+import { useAccount } from 'wagmi';
 
 export interface Team {
   id: string;
@@ -37,75 +36,51 @@ export function useTeam() {
 }
 
 const TEAM_STORAGE_KEY = 'luckyst_selected_team_id';
+const TEAMS_STORAGE_KEY = 'luckyst_teams';
+
+function loadTeamsFromStorage(): Team[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(TEAMS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveTeamsToStorage(teams: Team[]) {
+  localStorage.setItem(TEAMS_STORAGE_KEY, JSON.stringify(teams));
+}
 
 export function TeamProvider({ children }: { children: ReactNode }) {
-  const { primaryWallet } = useDynamicContext();
+  const { address } = useAccount();
   const [teams, setTeams] = useState<Team[]>([]);
   const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const walletAddress = primaryWallet?.address || null;
-
-  // Load teams from Firestore when wallet connects
+  // Hydrate from localStorage on mount (client only)
   useEffect(() => {
-    if (!walletAddress) {
-      setTeams([]);
-      setCurrentTeam(null);
-      return;
+    const allTeams = loadTeamsFromStorage();
+    const saved = localStorage.getItem(TEAM_STORAGE_KEY);
+    if (allTeams.length > 0) {
+      setTeams(allTeams);
+      setCurrentTeam(allTeams.find(t => t.id === saved) || allTeams[0]);
     }
-
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    getTeamsByWallet(walletAddress)
-      .then((firestoreTeams) => {
-        if (cancelled) return;
-        const mapped: Team[] = firestoreTeams.map((t) => ({
-          id: t.id!,
-          name: t.name,
-          description: t.description,
-        }));
-        setTeams(mapped);
-
-        const savedId = localStorage.getItem(TEAM_STORAGE_KEY);
-        const selected = mapped.find((t) => t.id === savedId) || mapped[0] || null;
-        setCurrentTeam(selected);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.error('Failed to load teams from Firestore:', err);
-        setError('Failed to load teams');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => { cancelled = true; };
-  }, [walletAddress]);
+  }, []);
+  const [loading] = useState(false);
+  const [error] = useState<string | null>(null);
 
   const getToken = useCallback(async (): Promise<string | null> => {
-    return getAuthToken() || null;
+    // TODO: implement token retrieval if needed
+    return null;
   }, []);
 
   const refreshTeams = useCallback(async () => {
-    if (!walletAddress) return;
-    try {
-      const firestoreTeams = await getTeamsByWallet(walletAddress);
-      const mapped: Team[] = firestoreTeams.map((t) => ({
-        id: t.id!,
-        name: t.name,
-        description: t.description,
-      }));
-      setTeams(mapped);
-      if (mapped.length > 0 && !mapped.find((t) => t.id === currentTeam?.id)) {
-        setCurrentTeam(mapped[0]);
-      }
-    } catch (err) {
-      console.error('Failed to refresh teams:', err);
+    const loaded = loadTeamsFromStorage();
+    setTeams(loaded);
+    if (loaded.length > 0 && !loaded.find(t => t.id === currentTeam?.id)) {
+      setCurrentTeam(loaded[0]);
     }
-  }, [walletAddress, currentTeam?.id]);
+  }, [currentTeam?.id]);
 
   const selectTeam = useCallback((teamId: string) => {
     const team = teams.find(t => t.id === teamId);
@@ -115,24 +90,18 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     }
   }, [teams]);
 
-  const createTeam = useCallback(async (name: string, description?: string) => {
-    if (!walletAddress) return;
-    try {
-      const newId = await createTeamInFirestore({
-        name,
-        description,
-        walletAddress,
-      });
-      const newTeam: Team = { id: newId, name, description };
-      const updated = [...teams, newTeam];
-      setTeams(updated);
-      setCurrentTeam(newTeam);
-      localStorage.setItem(TEAM_STORAGE_KEY, newId);
-    } catch (err) {
-      console.error('Failed to create team:', err);
-      setError('Failed to create team');
-    }
-  }, [walletAddress, teams]);
+  const createTeam = useCallback((name: string, description?: string) => {
+    const newTeam: Team = {
+      id: crypto.randomUUID(),
+      name,
+      description,
+    };
+    const updated = [...teams, newTeam];
+    setTeams(updated);
+    setCurrentTeam(newTeam);
+    saveTeamsToStorage(updated);
+    localStorage.setItem(TEAM_STORAGE_KEY, newTeam.id);
+  }, [teams]);
 
   return (
     <TeamContext.Provider value={{
