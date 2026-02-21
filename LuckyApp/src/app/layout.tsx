@@ -7,11 +7,16 @@ import { OrgProvider } from "@/contexts/OrgContext";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "Swarm — Enterprise AI Fleet Orchestration",
-  description: "Enterprise AI fleet orchestration for solo founders",
+  title: "Swarm | Enterprise AI Fleet Orchestration",
+  description: "Deploy, orchestrate, and scale enterprise-grade AI agent fleets. The ultimate command center for autonomous business operations.",
   icons: {
     icon: "/lobsterlogo.png",
   },
+  openGraph: {
+    title: "Swarm | Enterprise AI Fleet Orchestration",
+    description: "The ultimate command center for autonomous business operations.",
+    images: ["/lobsterlogo.png"],
+  }
 };
 
 export default function RootLayout({
