@@ -1,13 +1,33 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { ConnectButton, useActiveAccount } from "thirdweb/react";
+import { createThirdwebClient } from "thirdweb";
+import { base, defineChain } from "thirdweb/chains";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+const client = createThirdwebClient({
+  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || 'cbd8abcfa13db759ca2f5fa7d8a5a5e5',
+});
+
+const hedera = defineChain({ id: 295, name: 'Hedera', rpc: 'https://mainnet.hashio.io/api' });
 
 export default function LandingPage() {
+  const account = useActiveAccount();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (account) router.push('/dashboard');
+  }, [account, router]);
+
   return (
     <div className="flex flex-col min-h-screen">
       <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur">
         <div className="flex h-16 items-center justify-between px-6 max-w-7xl mx-auto">
           <span className="text-xl font-bold text-green-500">🍀 LuckySt</span>
-          <Button variant="outline" size="sm">Connect Wallet</Button>
+          <ConnectButton client={client} chains={[base, hedera]} />
         </div>
       </header>
 
@@ -22,9 +42,7 @@ export default function LandingPage() {
             Monitor performance in real-time. One dashboard to rule them all.
           </p>
           <div className="mt-10 flex items-center justify-center gap-4">
-            <Button size="lg" className="text-base">
-              Connect Wallet to Launch
-            </Button>
+            <ConnectButton client={client} chains={[base, hedera]} />
             <Link href="/dashboard">
               <Button variant="outline" size="lg" className="text-base">
                 View Demo
