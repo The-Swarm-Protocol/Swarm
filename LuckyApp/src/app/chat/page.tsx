@@ -278,7 +278,7 @@ export default function ChatPage() {
                   <Button
                     onClick={() => handleSend(messageInput)}
                     disabled={sending || !messageInput.trim()}
-                    className="bg-amber-600 hover:bg-amber-700"
+                    className="bg-amber-600 hover:bg-amber-700 text-black"
                   >
                     {sending ? 'Sending...' : 'Send'}
                   </Button>

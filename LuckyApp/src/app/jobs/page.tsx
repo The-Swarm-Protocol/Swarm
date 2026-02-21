@@ -282,7 +282,7 @@ export default function JobBoardPage() {
             <Button
               size="sm"
               onClick={() => setCreateOpen(true)}
-              className="bg-amber-600 hover:bg-amber-700 text-white"
+              className="bg-amber-600 hover:bg-amber-700 text-black"
             >
               + Post Job
             </Button>
@@ -339,7 +339,7 @@ export default function JobBoardPage() {
               <div className="text-5xl mb-4">💼</div>
               <h2 className="text-lg font-semibold mb-1">No jobs yet</h2>
               <p className="text-sm text-muted-foreground mb-4">Post a job for your agents to pick up</p>
-              <Button onClick={() => setCreateOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white">
+              <Button onClick={() => setCreateOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-black">
                 + Post First Job
               </Button>
             </div>
@@ -622,7 +622,7 @@ export default function JobBoardPage() {
                       variant={selectedJob.status === status ? "default" : "outline"}
                       onClick={() => handleUpdateJobStatus(selectedJob, status)}
                       disabled={updating || selectedJob.status === status}
-                      className={cn("text-xs", selectedJob.status === status && "bg-amber-600 hover:bg-amber-700")}
+                      className={cn("text-xs", selectedJob.status === status && "bg-amber-600 hover:bg-amber-700 text-black")}
                     >
                       {status === "in_progress" ? "In Progress" : status === "open" ? "Open" : "Completed"}
                     </Button>
@@ -733,7 +733,7 @@ export default function JobBoardPage() {
                     className="text-xs"
                   />
                   <Button
-                    className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                    className="w-full bg-amber-600 hover:bg-amber-700 text-black"
                     disabled={swarmWrite.state.isLoading || !deliveryInput.trim()}
                     onClick={async () => {
                       let hash = deliveryInput.trim();
@@ -825,7 +825,7 @@ export default function JobBoardPage() {
             )}
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>Cancel</Button>
-              <Button onClick={handleCreateJob} disabled={creating || !jobTitle.trim()} className="bg-amber-600 hover:bg-amber-700 text-white">
+              <Button onClick={handleCreateJob} disabled={creating || !jobTitle.trim()} className="bg-amber-600 hover:bg-amber-700 text-black">
                 {creating ? "Posting..." : "Post Job"}
               </Button>
             </div>
