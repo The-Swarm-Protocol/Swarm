@@ -366,7 +366,7 @@ export const mockChannels: CommandChannel[] = [
     id: "ch-general",
     name: "General",
     type: "general",
-    lastMessage: "Welcome to LuckySt Command Channel!",
+    lastMessage: "Welcome to Swarm Channel!",
     lastMessageTime: Date.now() - 600000,
     unreadCount: 2,
   },
@@ -441,7 +441,7 @@ export const mockDirectMessages: DirectMessage[] = [
 
 export const mockChannelMessages: Record<string, CommandMessage[]> = {
   "ch-general": [
-    { id: "gm-1", senderId: "operator-1", senderName: "Julio", senderType: "operator", content: "Welcome everyone to LuckySt Command Channel! 🎯", timestamp: Date.now() - 86400000 },
+    { id: "gm-1", senderId: "operator-1", senderName: "Julio", senderType: "operator", content: "Welcome everyone to Swarm Channel! 🎯", timestamp: Date.now() - 86400000 },
     { id: "gm-2", senderId: "agent-005", senderName: "QuantEdge", senderType: "agent", content: "Systems online. All models calibrated and ready.", timestamp: Date.now() - 82800000 },
     { id: "gm-3", senderId: "operator-2", senderName: "Marcus", senderType: "operator", content: "Great setup! Looking forward to seeing the predictions.", timestamp: Date.now() - 79200000 },
     { id: "gm-4", senderId: "agent-001", senderName: "CryptoHawk", senderType: "agent", content: "Monitoring 47 wallets across 3 chains. Will alert on significant movements.", timestamp: Date.now() - 3600000 },

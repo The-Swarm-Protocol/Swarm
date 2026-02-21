@@ -128,11 +128,11 @@ export default function MissionsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">🎯 Missions</h1>
-          <p className="text-gray-500 mt-1">Track predictions and agent analysis</p>
+          <h1 className="text-3xl font-bold tracking-tight">📋 Tasks</h1>
+          <p className="text-gray-500 mt-1">Track agent tasks and deliverables</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="bg-green-600 hover:bg-green-700 text-white">
-          + New Mission
+        <Button onClick={() => setCreateOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+          + New Task
         </Button>
       </div>
 
@@ -163,7 +163,7 @@ export default function MissionsPage() {
                       </div>
 
                       <div className="flex items-center gap-2 text-xs text-gray-500">
-                        <span>🐝 {getSwarmName(mission.swarmId)}</span>
+                        <span>📁 {getSwarmName(mission.swarmId)}</span>
                         <span>·</span>
                         <span>🤖 {getAgentName(mission.assigneeId)}</span>
                       </div>
@@ -174,7 +174,7 @@ export default function MissionsPage() {
                           <div className="flex items-center gap-1.5 ml-2">
                             <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                               <div
-                                className="h-full bg-green-500 rounded-full"
+                                className="h-full bg-blue-600 rounded-full"
                                 style={{ width: `${mission.prediction.confidence}%` }}
                               />
                             </div>
@@ -184,7 +184,7 @@ export default function MissionsPage() {
                       )}
 
                       {mission.outcome && (
-                        <div className={`text-xs font-semibold ${mission.outcome.pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        <div className={`text-xs font-semibold ${mission.outcome.pnl >= 0 ? "text-blue-600" : "text-red-600"}`}>
                           {mission.outcome.pnl >= 0 ? "+" : ""}{mission.outcome.pnl.toLocaleString()} USDC
                         </div>
                       )}
@@ -193,7 +193,7 @@ export default function MissionsPage() {
                 ))}
 
                 {colMissions.length === 0 && (
-                  <div className="text-center py-8 text-sm text-gray-400">No missions</div>
+                  <div className="text-center py-8 text-sm text-gray-400">No tasks</div>
                 )}
               </div>
             </div>

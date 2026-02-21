@@ -19,9 +19,9 @@ const hedera = defineChain({
 
 const navLinks = [
   { href: '/dashboard', label: 'Dashboard' },
-  { href: '/swarms', label: 'Swarms' },
+  { href: '/swarms', label: 'Projects' },
   { href: '/agents', label: 'Agents' },
-  { href: '/chat', label: 'Chat' },
+  { href: '/chat', label: 'Channels' },
   { href: '/settings', label: '⚙️' },
 ];
 
@@ -36,7 +36,7 @@ export function Header() {
       <div className="flex h-16 items-center justify-between px-6">
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2">
-            <span className="text-xl font-bold text-green-500">🍀 LuckySt</span>
+            <span className="text-xl font-bold text-blue-600">⚡ Swarm</span>
           </Link>
           {isConnected && (
             <nav className="hidden md:flex items-center gap-6">
@@ -62,7 +62,7 @@ export function Header() {
               className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 max-w-[160px]"
               value={currentTeam.id}
               onChange={(e) => selectTeam(e.target.value)}
-              title="Switch Team"
+              title="Switch Organization"
             >
               {teams.map(team => (
                 <option key={team.id} value={team.id}>{team.name}</option>

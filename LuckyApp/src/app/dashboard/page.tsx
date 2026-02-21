@@ -24,7 +24,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-gray-500 mt-1">Swarm operations overview</p>
+        <p className="text-gray-500 mt-1">Organization operations overview</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -43,11 +43,11 @@ export default function DashboardPage() {
           changeLabel="vs last month"
         />
         <StatCard
-          title="Active Missions"
+          title="Active Tasks"
           value={String(activeMissions)}
           icon="🎯"
           change={stats.predictionsChange}
-          changeLabel="predictions in progress"
+          changeLabel="tasks in progress"
         />
         <StatCard
           title="Active Agents"
@@ -63,8 +63,8 @@ export default function DashboardPage() {
           {/* Recent Missions */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg">🎯 Recent Missions</CardTitle>
-              <Link href="/missions" className="text-sm text-green-600 hover:underline">View all →</Link>
+              <CardTitle className="text-lg">📋 Recent Tasks</CardTitle>
+              <Link href="/missions" className="text-sm text-blue-600 hover:underline">View all →</Link>
             </CardHeader>
             <CardContent className="space-y-3">
               {recentMissions.map((m) => {
@@ -75,7 +75,7 @@ export default function DashboardPage() {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{m.title}</p>
                       <p className="text-xs text-gray-500">
-                        🐝 {swarm?.name} · 🤖 {agent?.name || "Unassigned"}
+                        📁 {swarm?.name} · 🤖 {agent?.name || "Unassigned"}
                       </p>
                     </div>
                     <Badge className={`text-[10px] ${statusColors[m.status]}`}>
@@ -90,7 +90,7 @@ export default function DashboardPage() {
           {/* Predictions Feed */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">📈 Predictions Feed</CardTitle>
+              <CardTitle className="text-lg">📈 Activity Feed</CardTitle>
             </CardHeader>
             <CardContent>
               <PredictionsFeed />

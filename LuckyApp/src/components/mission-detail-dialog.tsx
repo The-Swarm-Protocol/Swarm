@@ -62,7 +62,7 @@ export function MissionDetailDialog({ mission, open, onOpenChange }: MissionDeta
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
             <span className="text-xs text-gray-400">Swarm</span>
-            <p className="font-medium">🐝 {swarm?.name || "Unknown"}</p>
+            <p className="font-medium">📁 {swarm?.name || "Unknown"}</p>
           </div>
           <div>
             <span className="text-xs text-gray-400">Agent</span>
@@ -96,7 +96,7 @@ export function MissionDetailDialog({ mission, open, onOpenChange }: MissionDeta
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-green-500 rounded-full"
+                      className="h-full bg-blue-600 rounded-full"
                       style={{ width: `${mission.prediction.confidence}%` }}
                     />
                   </div>
@@ -117,7 +117,7 @@ export function MissionDetailDialog({ mission, open, onOpenChange }: MissionDeta
             <h4 className="text-sm font-semibold mb-1">
               {mission.outcome.result === "win" ? "🏆 Won" : "❌ Lost"}
             </h4>
-            <p className={`text-lg font-bold ${mission.outcome.pnl >= 0 ? "text-green-700" : "text-red-700"}`}>
+            <p className={`text-lg font-bold ${mission.outcome.pnl >= 0 ? "text-blue-700" : "text-red-700"}`}>
               {mission.outcome.pnl >= 0 ? "+" : ""}{mission.outcome.pnl.toLocaleString()} USDC
             </p>
             <p className="text-xs text-gray-500 mt-1">Resolved {formatDate(mission.outcome.resolvedAt)}</p>
