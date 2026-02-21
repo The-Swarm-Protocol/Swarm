@@ -52,7 +52,13 @@ const SWARM_TASK_BOARD_ADDRESS = process.env.SWARM_TASK_BOARD_ADDRESS || '0xC02E
 
 const taskBoardABI = [
   'function postTask(address vaultAddress, string title, string description, string requiredSkills, uint256 deadline) payable returns (uint256)',
+  'function claimTask(uint256 taskId) external',
+  'function submitDelivery(uint256 taskId, bytes32 deliveryHash) external',
+  'function approveDelivery(uint256 taskId) external',
+  'function disputeDelivery(uint256 taskId) external',
   'function getOpenTasks() view returns (tuple(uint256 taskId, address vault, string title, string description, string requiredSkills, uint256 deadline, uint256 budget, address poster, address claimedBy, bytes32 deliveryHash, uint256 createdAt, uint8 status)[])',
+  'function getAllTasks() view returns (tuple(uint256 taskId, address vault, string title, string description, string requiredSkills, uint256 deadline, uint256 budget, address poster, address claimedBy, bytes32 deliveryHash, uint256 createdAt, uint8 status)[])',
+  'function getTask(uint256 taskId) view returns (tuple(uint256 taskId, address vault, string title, string description, string requiredSkills, uint256 deadline, uint256 budget, address poster, address claimedBy, bytes32 deliveryHash, uint256 createdAt, uint8 status))',
   'function taskCount() view returns (uint256)',
 ];
 
@@ -109,6 +115,8 @@ bot.onText(/\/start/, (msg) => {
     '/delegate <description> — Delegate a task to a worker agent',
     '/postjob <budget> <title> | <description> | <skills> — Post a job to the TaskBoard',
     '/jobs — List open jobs on the TaskBoard',
+    '/approve <taskId> — Approve a delivery and pay the worker',
+    '/dispute <taskId> — Dispute a delivery',
     '',
     'You can also type naturally — e.g. "read guidelines" or "launch Summer Sale".',
   ].join('\n'));
@@ -404,6 +412,61 @@ async function handleJobs(chatId) {
 
 bot.onText(/\/jobs/, (msg) => handleJobs(msg.chat.id));
 
+// ── /approve <taskId> ──────────────────────────────────────────────────────
+
+async function handleApprove(chatId, taskIdStr) {
+  try {
+    if (!taskIdStr) { bot.sendMessage(chatId, 'Usage: /approve <taskId>'); return; }
+    bot.sendChatAction(chatId, 'typing');
+
+    const taskId = parseInt(taskIdStr, 10);
+    if (isNaN(taskId)) { bot.sendMessage(chatId, 'Invalid task ID. Usage: /approve <taskId>'); return; }
+
+    const tx = await taskBoard.approveDelivery(taskId, { gasLimit: 3_000_000 });
+    const receipt = await tx.wait();
+
+    bot.sendMessage(chatId, [
+      `✅ Delivery approved for task #${taskId}`,
+      '',
+      `Budget transferred to worker.`,
+      `Tx: <code>${receipt.hash}</code>`,
+      `<a href="${hashscanTx(receipt.hash)}">View on HashScan</a>`,
+    ].join('\n'), { parse_mode: 'HTML', disable_web_page_preview: true });
+  } catch (err) {
+    bot.sendMessage(chatId, `❌ Error approving: ${err.message}`);
+  }
+}
+
+bot.onText(/\/approve\s+(\d+)/, (msg, match) => handleApprove(msg.chat.id, match[1]));
+bot.onText(/^\/approve$/, (msg) => bot.sendMessage(msg.chat.id, 'Usage: /approve <taskId>'));
+
+// ── /dispute <taskId> ──────────────────────────────────────────────────────
+
+async function handleDispute(chatId, taskIdStr) {
+  try {
+    if (!taskIdStr) { bot.sendMessage(chatId, 'Usage: /dispute <taskId>'); return; }
+    bot.sendChatAction(chatId, 'typing');
+
+    const taskId = parseInt(taskIdStr, 10);
+    if (isNaN(taskId)) { bot.sendMessage(chatId, 'Invalid task ID.'); return; }
+
+    const tx = await taskBoard.disputeDelivery(taskId, { gasLimit: 3_000_000 });
+    const receipt = await tx.wait();
+
+    bot.sendMessage(chatId, [
+      `⚠️ Delivery disputed for task #${taskId}`,
+      '',
+      `Tx: <code>${receipt.hash}</code>`,
+      `<a href="${hashscanTx(receipt.hash)}">View on HashScan</a>`,
+    ].join('\n'), { parse_mode: 'HTML', disable_web_page_preview: true });
+  } catch (err) {
+    bot.sendMessage(chatId, `❌ Error disputing: ${err.message}`);
+  }
+}
+
+bot.onText(/\/dispute\s+(\d+)/, (msg, match) => handleDispute(msg.chat.id, match[1]));
+bot.onText(/^\/dispute$/, (msg) => bot.sendMessage(msg.chat.id, 'Usage: /dispute <taskId>'));
+
 // ── Natural Language Fallback ───────────────────────────────────────────────
 
 bot.on('message', (msg) => {
@@ -430,6 +493,8 @@ bot.on('message', (msg) => {
     handleJobs(chatId);
   } else if (/\b(post ?job|new ?job|create ?job|hire)\b/.test(text)) {
     bot.sendMessage(chatId, 'To post a job:\n/postjob <budget_hbar> <title> | <description> | <skills>\n\nExample: /postjob 10 Write Twitter thread | Create a 5-tweet thread about FOID | social,twitter');
+  } else if (/\b(approve)\b/.test(text)) {
+    bot.sendMessage(chatId, 'To approve a delivery: /approve <taskId>');
   } else {
     bot.sendMessage(chatId, [
       "I didn't catch that. Try one of these:",
@@ -441,6 +506,7 @@ bot.on('message', (msg) => {
       '/delegate <desc> — Delegate a task',
       '/postjob <budget> <title> | <desc> | <skills> — Post a job',
       '/jobs — List open jobs',
+      '/approve <taskId> — Approve delivery',
       '',
       'Or type naturally: "read guidelines", "launch Summer Sale", "status", "jobs"',
     ].join('\n'));

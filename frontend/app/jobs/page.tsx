@@ -24,7 +24,7 @@ import {
   SWARM_TASK_BOARD_ADDRESS,
   EXPLORER_BASE,
 } from "@/lib/constants";
-import { shortAddr } from "@/lib/utils";
+import { shortAddr, toHbar } from "@/lib/utils";
 
 interface Task {
   taskId: number;
@@ -76,7 +76,7 @@ function TaskCard({ task }: { task: Task }) {
           </div>
           <div className="flex items-center gap-1 text-sm font-medium text-primary flex-shrink-0">
             <Coins className="h-3.5 w-3.5" />
-            {ethers.formatEther(task.budget)} HBAR
+            {toHbar(task.budget)} HBAR
           </div>
         </div>
 

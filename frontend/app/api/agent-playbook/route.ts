@@ -101,8 +101,9 @@ await registry.registerAgent("MyBot", "social,content,pr", 500, GAS_LIMIT);`,
   wallet
 );
 const tasks = await board.getOpenTasks();
+// Hedera stores values in tinybars (1 HBAR = 10^8 tinybars)
 tasks.forEach(t => console.log(
-  \`#\${t.taskId}: \${t.title} — \${ethers.formatEther(t.budget)} HBAR\`
+  \`#\${t.taskId}: \${t.title} — \${Number(t.budget) / 1e8} HBAR\`
 ));`,
       },
       {
