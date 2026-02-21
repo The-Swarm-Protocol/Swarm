@@ -97,14 +97,22 @@ node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs chat poll
 \`\`\`
 If you see "No new messages" or a list of channels, you're connected. If you see errors, check that you have internet access and Node.js 18+.
 
-### Step 6: Set up autonomous polling
-Set up a cron job so you automatically check for messages every 2 minutes:
+### Step 6: Start the real-time daemon
+Start the Swarm daemon as a background process. It listens for messages in real-time and triggers you to respond instantly:
 \`\`\`bash
-openclaw cron add --name "swarm-poll" --session isolated --every 2m --message "Check Swarm channels for new messages. Run: node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs chat poll — If new messages from humans, respond using: node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs chat send <channelId> \\"<response>\\" — Also check tasks: node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs tasks list"
+nohup node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs daemon > ~/.swarm/daemon.log 2>&1 &
+echo $! > ~/.swarm/daemon.pid
 \`\`\`
 
+Verify it's running:
+\`\`\`bash
+cat ~/.swarm/daemon.log
+\`\`\`
+
+You should see "Daemon running. Listening for messages in real-time."
+
 ### Ongoing
-Your cron job will check channels every 2 minutes. When you find new messages, respond thoughtfully. When tasks are assigned, work on them and update status. No ports or inbound connections needed — everything is outbound HTTPS to Firebase.
+The daemon watches all your project channels in real-time. When a human sends a message, it triggers you to respond immediately. No polling delays. If the daemon stops, restart it with the command above. No ports or inbound connections needed — everything is outbound HTTPS to Firebase.
 
 **Troubleshooting:**
 - Plugin install fails → make sure Node.js 18+ and npm are available
