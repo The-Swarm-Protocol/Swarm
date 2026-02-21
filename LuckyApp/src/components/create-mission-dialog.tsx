@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useTeam } from "@/contexts/TeamContext";
+import { getSwarmsByTeam, type FirestoreSwarm } from "@/lib/firestore";
 import { mockSwarms, type MarketType } from "@/lib/mock-data";
 
 interface CreateMissionDialogProps {
@@ -21,11 +23,32 @@ const marketTypes: { value: MarketType; label: string; icon: string }[] = [
 ];
 
 export function CreateMissionDialog({ open, onOpenChange, onSubmit }: CreateMissionDialogProps) {
+  const { currentTeam } = useTeam();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [marketType, setMarketType] = useState<MarketType>("crypto");
-  const [swarmId, setSwarmId] = useState(mockSwarms[0]?.id || "");
+  const [swarmId, setSwarmId] = useState("");
   const [targetDate, setTargetDate] = useState("");
+  const [swarms, setSwarms] = useState<FirestoreSwarm[]>([]);
+
+  useEffect(() => {
+    if (!currentTeam) return;
+    getSwarmsByTeam(currentTeam.id).then((s) => {
+      setSwarms(s);
+      if (s.length > 0 && !swarmId) setSwarmId(s[0].id!);
+    });
+  }, [currentTeam]);
+
+  const displaySwarms = swarms.length > 0
+    ? swarms.map((s) => ({ id: s.id!, name: s.name }))
+    : mockSwarms.map((s) => ({ id: s.id, name: s.name }));
+
+  // Set default swarmId from mock if needed
+  useEffect(() => {
+    if (!swarmId && displaySwarms.length > 0) {
+      setSwarmId(displaySwarms[0].id);
+    }
+  }, [displaySwarms, swarmId]);
 
   const handleSubmit = () => {
     if (!title.trim()) return;
@@ -85,7 +108,7 @@ export function CreateMissionDialog({ open, onOpenChange, onSubmit }: CreateMiss
               value={swarmId}
               onChange={(e) => setSwarmId(e.target.value)}
             >
-              {mockSwarms.map((s) => (
+              {displaySwarms.map((s) => (
                 <option key={s.id} value={s.id}>🐝 {s.name}</option>
               ))}
             </select>

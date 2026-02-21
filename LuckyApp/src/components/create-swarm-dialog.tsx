@@ -1,22 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useTeam } from "@/contexts/TeamContext";
+import { createSwarm, getAgentsByTeam, type FirestoreAgent } from "@/lib/firestore";
 import { mockAgents } from "@/lib/mock-data";
 
 interface CreateSwarmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCreated?: () => void;
 }
 
-export function CreateSwarmDialog({ open, onOpenChange }: CreateSwarmDialogProps) {
+export function CreateSwarmDialog({ open, onOpenChange, onCreated }: CreateSwarmDialogProps) {
+  const { currentTeam } = useTeam();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
+  const [agents, setAgents] = useState<FirestoreAgent[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!currentTeam) return;
+    getAgentsByTeam(currentTeam.id).then((a) => {
+      setAgents(a);
+    });
+  }, [currentTeam]);
+
+  // Use Firestore agents if available, otherwise mock
+  const displayAgents = agents.length > 0
+    ? agents.map((a) => ({ id: a.id!, name: a.name, type: a.type, status: a.status }))
+    : mockAgents.map((a) => ({ id: a.id, name: a.name, type: a.type, status: a.status }));
 
   const toggleAgent = (agentId: string) => {
     setSelectedAgents((prev) =>
@@ -24,12 +42,28 @@ export function CreateSwarmDialog({ open, onOpenChange }: CreateSwarmDialogProps
     );
   };
 
-  const handleCreate = () => {
-    // Mock create — just close dialog
-    setName("");
-    setDescription("");
-    setSelectedAgents([]);
-    onOpenChange(false);
+  const handleCreate = async () => {
+    if (!currentTeam || !name.trim()) return;
+    setSaving(true);
+    try {
+      await createSwarm({
+        name: name.trim(),
+        description,
+        status: "active",
+        agentIds: selectedAgents,
+        teamId: currentTeam.id,
+        createdAt: Date.now(),
+      });
+      setName("");
+      setDescription("");
+      setSelectedAgents([]);
+      onOpenChange(false);
+      onCreated?.();
+    } catch (err) {
+      console.error("Failed to create swarm:", err);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -60,7 +94,7 @@ export function CreateSwarmDialog({ open, onOpenChange }: CreateSwarmDialogProps
         <div className="space-y-2">
           <Label>Select Agents</Label>
           <div className="grid grid-cols-2 gap-2">
-            {mockAgents.map((agent) => (
+            {displayAgents.map((agent) => (
               <button
                 key={agent.id}
                 type="button"
@@ -87,10 +121,10 @@ export function CreateSwarmDialog({ open, onOpenChange }: CreateSwarmDialogProps
         </Button>
         <Button
           onClick={handleCreate}
-          disabled={!name.trim()}
+          disabled={!name.trim() || saving}
           className="bg-green-500 hover:bg-green-600 text-white"
         >
-          Create Swarm
+          {saving ? "Creating..." : "Create Swarm"}
         </Button>
       </DialogFooter>
     </Dialog>
