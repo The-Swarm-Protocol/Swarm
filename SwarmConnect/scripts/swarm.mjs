@@ -617,8 +617,31 @@ async function cmdDaemon() {
       }
 
       // --- CREATE tasks ---
-      const isCreateRequest = lower.includes("create task") || lower.includes("create the") || lower.includes("make task") ||
-        (lower.includes("task") && (lower.includes("create") || lower.includes("add") || lower.includes("make")));
+      // --- CREATE JOBS (detect "create job", "post job", "new job") ---
+      const isJobRequest = lower.includes("create job") || lower.includes("post job") || lower.includes("new job") ||
+        (lower.includes("job") && (lower.includes("create") || lower.includes("post") || lower.includes("add")));
+
+      if (isJobRequest && projId) {
+        const topic = text.replace(/@\w+/g, "").replace(/(?:create|post|new|add)\s*(?:a\s*)?jobs?\s*(?:to|for|about)?/gi, "").trim();
+        if (topic) {
+          const jobRef = await addDoc(collection(db, "jobs"), {
+            title: topic,
+            description: `Auto-created from chat: "${text}"`,
+            projectId: projId,
+            orgId: creds.orgId,
+            status: "open",
+            priority: "medium",
+            createdBy: creds.agentId,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          results.created.push({ id: jobRef.id, title: `[Job] ${topic}` });
+          console.log(`   💼 Created job: ${topic}`);
+        }
+      }
+
+      const isCreateRequest = !isJobRequest && (lower.includes("create task") || lower.includes("create the") || lower.includes("make task") ||
+        (lower.includes("task") && (lower.includes("create") || lower.includes("add") || lower.includes("make"))));
 
       if (isCreateRequest && projId && !results.assigned.length && !results.completed.length) {
         const topic = text.replace(/@\w+/g, "").replace(/create\s*(the\s*)?(necessary\s*)?tasks?\s*(to|for|about)?/gi, "").trim();
@@ -989,6 +1012,84 @@ Rules:
 // Router
 // ---------------------------------------------------------------------------
 
+// ─── Job Commands ───────────────────────────────────────
+
+async function cmdJobList() {
+  const creds = loadCreds();
+  const db = getDb();
+  const q = query(collection(db, "jobs"), where("orgId", "==", creds.orgId), where("status", "==", "open"));
+  const snap = await getDocs(q);
+  console.log(`💼 Open Jobs (${snap.size}):\n`);
+  snap.forEach((d) => {
+    const j = d.data();
+    console.log(`  [${j.status}] ${d.id} — ${j.title || "(untitled)"}${j.reward ? ` | 💰 ${j.reward}` : ""}${j.skillsRequired?.length ? ` | Skills: ${j.skillsRequired.join(", ")}` : ""}`);
+  });
+}
+
+async function cmdJobClaim() {
+  const creds = loadCreds();
+  const db = getDb();
+  const jobId = process.argv[4];
+  if (!jobId) { console.error("Usage: swarm.mjs job claim <jobId>"); process.exit(1); }
+
+  const jobSnap = await getDoc(doc(db, "jobs", jobId));
+  if (!jobSnap.exists()) { console.error("Job not found"); process.exit(1); }
+  const jobData = jobSnap.data();
+
+  // Claim the job
+  await updateDoc(doc(db, "jobs", jobId), {
+    status: "claimed",
+    claimedBy: creds.agentId,
+    updatedAt: serverTimestamp(),
+  });
+
+  // Create task from job
+  const taskRef = await addDoc(collection(db, "tasks"), {
+    title: jobData.title,
+    description: `From job: ${jobData.description || ""}`,
+    projectId: jobData.projectId,
+    orgId: creds.orgId,
+    organizationId: creds.orgId,
+    status: "todo",
+    priority: jobData.priority || "medium",
+    assigneeAgentId: creds.agentId,
+    assignedTo: creds.agentId,
+    createdBy: creds.agentId,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  console.log(`✅ Claimed job ${jobId} — "${jobData.title}"`);
+  console.log(`📋 Task created: ${taskRef.id}`);
+}
+
+async function cmdJobCreate() {
+  const creds = loadCreds();
+  const db = getDb();
+  const title = process.argv[4];
+  const projectId = arg("--project") || "";
+  const reward = arg("--reward") || "";
+  const priority = arg("--priority") || "medium";
+  const description = arg("--description") || "";
+
+  if (!title) { console.error("Usage: swarm.mjs job create \"<title>\" --project <id> --reward <amt> --priority <low|medium|high>"); process.exit(1); }
+
+  const ref = await addDoc(collection(db, "jobs"), {
+    orgId: creds.orgId,
+    projectId,
+    title,
+    description,
+    status: "open",
+    reward: reward || undefined,
+    priority,
+    createdBy: creds.agentId,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  console.log(`✅ Job posted: ${ref.id} — "${title}"`);
+}
+
 const cmd = process.argv[2];
 const sub = process.argv[3];
 
@@ -1008,6 +1109,9 @@ try {
   else if (cmd === "chat" && sub === "send") await cmdChatSend();
   else if (cmd === "chat" && sub === "poll") await cmdChatPoll();
   else if (cmd === "chat" && sub === "listen") await cmdChatListen();
+  else if (cmd === "job" && sub === "list") await cmdJobList();
+  else if (cmd === "job" && sub === "claim") await cmdJobClaim();
+  else if (cmd === "job" && sub === "create") await cmdJobCreate();
   else {
     console.log(`Swarm Connect CLI
 
@@ -1026,6 +1130,9 @@ Commands:
   chat send <channelId> <message>
   chat poll
   chat listen <channelId>
+  job list                — list open jobs for your org
+  job claim <jobId>       — claim a job (creates task)
+  job create "<title>"    — post a new job (--project --reward --priority --description)
   daemon                  — real-time listener (instant responses)`);
   }
 } catch (err) {
