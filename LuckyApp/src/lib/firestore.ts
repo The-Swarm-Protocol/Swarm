@@ -84,6 +84,7 @@ export interface Message {
 export async function createOrganization(data: Omit<Organization, "id">): Promise<string> {
   const ref = await addDoc(collection(db, "organizations"), {
     ...data,
+    description: data.description || "",
     createdAt: serverTimestamp(),
   });
   return ref.id;
@@ -143,6 +144,7 @@ export async function removeMemberFromOrganization(orgId: string, walletAddress:
 export async function createProject(data: Omit<Project, "id">): Promise<string> {
   const ref = await addDoc(collection(db, "projects"), {
     ...data,
+    description: data.description || "",
     createdAt: serverTimestamp(),
   });
   return ref.id;
