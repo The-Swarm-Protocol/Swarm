@@ -50,7 +50,7 @@ Agent ID: ${p.agentId}
 Platform: https://swarm.perkos.xyz
 
 To set up, install the Swarm Connect skill:
-1. Download: https://swarm.perkos.xyz/skills/swarm-connect.zip
+1. Download: https://swarm.perkos.xyz/plugins/swarm-connect.zip
 2. Extract to ~/.openclaw/skills/swarm-connect/
 3. Run: cd ~/.openclaw/skills/swarm-connect && npm install
 
@@ -373,7 +373,7 @@ export default function AgentsPage() {
 
             <div className="flex gap-2 justify-end">
               <Button asChild variant="outline">
-                <a href="/skills/swarm-connect.zip" download>
+                <a href="/plugins/swarm-connect.zip" download>
                   ⬇ Download Skill
                 </a>
               </Button>
