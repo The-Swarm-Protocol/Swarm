@@ -4,11 +4,11 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useTeam } from '@/contexts/TeamContext';
-import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
+import { useAccount } from 'wagmi';
 
 export default function SettingsPage() {
   const { currentTeam } = useTeam();
-  const { primaryWallet } = useDynamicContext();
+  const { address } = useAccount();
   const [name, setName] = useState(currentTeam?.name || '');
   const [description, setDescription] = useState(currentTeam?.description || '');
   const [saving, setSaving] = useState(false);
@@ -21,7 +21,6 @@ export default function SettingsPage() {
     setMessage(null);
 
     try {
-      // TODO: persist to backend when available
       setMessage({ type: 'success', text: 'Team settings updated!' });
     } catch (err) {
       setMessage({
@@ -113,7 +112,6 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Operators */}
         <Card>
           <CardHeader>
             <CardTitle>Operators</CardTitle>
@@ -124,8 +122,8 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between p-3 rounded-md bg-gray-50 border border-gray-200">
                 <div>
                   <p className="text-sm font-medium">
-                    {primaryWallet?.address
-                      ? `${primaryWallet.address.slice(0, 6)}...${primaryWallet.address.slice(-4)}`
+                    {address
+                      ? `${address.slice(0, 6)}...${address.slice(-4)}`
                       : 'You'}
                   </p>
                   <p className="text-xs text-gray-500">Owner</p>

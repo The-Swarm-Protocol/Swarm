@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
-import { useDynamicContext, getAuthToken } from '@dynamic-labs/sdk-react-core';
+import { useAccount } from 'wagmi';
 
 export interface Team {
   id: string;
@@ -53,7 +53,7 @@ function saveTeamsToStorage(teams: Team[]) {
 }
 
 export function TeamProvider({ children }: { children: ReactNode }) {
-  const { primaryWallet } = useDynamicContext();
+  const { address } = useAccount();
   const [teams, setTeams] = useState<Team[]>([]);
   const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
 
@@ -70,7 +70,8 @@ export function TeamProvider({ children }: { children: ReactNode }) {
   const [error] = useState<string | null>(null);
 
   const getToken = useCallback(async (): Promise<string | null> => {
-    return getAuthToken() || null;
+    // TODO: implement token retrieval if needed
+    return null;
   }, []);
 
   const refreshTeams = useCallback(async () => {
