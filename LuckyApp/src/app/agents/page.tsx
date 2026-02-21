@@ -489,12 +489,12 @@ export default function AgentsPage() {
                     <div>
                       <div className="text-xs text-muted-foreground">Projects</div>
                       <div className="text-lg font-bold text-amber-600">
-                        {agent.projectIds.length}
+                        {(agent.projectIds ?? []).length}
                       </div>
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Capabilities</div>
-                      <div className="text-lg font-bold text-foreground">{agent.capabilities.length}</div>
+                      <div className="text-lg font-bold text-foreground">{(agent.capabilities ?? []).length}</div>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2 mt-3">
@@ -791,7 +791,7 @@ export default function AgentsPage() {
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {swarm.agents.map((agent) => {
-              const skills = agent.skills.split(",").map((s) => s.trim()).filter(Boolean);
+              const skills = (agent.skills || "").split(",").map((s) => s.trim()).filter(Boolean);
               return (
                 <Card key={agent.agentAddress}>
                   <CardContent className="p-3 space-y-2">
