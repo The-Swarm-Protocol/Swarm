@@ -61,7 +61,7 @@ export default function ProfilePage() {
       <div className="max-w-lg mx-auto">
         <SpotlightCard className="p-0 border-[#1a1a2e] bg-[#0f0f1a]" spotlightColor="rgba(212, 168, 83, 0.1)">
           <CardHeader>
-            <BlurText text="👤 Profile" className="text-[#d4a853] text-xl font-bold" delay={80} animateBy="letters" />
+            <BlurText text="Profile" className="text-[#d4a853] text-xl font-bold" delay={80} animateBy="words" />
             <p className="text-sm text-muted-foreground font-mono">{truncated}</p>
           </CardHeader>
           <CardContent className="space-y-5">

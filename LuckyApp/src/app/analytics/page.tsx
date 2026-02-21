@@ -237,7 +237,7 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <BlurText text="Analytics" className="text-3xl font-bold tracking-tight" delay={80} animateBy="letters" />
+        <BlurText text="Analytics" className="text-3xl font-bold tracking-tight" delay={80} animateBy="words" />
         <p className="text-muted-foreground mt-1">Performance metrics and leaderboards</p>
       </div>
 

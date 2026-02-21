@@ -132,7 +132,7 @@ export default function SettingsPage() {
     return (
       <div className="space-y-6">
         <div>
-          <BlurText text="⚙️ Settings" className="text-3xl font-bold tracking-tight" delay={80} animateBy="letters" />
+          <BlurText text="Settings" className="text-3xl font-bold tracking-tight" delay={80} animateBy="words" />
           <p className="text-muted-foreground mt-1">No organization selected</p>
         </div>
       </div>
@@ -142,7 +142,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <BlurText text="⚙️ Settings" className="text-3xl font-bold tracking-tight" delay={80} animateBy="letters" />
+        <BlurText text="Settings" className="text-3xl font-bold tracking-tight" delay={80} animateBy="words" />
         <p className="text-muted-foreground mt-1">Manage your organization settings</p>
       </div>
 

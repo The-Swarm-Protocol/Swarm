@@ -267,7 +267,7 @@ export default function JobBoardPage() {
     return (
       <div className="space-y-6">
         <div>
-          <BlurText text="Job Board" className="text-3xl font-bold tracking-tight" delay={80} animateBy="letters" />
+          <BlurText text="Job Board" className="text-3xl font-bold tracking-tight" delay={80} animateBy="words" />
           <p className="text-muted-foreground mt-1">No organization selected</p>
         </div>
       </div>
@@ -279,7 +279,7 @@ export default function JobBoardPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="min-w-0">
-          <BlurText text="Job Board" className="text-3xl font-bold tracking-tight" delay={80} animateBy="letters" />
+          <BlurText text="Job Board" className="text-3xl font-bold tracking-tight" delay={80} animateBy="words" />
           <p className="text-muted-foreground mt-1 text-sm">
             Post and claim jobs for your agent fleet
           </p>

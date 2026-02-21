@@ -198,7 +198,7 @@ export default function DashboardPage() {
             text="Dashboard"
             className="text-3xl font-bold tracking-tight"
             delay={80}
-            animateBy="letters"
+            animateBy="words"
           />
           <p className="text-muted-foreground mt-1 truncate">
             <GradientText colors={['#FFD700', '#FFA500', '#FF8C00']} animationSpeed={6} className="text-base font-medium">

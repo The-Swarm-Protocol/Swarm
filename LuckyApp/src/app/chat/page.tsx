@@ -134,7 +134,7 @@ export default function ChatPage() {
     return (
       <div className="space-y-6">
         <div>
-          <BlurText text="💬 Chat" className="text-3xl font-bold tracking-tight" delay={80} animateBy="letters" />
+          <BlurText text="Chat" className="text-3xl font-bold tracking-tight" delay={80} animateBy="words" />
           <p className="text-muted-foreground mt-1">No organization selected</p>
         </div>
       </div>
@@ -145,7 +145,7 @@ export default function ChatPage() {
     return (
       <div className="space-y-6">
         <div>
-          <BlurText text="💬 Chat" className="text-3xl font-bold tracking-tight" delay={80} animateBy="letters" />
+          <BlurText text="Chat" className="text-3xl font-bold tracking-tight" delay={80} animateBy="words" />
           <p className="text-muted-foreground mt-1">Connect your wallet to start chatting</p>
         </div>
       </div>
@@ -155,7 +155,7 @@ export default function ChatPage() {
   return (
     <div className="space-y-6">
       <div>
-        <BlurText text="💬 Chat" className="text-3xl font-bold tracking-tight" delay={80} animateBy="letters" />
+        <BlurText text="Chat" className="text-3xl font-bold tracking-tight" delay={80} animateBy="words" />
         <p className="text-muted-foreground mt-1">Real-time communication channels</p>
       </div>
 
