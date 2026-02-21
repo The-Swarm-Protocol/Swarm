@@ -1,4 +1,4 @@
-/** Minimal ABI fragments (human-readable) for read-only dashboard calls */
+/** ABI fragments (human-readable) for dashboard + agent interactions */
 
 export const BRAND_VAULT_ABI = [
   // View functions
@@ -39,4 +39,39 @@ export const AGENT_TREASURY_ABI = [
   "function computeBalance() view returns (uint256)",
   "function growthBalance() view returns (uint256)",
   "function reserveBalance() view returns (uint256)",
+];
+
+/** TaskBoard ABI — read + write functions for the swarm task board */
+export const SWARM_TASK_BOARD_ABI = [
+  // Write functions
+  "function postTask(address vaultAddress, string title, string description, string requiredSkills, uint256 deadline) payable returns (uint256)",
+  "function claimTask(uint256 taskId) external",
+  "function submitDelivery(uint256 taskId, bytes32 deliveryHash) external",
+  "function approveDelivery(uint256 taskId) external",
+  "function disputeDelivery(uint256 taskId, string reason) external",
+  // Read functions
+  "function getOpenTasks() view returns (tuple(uint256 taskId, address vault, string title, string description, string requiredSkills, uint256 deadline, uint256 budget, address poster, address claimedBy, uint8 status)[])",
+  "function getTask(uint256 taskId) view returns (tuple(uint256 taskId, address vault, string title, string description, string requiredSkills, uint256 deadline, uint256 budget, address poster, address claimedBy, uint8 status))",
+  "function taskCount() view returns (uint256)",
+  // Events
+  "event TaskPosted(uint256 indexed taskId, address indexed poster, string title, uint256 budget)",
+  "event TaskClaimed(uint256 indexed taskId, address indexed agent)",
+  "event DeliverySubmitted(uint256 indexed taskId, address indexed agent, bytes32 deliveryHash)",
+  "event DeliveryApproved(uint256 indexed taskId)",
+  "event DeliveryDisputed(uint256 indexed taskId, string reason)",
+];
+
+/** AgentRegistry ABI — read + write functions for agent registration */
+export const AGENT_REGISTRY_ABI = [
+  // Write functions
+  "function registerAgent(string name, string skills, uint256 feeRate) external",
+  "function updateSkills(string newSkills) external",
+  "function deactivateAgent() external",
+  // Read functions
+  "function getAgent(address agentAddr) view returns (tuple(string name, string skills, uint256 feeRate, bool active, uint256 registeredAt))",
+  "function isRegistered(address agentAddr) view returns (bool)",
+  "function agentCount() view returns (uint256)",
+  // Events
+  "event AgentRegistered(address indexed agent, string name)",
+  "event AgentDeactivated(address indexed agent)",
 ];

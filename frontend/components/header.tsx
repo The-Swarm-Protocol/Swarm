@@ -47,6 +47,13 @@ export function Header({ lastRefresh }: HeaderProps) {
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-3">
+          <Link
+            href="/jobs"
+            className="text-xs font-medium text-muted-foreground hover:text-primary transition-colors"
+          >
+            Jobs
+          </Link>
+          <div className="w-px h-5 bg-border" />
           {contracts.map((c) => (
             <a
               key={c.label}
@@ -93,6 +100,13 @@ export function Header({ lastRefresh }: HeaderProps) {
       {mobileMenuOpen && (
         <div className="md:hidden absolute top-16 left-0 right-0 bg-background border-b border-border shadow-lg z-50">
           <nav className="container mx-auto px-4 py-4 space-y-3">
+            <Link
+              href="/jobs"
+              className="block text-foreground hover:text-primary transition-colors py-2 font-medium"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Jobs
+            </Link>
             {contracts.map((c) => (
               <a
                 key={c.label}
