@@ -39,7 +39,7 @@ Built for solo founders, startups, and teams who need to command multiple AI age
 - 📊 **Analytics Agent** — Business intelligence, reporting, trend detection
 - 🔍 **Scout Agent** — Opportunity discovery, lead generation, market scanning
 
-## Terminology (OATP)
+## Terminology
 
 | Term | Description |
 |------|------------|
