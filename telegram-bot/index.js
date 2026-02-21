@@ -113,10 +113,13 @@ bot.onText(/\/start/, (msg) => {
     '/launch <name> — Launch campaign + schedule remarketing (7 days)',
     '/status — View vault, treasury & registry stats',
     '/delegate <description> — Delegate a task to a worker agent',
-    '/postjob <budget> <title> | <description> | <skills> — Post a job to the TaskBoard',
-    '/jobs — List open jobs on the TaskBoard',
-    '/approve <taskId> — Approve a delivery and pay the worker',
-    '/dispute <taskId> — Dispute a delivery',
+    '/postjob <budget> <title> | <description> | <skills> — Post a job',
+    '/jobs — List open jobs',
+    '/alltasks — Summary of all tasks by status',
+    '/delivered — Tasks awaiting your approval (with IDs)',
+    '/task <id> — View details of any task',
+    '/approve <id> — Approve delivery and pay the worker',
+    '/dispute <id> — Dispute a delivery',
     '',
     'You can also type naturally — e.g. "read guidelines" or "launch Summer Sale".',
   ].join('\n'));
@@ -411,6 +414,144 @@ async function handleJobs(chatId) {
 }
 
 bot.onText(/\/jobs/, (msg) => handleJobs(msg.chat.id));
+
+// ── /delivered — tasks awaiting approval ───────────────────────────────────
+
+const STATUS_LABELS = ['Open', 'Claimed', 'Delivered', 'Approved', 'Disputed'];
+
+async function handleDelivered(chatId) {
+  try {
+    bot.sendChatAction(chatId, 'typing');
+    const freshProvider = new ethers.JsonRpcProvider(HEDERA_RPC_URL, { chainId: 296, name: 'hedera-testnet' });
+    const readBoard = new ethers.Contract(SWARM_TASK_BOARD_ADDRESS, taskBoardABI, freshProvider);
+    const allTasks = await readBoard.getAllTasks();
+
+    const delivered = allTasks.filter(t => Number(t.status) === 2);
+    const claimed = allTasks.filter(t => Number(t.status) === 1);
+
+    if (delivered.length === 0 && claimed.length === 0) {
+      bot.sendMessage(chatId, '📋 No tasks awaiting review.\n\nAll open jobs are still unclaimed or already approved.');
+      return;
+    }
+
+    const lines = [];
+    if (delivered.length > 0) {
+      lines.push(`📬 <b>Delivered — Ready to Approve</b> (${delivered.length})`, '');
+      for (const t of delivered) {
+        const budget = (Number(t.budget) / 1e8).toFixed(2);
+        lines.push(`<b>#${t.taskId}</b> — ${esc(t.title)}`);
+        lines.push(`  💰 ${budget} HBAR | 👷 ${esc(String(t.claimedBy).slice(0,10))}...`);
+        lines.push(`  → /approve ${t.taskId}  |  /dispute ${t.taskId}`);
+        lines.push('');
+      }
+    }
+    if (claimed.length > 0) {
+      lines.push(`🔨 <b>Claimed — In Progress</b> (${claimed.length})`, '');
+      for (const t of claimed) {
+        const budget = (Number(t.budget) / 1e8).toFixed(2);
+        lines.push(`<b>#${t.taskId}</b> — ${esc(t.title)}`);
+        lines.push(`  💰 ${budget} HBAR | 👷 ${esc(String(t.claimedBy).slice(0,10))}...`);
+        lines.push('');
+      }
+    }
+
+    bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'HTML', disable_web_page_preview: true });
+  } catch (err) {
+    bot.sendMessage(chatId, `❌ Error: ${err.message}`);
+  }
+}
+
+bot.onText(/\/delivered/, (msg) => handleDelivered(msg.chat.id));
+bot.onText(/\/review/, (msg) => handleDelivered(msg.chat.id));
+
+// ── /task <id> — view a specific task ──────────────────────────────────────
+
+async function handleTaskView(chatId, taskIdStr) {
+  try {
+    if (!taskIdStr) { bot.sendMessage(chatId, 'Usage: /task <taskId>'); return; }
+    bot.sendChatAction(chatId, 'typing');
+    const taskId = parseInt(taskIdStr, 10);
+    if (isNaN(taskId)) { bot.sendMessage(chatId, 'Invalid task ID.'); return; }
+
+    const freshProvider = new ethers.JsonRpcProvider(HEDERA_RPC_URL, { chainId: 296, name: 'hedera-testnet' });
+    const readBoard = new ethers.Contract(SWARM_TASK_BOARD_ADDRESS, taskBoardABI, freshProvider);
+    const t = await readBoard.getTask(taskId);
+
+    const budget = (Number(t.budget) / 1e8).toFixed(2);
+    const status = STATUS_LABELS[Number(t.status)] || 'Unknown';
+    const deadline = new Date(Number(t.deadline) * 1000).toLocaleDateString();
+    const created = new Date(Number(t.createdAt) * 1000).toLocaleDateString();
+
+    const lines = [
+      `📋 <b>Task #${t.taskId}</b>`,
+      '',
+      `<b>Title:</b> ${esc(t.title)}`,
+      `<b>Status:</b> ${status}`,
+      `<b>Budget:</b> ${budget} HBAR`,
+      `<b>Skills:</b> ${esc(t.requiredSkills)}`,
+      `<b>Deadline:</b> ${deadline}`,
+      `<b>Created:</b> ${created}`,
+      `<b>Poster:</b> <code>${t.poster}</code>`,
+    ];
+
+    if (Number(t.status) >= 1) {
+      lines.push(`<b>Claimed by:</b> <code>${t.claimedBy}</code>`);
+    }
+    if (Number(t.status) >= 2 && t.deliveryHash !== '0x' + '0'.repeat(64)) {
+      lines.push(`<b>Delivery hash:</b> <code>${String(t.deliveryHash).slice(0,18)}...</code>`);
+    }
+
+    lines.push('');
+    if (Number(t.status) === 0) lines.push('Status: waiting for a bot to claim this');
+    if (Number(t.status) === 1) lines.push('Status: a bot is working on this');
+    if (Number(t.status) === 2) lines.push(`→ /approve ${taskId}  |  /dispute ${taskId}`);
+    if (Number(t.status) === 3) lines.push('✅ Approved and paid');
+    if (Number(t.status) === 4) lines.push('⚠️ Disputed');
+
+    lines.push('', `<b>Description:</b>\n${esc(t.description).slice(0, 500)}`);
+
+    bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'HTML', disable_web_page_preview: true });
+  } catch (err) {
+    bot.sendMessage(chatId, `❌ Error: ${err.message}`);
+  }
+}
+
+bot.onText(/\/task\s+(\d+)/, (msg, match) => handleTaskView(msg.chat.id, match[1]));
+bot.onText(/^\/task$/, (msg) => bot.sendMessage(msg.chat.id, 'Usage: /task <taskId>'));
+
+// ── /alltasks — summary by status ──────────────────────────────────────────
+
+async function handleAllTasks(chatId) {
+  try {
+    bot.sendChatAction(chatId, 'typing');
+    const freshProvider = new ethers.JsonRpcProvider(HEDERA_RPC_URL, { chainId: 296, name: 'hedera-testnet' });
+    const readBoard = new ethers.Contract(SWARM_TASK_BOARD_ADDRESS, taskBoardABI, freshProvider);
+    const allTasks = await readBoard.getAllTasks();
+
+    const counts = [0, 0, 0, 0, 0];
+    for (const t of allTasks) counts[Number(t.status)]++;
+
+    const lines = [
+      `📊 <b>TaskBoard Summary</b> (${allTasks.length} total)`,
+      '',
+      `  🟢 Open: ${counts[0]}`,
+      `  🔵 Claimed: ${counts[1]}`,
+      `  🟡 Delivered: ${counts[2]}`,
+      `  ✅ Approved: ${counts[3]}`,
+      `  🔴 Disputed: ${counts[4]}`,
+    ];
+
+    if (counts[2] > 0) {
+      lines.push('', `${counts[2]} task(s) awaiting your review → /delivered`);
+    }
+
+    bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'HTML' });
+  } catch (err) {
+    bot.sendMessage(chatId, `❌ Error: ${err.message}`);
+  }
+}
+
+bot.onText(/\/alltasks/, (msg) => handleAllTasks(msg.chat.id));
 
 // ── /approve <taskId> ──────────────────────────────────────────────────────
 
