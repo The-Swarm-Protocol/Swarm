@@ -166,7 +166,7 @@ export default function ChatPage() {
 
       <div className="flex h-[calc(100vh-12rem)] bg-card rounded-lg border border-border overflow-hidden">
         {/* Channel Sidebar */}
-        <div className="w-64 border-r border-border flex flex-col bg-muted">
+        <div className="hidden sm:flex w-64 border-r border-border flex-col bg-muted">
           <div className="p-4 border-b border-border">
             <h2 className="font-semibold text-foreground">Channels</h2>
           </div>
@@ -277,7 +277,7 @@ export default function ChatPage() {
                   <Button
                     onClick={() => handleSend(messageInput)}
                     disabled={sending || !messageInput.trim()}
-                    className="bg-amber-600 hover:bg-amber-600"
+                    className="bg-amber-600 hover:bg-amber-700"
                   >
                     {sending ? 'Sending...' : 'Send'}
                   </Button>

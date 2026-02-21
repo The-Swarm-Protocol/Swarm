@@ -20,9 +20,9 @@ const agentColumns = [
     key: "name",
     label: "Agent",
     render: (a: AgentPerformance) => (
-      <div>
-        <span className="font-medium">{a.name}</span>
-        <span className="text-xs text-muted-foreground ml-2">{a.type}</span>
+      <div className="min-w-0">
+        <span className="font-medium truncate block">{a.name}</span>
+        <span className="text-xs text-muted-foreground">{a.type}</span>
       </div>
     ),
   },
@@ -75,8 +75,8 @@ const swarmColumns = [
     key: "name",
     label: "Project",
     render: (s: SwarmPerformance) => (
-      <div className="flex items-center gap-2">
-        <span className="font-medium">{s.name}</span>
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="font-medium truncate">{s.name}</span>
         <Badge className={cn(
           "text-[10px]",
           s.status === "active" ? "bg-amber-50 text-amber-700" : "bg-muted text-muted-foreground"
@@ -175,7 +175,7 @@ export default function AnalyticsPage() {
             <CardHeader>
               <CardTitle className="text-lg">🤖 Agent Performance</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="overflow-x-auto">
               <PerformanceTable
                 data={mockAgentPerformance}
                 columns={agentColumns}
@@ -192,7 +192,7 @@ export default function AnalyticsPage() {
         <CardHeader>
           <CardTitle className="text-lg">📁 Project Performance</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-x-auto">
           <PerformanceTable
             data={mockSwarmPerformance}
             columns={swarmColumns}
