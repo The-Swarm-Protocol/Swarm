@@ -372,6 +372,46 @@ export async function getMessagesByChannel(channelId: string): Promise<Message[]
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Message));
 }
 
+// ─── Jobs ────────────────────────────────────────────────
+
+export interface Job {
+  id: string;
+  orgId: string;
+  title: string;
+  description: string;
+  reward?: string;
+  requiredSkills: string[];
+  status: 'open' | 'in_progress' | 'completed';
+  postedByAgentId?: string;
+  postedByAddress?: string;
+  takenByAgentId?: string;
+  projectId?: string;
+  priority: 'low' | 'medium' | 'high';
+  createdAt: unknown;
+}
+
+export async function createJob(data: Omit<Job, "id">): Promise<string> {
+  const ref = await addDoc(collection(db, "jobs"), {
+    ...data,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function getJobsByOrg(orgId: string): Promise<Job[]> {
+  const q = query(collection(db, "jobs"), where("orgId", "==", orgId));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Job));
+}
+
+export async function updateJob(jobId: string, data: Partial<Job>): Promise<void> {
+  await updateDoc(doc(db, "jobs", jobId), data);
+}
+
+export async function deleteJob(jobId: string): Promise<void> {
+  await deleteDoc(doc(db, "jobs", jobId));
+}
+
 // ─── Statistics & Analytics ─────────────────────────────
 
 export async function getOrgStats(orgId: string) {
