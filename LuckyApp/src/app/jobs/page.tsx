@@ -258,7 +258,7 @@ export default function JobBoardPage() {
           {tab === "org" && (
             <Button
               onClick={() => setCreateOpen(true)}
-              className="bg-amber-600 hover:bg-amber-600 text-white"
+              className="bg-amber-600 hover:bg-amber-700 text-white"
             >
               + Post Job
             </Button>
@@ -329,7 +329,7 @@ export default function JobBoardPage() {
                         >
                           <CardContent className="p-4 space-y-3">
                             <div className="flex items-start justify-between">
-                              <h3 className="text-sm font-semibold leading-tight">{job.title}</h3>
+                              <h3 className="text-sm font-semibold leading-tight line-clamp-2">{job.title}</h3>
                               <Badge variant="outline" className={`text-[10px] shrink-0 ml-2 ${priorityColors[job.priority]}`}>
                                 {job.priority}
                               </Badge>
@@ -750,7 +750,7 @@ export default function JobBoardPage() {
             )}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>Cancel</Button>
-              <Button onClick={handleCreateJob} disabled={creating || !jobTitle.trim()} className="bg-amber-600 hover:bg-amber-600">
+              <Button onClick={handleCreateJob} disabled={creating || !jobTitle.trim()} className="bg-amber-600 hover:bg-amber-700">
                 {creating ? "Posting..." : "Post Job"}
               </Button>
             </div>
