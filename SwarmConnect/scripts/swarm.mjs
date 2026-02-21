@@ -550,49 +550,112 @@ async function cmdDaemon() {
   // --- Helper: detect and execute task operations directly ---
   async function handleTaskOperations(text, projId, channelId, channelName) {
     const lower = text.toLowerCase();
-    const isTaskRequest = lower.includes("create task") || lower.includes("create the") || lower.includes("make task") ||
-      (lower.includes("task") && (lower.includes("create") || lower.includes("add") || lower.includes("make")));
+    const results = { created: [], assigned: [], completed: [], statusChanged: [] };
 
-    if (!isTaskRequest || !projId) return null;
-
-    // Extract what tasks to create from the message
-    // Simple approach: create tasks based on the message content
     try {
-      // Use a simple heuristic — if they ask to create tasks about something, make 3-5 relevant tasks
-      const topic = text.replace(/@\w+/g, "").replace(/create\s*(the\s*)?(necessary\s*)?tasks?\s*(to|for|about)?/gi, "").trim();
-      if (!topic) return null;
+      // --- ASSIGN tasks ---
+      if (lower.includes("assign") && lower.includes("task")) {
+        // Assign all project tasks to agents
+        const tasksSnap = await getDocs(query(collection(db, "tasks"), where("projectId", "==", projId)));
+        const allTasks = tasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const unassigned = allTasks.filter(t => !t.assigneeAgentId && t.status !== "done");
 
-      const tasks = [];
-      const taskTitles = [
-        `Research and plan: ${topic}`,
-        `Prepare resources for: ${topic}`,
-        `Execute: ${topic}`,
-        `Quality check: ${topic}`,
-        `Document and review: ${topic}`,
-      ];
+        // Get agents in this org
+        const agentsSnap = await getDocs(collection(db, "agents"));
+        const orgAgents = agentsSnap.docs.filter(d => d.data().organizationId === creds.orgId).map(d => ({ id: d.id, ...d.data() }));
 
-      for (const title of taskTitles) {
-        const taskRef = await addDoc(collection(db, "tasks"), {
-          title,
-          description: `Auto-created from chat request: "${text}"`,
-          projectId: projId,
-          orgId: creds.orgId,
-          organizationId: creds.orgId,
-          status: "todo",
-          priority: "medium",
-          assigneeAgentId: creds.agentId,
-          assignedTo: creds.agentId,
-          createdBy: creds.agentId,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-        tasks.push({ id: taskRef.id, title });
+        if (unassigned.length > 0 && orgAgents.length > 0) {
+          for (let i = 0; i < unassigned.length; i++) {
+            const agent = orgAgents[i % orgAgents.length];
+            await updateDoc(doc(db, "tasks", unassigned[i].id), {
+              assigneeAgentId: agent.id,
+              assignedTo: agent.id,
+              updatedAt: serverTimestamp(),
+            });
+            results.assigned.push({ task: unassigned[i].title, agent: agent.name });
+          }
+          console.log(`   👤 Assigned ${results.assigned.length} tasks`);
+        }
       }
 
-      console.log(`   📝 Created ${tasks.length} tasks in Firestore`);
-      return tasks;
+      // --- COMPLETE / DONE tasks ---
+      if ((lower.includes("done") || lower.includes("complete") || lower.includes("finish")) && lower.includes("task")) {
+        const tasksSnap = await getDocs(query(collection(db, "tasks"), where("projectId", "==", projId)));
+        const allTasks = tasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const activeTasks = allTasks.filter(t => t.status !== "done");
+
+        // If "all" mentioned, complete all. Otherwise complete assigned to this agent.
+        const toComplete = lower.includes("all")
+          ? activeTasks
+          : activeTasks.filter(t => t.assigneeAgentId === creds.agentId || t.assignedTo === creds.agentId);
+
+        for (const task of toComplete) {
+          await updateDoc(doc(db, "tasks", task.id), {
+            status: "done",
+            completedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          results.completed.push(task.title);
+        }
+        if (toComplete.length > 0) console.log(`   ✅ Completed ${toComplete.length} tasks`);
+      }
+
+      // --- CHANGE STATUS (in progress, review) ---
+      if (lower.includes("start") || lower.includes("in progress") || lower.includes("begin") || lower.includes("work on")) {
+        const tasksSnap = await getDocs(query(collection(db, "tasks"), where("projectId", "==", projId)));
+        const allTasks = tasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const todoTasks = allTasks.filter(t => t.status === "todo" && (t.assigneeAgentId === creds.agentId || t.assignedTo === creds.agentId));
+
+        for (const task of todoTasks) {
+          await updateDoc(doc(db, "tasks", task.id), {
+            status: "in_progress",
+            updatedAt: serverTimestamp(),
+          });
+          results.statusChanged.push(task.title);
+        }
+        if (todoTasks.length > 0) console.log(`   🔄 Started ${todoTasks.length} tasks`);
+      }
+
+      // --- CREATE tasks ---
+      const isCreateRequest = lower.includes("create task") || lower.includes("create the") || lower.includes("make task") ||
+        (lower.includes("task") && (lower.includes("create") || lower.includes("add") || lower.includes("make")));
+
+      if (isCreateRequest && projId && !results.assigned.length && !results.completed.length) {
+        const topic = text.replace(/@\w+/g, "").replace(/create\s*(the\s*)?(necessary\s*)?tasks?\s*(to|for|about)?/gi, "").trim();
+        if (topic) {
+          const taskTitles = [
+            `Research and plan: ${topic}`,
+            `Prepare resources for: ${topic}`,
+            `Execute: ${topic}`,
+            `Quality check: ${topic}`,
+            `Document and review: ${topic}`,
+          ];
+
+          for (const title of taskTitles) {
+            const taskRef = await addDoc(collection(db, "tasks"), {
+              title,
+              description: `Auto-created from chat: "${text}"`,
+              projectId: projId,
+              orgId: creds.orgId,
+              organizationId: creds.orgId,
+              status: "todo",
+              priority: "medium",
+              assigneeAgentId: creds.agentId,
+              assignedTo: creds.agentId,
+              createdBy: creds.agentId,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            });
+            results.created.push({ id: taskRef.id, title });
+          }
+          console.log(`   📝 Created ${results.created.length} tasks`);
+        }
+      }
+
+      const hasActions = results.created.length || results.assigned.length || results.completed.length || results.statusChanged.length;
+      return hasActions ? results : null;
     } catch (err) {
-      console.log(`   ⚠️ Task creation error: ${err.message}`);
+      console.log(`   ⚠️ Task operation error: ${err.message}`);
       return null;
     }
   }
@@ -615,12 +678,17 @@ async function cmdDaemon() {
     }
 
     // --- Handle task operations directly (instant, no agent needed) ---
-    const createdTasks = await handleTaskOperations(text, projId, channelId, channelName);
+    const taskResults = await handleTaskOperations(text, projId, channelId, channelName);
 
     // --- Build context for conversational response ---
     let taskContext = "";
-    if (createdTasks && createdTasks.length > 0) {
-      taskContext = `\n\nYou just created ${createdTasks.length} tasks: ${createdTasks.map(t => t.title).join(", ")}. Confirm this to the user.`;
+    if (taskResults) {
+      const parts = [];
+      if (taskResults.created?.length) parts.push(`Created ${taskResults.created.length} tasks: ${taskResults.created.map(t => t.title).join(", ")}`);
+      if (taskResults.assigned?.length) parts.push(`Assigned ${taskResults.assigned.length} tasks: ${taskResults.assigned.map(a => `"${a.task}" → ${a.agent}`).join(", ")}`);
+      if (taskResults.completed?.length) parts.push(`Completed ${taskResults.completed.length} tasks: ${taskResults.completed.join(", ")}`);
+      if (taskResults.statusChanged?.length) parts.push(`Started ${taskResults.statusChanged.length} tasks: ${taskResults.statusChanged.join(", ")}`);
+      taskContext = `\n\nActions already executed: ${parts.join(". ")}. Confirm this to the user with specifics.`;
     }
 
     const taskMsg = `[Swarm Channel Message]
