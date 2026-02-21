@@ -3,6 +3,7 @@ require('dotenv').config();
 const crypto = require('crypto');
 const { ethers } = require('ethers');
 const TelegramBot = require('node-telegram-bot-api');
+const Anthropic = require('@anthropic-ai/sdk');
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
@@ -22,6 +23,32 @@ if (!BRAND_AES_KEY) { console.error('BRAND_AES_KEY is required'); process.exit(1
 if (!AGENT_PRIVATE_KEY) { console.error('AGENT_PRIVATE_KEY is required'); process.exit(1); }
 
 const AES_KEY = Buffer.from(BRAND_AES_KEY, 'hex');
+
+// ── AI Setup ────────────────────────────────────────────────────────────────
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+async function generateContent(task, brandGuidelines) {
+  const response = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 4096,
+    messages: [{
+      role: 'user',
+      content: `You are an AI marketing agent working for a brand called "${brandGuidelines?.brand_name || 'FOID Foundation'}".
+
+BRAND GUIDELINES:
+${JSON.stringify(brandGuidelines, null, 2)}
+
+TASK TO COMPLETE:
+Title: ${task.title}
+Description: ${task.description}
+Required Skills: ${task.requiredSkills}
+
+Please complete this task to the highest quality. Produce the full deliverable content. Be creative, specific, and follow the brand guidelines. Do NOT include meta-commentary about the task — just produce the actual deliverable content.`,
+    }],
+  });
+  return response.content[0].text;
+}
 
 // ── Ethers Setup ────────────────────────────────────────────────────────────
 
@@ -107,21 +134,29 @@ bot.onText(/\/start/, (msg) => {
   bot.sendMessage(chatId, [
     'Welcome to BrandMover — your onchain brand agent on Hedera.',
     '',
-    'Commands:',
+    '<b>Brand Commands:</b>',
     '/read — Read & decrypt brand guidelines from the vault',
     '/campaign <name> — Create a campaign onchain',
-    '/launch <name> — Launch campaign + schedule remarketing (7 days)',
+    '/launch <name> — Launch campaign + schedule remarketing',
     '/status — View vault, treasury & registry stats',
-    '/delegate <description> — Delegate a task to a worker agent',
-    '/postjob <budget> <title> | <description> | <skills> — Post a job',
+    '',
+    '<b>Job Board:</b>',
+    '/postjob <budget> <title> | <desc> | <skills> — Post a job',
     '/jobs — List open jobs',
-    '/alltasks — Summary of all tasks by status',
-    '/delivered — Tasks awaiting your approval (with IDs)',
-    '/task <id> — View details of any task',
-    '/approve <id> — Approve delivery and pay the worker',
+    '/alltasks — Summary by status',
+    '/task <id> — View any task',
+    '/delivered — Tasks awaiting approval',
+    '',
+    '<b>Approve/Dispute:</b>',
+    '/approve <id> — Approve delivery, pay the worker',
     '/dispute <id> — Dispute a delivery',
     '',
-    'You can also type naturally — e.g. "read guidelines" or "launch Summer Sale".',
+    '<b>AI Worker (autonomous):</b>',
+    '/claim <id> — Claim a task',
+    '/dowork <id> — Claim + AI-generate + submit delivery',
+    '/autowork [count] — Auto-complete N open jobs (default 3)',
+    '',
+    'Type naturally: "read guidelines", "do task 5", "auto complete 5 jobs"',
   ].join('\n'));
 });
 
@@ -386,26 +421,44 @@ bot.onText(/^\/postjob$/, (msg) => bot.sendMessage(msg.chat.id, 'Usage: /postjob
 
 // ── /jobs ──────────────────────────────────────────────────────────────────
 
+async function fetchAllTasksIndividually() {
+  const freshProvider = new ethers.JsonRpcProvider(HEDERA_RPC_URL, { chainId: 296, name: 'hedera-testnet' });
+  const readBoard = new ethers.Contract(SWARM_TASK_BOARD_ADDRESS, taskBoardABI, freshProvider);
+  const count = Number(await readBoard.taskCount());
+  const tasks = [];
+  const BATCH = 10;
+  for (let start = 0; start < count; start += BATCH) {
+    const end = Math.min(start + BATCH, count);
+    const batch = await Promise.all(
+      Array.from({ length: end - start }, (_, i) => readBoard.getTask(start + i).catch(() => null))
+    );
+    for (const t of batch) { if (t) tasks.push(t); }
+  }
+  return tasks;
+}
+
 async function handleJobs(chatId) {
   try {
     bot.sendChatAction(chatId, 'typing');
-    const freshProvider = new ethers.JsonRpcProvider(HEDERA_RPC_URL, { chainId: 296, name: 'hedera-testnet' });
-    const readBoard = new ethers.Contract(SWARM_TASK_BOARD_ADDRESS, taskBoardABI, freshProvider);
-    const tasks = await readBoard.getOpenTasks();
+    const allTasks = await fetchAllTasksIndividually();
+    const openTasks = allTasks.filter(t => Number(t.status) === 0);
 
-    if (tasks.length === 0) {
+    if (openTasks.length === 0) {
       bot.sendMessage(chatId, '📋 No open jobs on the TaskBoard.\n\nPost one with /postjob');
       return;
     }
 
-    const lines = [`📋 <b>Open Jobs</b> (${tasks.length})`, ''];
-    for (const t of tasks) {
+    // Telegram has 4096 char limit — show first 20
+    const show = openTasks.slice(0, 20);
+    const lines = [`📋 <b>Open Jobs</b> (${openTasks.length})`, ''];
+    for (const t of show) {
       const budget = (Number(t.budget) / 1e8).toFixed(2);
       lines.push(`<b>#${t.taskId}</b> — ${esc(t.title)}`);
       lines.push(`  💰 ${budget} HBAR | 🏷 ${esc(t.requiredSkills)}`);
       lines.push('');
     }
-    lines.push(`<a href="https://frontend-blue-one-76.vercel.app/jobs">View on Dashboard</a>`);
+    if (openTasks.length > 20) lines.push(`... and ${openTasks.length - 20} more`);
+    lines.push(`<a href="https://frontend-blue-one-76.vercel.app/jobs">View all on Dashboard</a>`);
 
     bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'HTML', disable_web_page_preview: true });
   } catch (err) {
@@ -422,9 +475,7 @@ const STATUS_LABELS = ['Open', 'Claimed', 'Delivered', 'Approved', 'Disputed'];
 async function handleDelivered(chatId) {
   try {
     bot.sendChatAction(chatId, 'typing');
-    const freshProvider = new ethers.JsonRpcProvider(HEDERA_RPC_URL, { chainId: 296, name: 'hedera-testnet' });
-    const readBoard = new ethers.Contract(SWARM_TASK_BOARD_ADDRESS, taskBoardABI, freshProvider);
-    const allTasks = await readBoard.getAllTasks();
+    const allTasks = await fetchAllTasksIndividually();
 
     const delivered = allTasks.filter(t => Number(t.status) === 2);
     const claimed = allTasks.filter(t => Number(t.status) === 1);
@@ -524,9 +575,7 @@ bot.onText(/^\/task$/, (msg) => bot.sendMessage(msg.chat.id, 'Usage: /task <task
 async function handleAllTasks(chatId) {
   try {
     bot.sendChatAction(chatId, 'typing');
-    const freshProvider = new ethers.JsonRpcProvider(HEDERA_RPC_URL, { chainId: 296, name: 'hedera-testnet' });
-    const readBoard = new ethers.Contract(SWARM_TASK_BOARD_ADDRESS, taskBoardABI, freshProvider);
-    const allTasks = await readBoard.getAllTasks();
+    const allTasks = await fetchAllTasksIndividually();
 
     const counts = [0, 0, 0, 0, 0];
     for (const t of allTasks) counts[Number(t.status)]++;
@@ -608,6 +657,225 @@ async function handleDispute(chatId, taskIdStr) {
 bot.onText(/\/dispute\s+(\d+)/, (msg, match) => handleDispute(msg.chat.id, match[1]));
 bot.onText(/^\/dispute$/, (msg) => bot.sendMessage(msg.chat.id, 'Usage: /dispute <taskId>'));
 
+// ── /claim <taskId> ──────────────────────────────────────────────────────────
+
+async function handleClaim(chatId, taskIdStr) {
+  try {
+    if (!taskIdStr) { bot.sendMessage(chatId, 'Usage: /claim <taskId>'); return; }
+    bot.sendChatAction(chatId, 'typing');
+
+    const taskId = parseInt(taskIdStr, 10);
+    if (isNaN(taskId)) { bot.sendMessage(chatId, 'Invalid task ID.'); return; }
+
+    const t = await taskBoard.getTask(taskId);
+    if (Number(t.status) !== 0) {
+      bot.sendMessage(chatId, `Task #${taskId} is not open (status: ${STATUS_LABELS[Number(t.status)] || 'Unknown'}).`);
+      return;
+    }
+
+    const tx = await taskBoard.claimTask(taskId, { gasLimit: 3_000_000 });
+    const receipt = await tx.wait();
+
+    bot.sendMessage(chatId, [
+      `🤖 Claimed task #${taskId}`,
+      '',
+      `<b>Title:</b> ${esc(t.title)}`,
+      `<b>Budget:</b> ${toHbar(t.budget)} HBAR`,
+      '',
+      `Tx: <code>${receipt.hash}</code>`,
+      `<a href="${hashscanTx(receipt.hash)}">View on HashScan</a>`,
+      '',
+      `Now use /dowork ${taskId} to generate content and submit delivery.`,
+    ].join('\n'), { parse_mode: 'HTML', disable_web_page_preview: true });
+  } catch (err) {
+    bot.sendMessage(chatId, `❌ Error claiming: ${err.message}`);
+  }
+}
+
+bot.onText(/\/claim\s+(\d+)/, (msg, match) => handleClaim(msg.chat.id, match[1]));
+bot.onText(/^\/claim$/, (msg) => bot.sendMessage(msg.chat.id, 'Usage: /claim <taskId>'));
+
+// ── /dowork <taskId> — AI generates content + submits delivery ──────────────
+
+async function handleDoWork(chatId, taskIdStr) {
+  try {
+    if (!taskIdStr) { bot.sendMessage(chatId, 'Usage: /dowork <taskId>'); return; }
+    bot.sendChatAction(chatId, 'typing');
+
+    const taskId = parseInt(taskIdStr, 10);
+    if (isNaN(taskId)) { bot.sendMessage(chatId, 'Invalid task ID.'); return; }
+
+    const t = await taskBoard.getTask(taskId);
+    const status = Number(t.status);
+
+    // If open, claim it first
+    if (status === 0) {
+      bot.sendMessage(chatId, `📋 Task #${taskId} is open — claiming it first...`);
+      const claimTx = await taskBoard.claimTask(taskId, { gasLimit: 3_000_000 });
+      await claimTx.wait();
+      bot.sendMessage(chatId, `✅ Claimed task #${taskId}. Now generating content...`);
+    } else if (status !== 1) {
+      bot.sendMessage(chatId, `Task #${taskId} is ${STATUS_LABELS[status] || 'Unknown'} — can't work on it.`);
+      return;
+    }
+
+    bot.sendChatAction(chatId, 'typing');
+
+    // Read brand guidelines
+    let brandGuidelines = null;
+    try {
+      const encryptedBytes = await vault.getEncryptedGuidelines();
+      const cleanHex = encryptedBytes.startsWith('0x') ? encryptedBytes.slice(2) : encryptedBytes;
+      brandGuidelines = JSON.parse(decrypt(cleanHex));
+    } catch {
+      // Continue without guidelines
+    }
+
+    // Generate content with AI
+    bot.sendMessage(chatId, `🧠 AI is generating content for: <b>${esc(t.title)}</b>...`, { parse_mode: 'HTML' });
+    bot.sendChatAction(chatId, 'typing');
+
+    const content = await generateContent({
+      title: t.title,
+      description: t.description,
+      requiredSkills: t.requiredSkills,
+    }, brandGuidelines);
+
+    // Submit delivery
+    const deliveryHash = ethers.keccak256(ethers.toUtf8Bytes(content));
+    const tx = await taskBoard.submitDelivery(taskId, deliveryHash, { gasLimit: 3_000_000 });
+    const receipt = await tx.wait();
+
+    // Send result in chunks (Telegram has 4096 char limit)
+    const preview = content.length > 1500 ? content.slice(0, 1500) + '\n\n[... truncated ...]' : content;
+
+    bot.sendMessage(chatId, [
+      `✅ <b>Task #${taskId} — Delivery Submitted!</b>`,
+      '',
+      `<b>Title:</b> ${esc(t.title)}`,
+      `<b>Budget:</b> ${toHbar(t.budget)} HBAR`,
+      `<b>Hash:</b> <code>${deliveryHash.slice(0, 20)}...</code>`,
+      '',
+      `Tx: <code>${receipt.hash}</code>`,
+      `<a href="${hashscanTx(receipt.hash)}">View on HashScan</a>`,
+    ].join('\n'), { parse_mode: 'HTML', disable_web_page_preview: true });
+
+    // Send the actual content as a follow-up
+    bot.sendMessage(chatId, `📝 <b>Generated Content:</b>\n\n${esc(preview)}`, { parse_mode: 'HTML' });
+  } catch (err) {
+    bot.sendMessage(chatId, `❌ Error: ${err.message}`);
+  }
+}
+
+bot.onText(/\/dowork\s+(\d+)/, (msg, match) => handleDoWork(msg.chat.id, match[1]));
+bot.onText(/^\/dowork$/, (msg) => bot.sendMessage(msg.chat.id, 'Usage: /dowork <taskId>\n\nThis claims the task (if open), generates content using AI + brand guidelines, and submits the delivery onchain.'));
+
+// ── /autowork [count] — autonomous loop ──────────────────────────────────────
+
+let autoworkRunning = false;
+
+async function handleAutoWork(chatId, countStr) {
+  if (autoworkRunning) {
+    bot.sendMessage(chatId, '⚠️ Autowork is already running. Wait for it to finish.');
+    return;
+  }
+
+  const maxJobs = parseInt(countStr || '3', 10);
+  if (isNaN(maxJobs) || maxJobs < 1) {
+    bot.sendMessage(chatId, 'Usage: /autowork [count]\n\nDefault: 3 jobs. The bot will find open tasks, claim them, generate content with AI, and submit deliveries autonomously.');
+    return;
+  }
+
+  autoworkRunning = true;
+  bot.sendMessage(chatId, `🤖 <b>Autonomous mode activated</b> — completing up to ${maxJobs} jobs...`, { parse_mode: 'HTML' });
+
+  try {
+    // Read brand guidelines once
+    let brandGuidelines = null;
+    try {
+      const encryptedBytes = await vault.getEncryptedGuidelines();
+      const cleanHex = encryptedBytes.startsWith('0x') ? encryptedBytes.slice(2) : encryptedBytes;
+      brandGuidelines = JSON.parse(decrypt(cleanHex));
+    } catch {
+      bot.sendMessage(chatId, '⚠️ Could not read brand guidelines — continuing without them.');
+    }
+
+    // Fetch open tasks one by one (avoid large response)
+    const count = Number(await taskBoard.taskCount());
+    const openTasks = [];
+    for (let i = 0; i < count && openTasks.length < maxJobs; i++) {
+      try {
+        const t = await taskBoard.getTask(i);
+        if (Number(t.status) === 0 && t.poster.toLowerCase() !== wallet.address.toLowerCase()) {
+          openTasks.push(t);
+        }
+      } catch { /* skip */ }
+    }
+
+    if (openTasks.length === 0) {
+      bot.sendMessage(chatId, '📋 No open tasks available to claim.');
+      autoworkRunning = false;
+      return;
+    }
+
+    bot.sendMessage(chatId, `Found ${openTasks.length} open task(s). Starting work...`);
+
+    let completed = 0;
+    for (const t of openTasks) {
+      const taskId = Number(t.taskId);
+      try {
+        // Claim
+        bot.sendMessage(chatId, `\n🔨 <b>Task #${taskId}:</b> ${esc(t.title)} (${toHbar(t.budget)} HBAR)\nClaiming...`, { parse_mode: 'HTML' });
+        const claimTx = await taskBoard.claimTask(taskId, { gasLimit: 3_000_000 });
+        await claimTx.wait();
+
+        // Generate
+        bot.sendChatAction(chatId, 'typing');
+        bot.sendMessage(chatId, `🧠 Generating content...`);
+        const content = await generateContent({
+          title: t.title,
+          description: t.description,
+          requiredSkills: t.requiredSkills,
+        }, brandGuidelines);
+
+        // Submit
+        const deliveryHash = ethers.keccak256(ethers.toUtf8Bytes(content));
+        const tx = await taskBoard.submitDelivery(taskId, deliveryHash, { gasLimit: 3_000_000 });
+        const receipt = await tx.wait();
+
+        const preview = content.length > 800 ? content.slice(0, 800) + '...' : content;
+        bot.sendMessage(chatId, [
+          `✅ <b>Task #${taskId} DONE</b>`,
+          `Hash: <code>${deliveryHash.slice(0, 20)}...</code>`,
+          `<a href="${hashscanTx(receipt.hash)}">Tx on HashScan</a>`,
+          '',
+          `<b>Preview:</b>`,
+          esc(preview),
+        ].join('\n'), { parse_mode: 'HTML', disable_web_page_preview: true });
+
+        completed++;
+      } catch (err) {
+        bot.sendMessage(chatId, `❌ Task #${taskId} failed: ${err.message}`);
+      }
+    }
+
+    bot.sendMessage(chatId, [
+      '',
+      `🏁 <b>Autowork complete!</b>`,
+      `Completed: ${completed}/${openTasks.length} tasks`,
+      '',
+      'Use /delivered to see tasks awaiting approval.',
+      'Use /approve <id> to approve and release HBAR to the worker.',
+    ].join('\n'), { parse_mode: 'HTML' });
+  } catch (err) {
+    bot.sendMessage(chatId, `❌ Autowork error: ${err.message}`);
+  } finally {
+    autoworkRunning = false;
+  }
+}
+
+bot.onText(/\/autowork(?:\s+(\d+))?/, (msg, match) => handleAutoWork(msg.chat.id, match[1]));
+
 // ── Natural Language Fallback ───────────────────────────────────────────────
 
 bot.on('message', (msg) => {
@@ -619,6 +887,17 @@ bot.on('message', (msg) => {
 
   if (/\b(read|guidelines|vault|brand info)\b/.test(text)) {
     handleRead(chatId);
+  } else if (/\b(autowork|auto.?complete|autonomous|do all|complete all)\b/.test(text)) {
+    const countMatch = text.match(/(\d+)/);
+    handleAutoWork(chatId, countMatch ? countMatch[1] : '3');
+  } else if (/\b(dowork|do work|do task|complete task|work on)\b/.test(text)) {
+    const idMatch = text.match(/(\d+)/);
+    if (idMatch) handleDoWork(chatId, idMatch[1]);
+    else bot.sendMessage(chatId, 'Which task? Usage: /dowork <taskId>');
+  } else if (/\b(claim)\b/.test(text)) {
+    const idMatch = text.match(/(\d+)/);
+    if (idMatch) handleClaim(chatId, idMatch[1]);
+    else bot.sendMessage(chatId, 'Which task? Usage: /claim <taskId>');
   } else if (/\b(post ?job|new ?job|create ?(a )?job|hire|create ?(a )?task)\b/.test(text)) {
     bot.sendMessage(chatId, 'To post a job:\n/postjob <budget_hbar> <title> | <description> | <skills>\n\nExample: /postjob 10 Write Twitter thread | Create a 5-tweet thread about FOID | social,twitter');
   } else if (/\b(jobs|open tasks|task ?board|list jobs|show jobs|show tasks)\b/.test(text)) {
