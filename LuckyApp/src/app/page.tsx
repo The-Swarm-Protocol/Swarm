@@ -63,8 +63,8 @@ const features = [
 export default function LandingPage() {
   const account = useActiveAccount();
   const router = useRouter();
-  const kittyRef = useRef<any>(null);
-  const robotRef = useRef<any>(null);
+  const kittyRef = useRef<HTMLDivElement>(null);
+  const robotRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (account) router.push('/dashboard');
@@ -74,8 +74,8 @@ export default function LandingPage() {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       [kittyRef, robotRef].forEach(ref => {
-        if (ref.current && ref.current.canvas) {
-          const canvas = ref.current.canvas as HTMLCanvasElement;
+        const canvas = ref.current?.querySelector('canvas');
+        if (canvas) {
           canvas.dispatchEvent(new PointerEvent('pointermove', {
             clientX: e.clientX,
             clientY: e.clientY,
@@ -120,7 +120,7 @@ export default function LandingPage() {
             <div className="absolute inset-0 z-0 opacity-40 md:opacity-50">
               <Suspense fallback={null}>
                 <Spline
-                  onLoad={(spline) => (kittyRef.current = spline)}
+                  ref={kittyRef}
                   scene="https://prod.spline.design/G9Uv2yhuZyhmrxRG/scene.splinecode"
                   className="w-full h-full scale-[0.6] md:scale-[0.7] translate-x-[-30%] md:translate-x-[-40%]"
                 />
@@ -135,7 +135,7 @@ export default function LandingPage() {
                 </div>
               }>
                 <Spline
-                  onLoad={(spline) => (robotRef.current = spline)}
+                  ref={robotRef}
                   scene="https://prod.spline.design/Apa6K76Zg3Ki-VRj/scene.splinecode"
                   className="w-full h-full scale-[0.9] md:scale-[1.1] origin-center"
                 />
