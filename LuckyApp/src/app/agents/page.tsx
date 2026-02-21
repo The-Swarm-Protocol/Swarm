@@ -292,7 +292,7 @@ export default function AgentsPage() {
         </div>
         <Button
           onClick={() => setShowRegister(true)}
-          className="bg-amber-600 hover:bg-amber-600 text-white"
+          className="bg-amber-600 hover:bg-amber-700 text-white"
         >
           + Register Agent
         </Button>
@@ -346,7 +346,7 @@ export default function AgentsPage() {
                         {agent.name.charAt(0)}
                       </div>
                       <div>
-                        <CardTitle className="text-lg">{agent.name}</CardTitle>
+                        <CardTitle className="text-lg truncate">{agent.name}</CardTitle>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge className={TYPE_COLORS[agent.type] || ""}>{agent.type}</Badge>
                           <span className={`text-xs font-medium flex items-center gap-1.5 ${
@@ -378,7 +378,7 @@ export default function AgentsPage() {
                       <div className="text-lg font-bold text-foreground">{agent.capabilities.length}</div>
                     </div>
                   </div>
-                  <div className="flex gap-2 mt-3">
+                  <div className="flex flex-wrap gap-2 mt-3">
                     <Button
                       variant="outline"
                       size="sm"
@@ -468,7 +468,7 @@ export default function AgentsPage() {
               <Button
                 onClick={handleRegisterAgent}
                 disabled={creating || !agentName.trim()}
-                className="bg-amber-600 hover:bg-amber-600"
+                className="bg-amber-600 hover:bg-amber-700"
               >
                 {creating ? 'Registering...' : 'Register Agent'}
               </Button>

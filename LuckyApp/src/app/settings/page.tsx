@@ -238,8 +238,8 @@ export default function SettingsPage() {
               <div className="flex justify-end">
                 <Button
                   type="submit"
-                  disabled={saving || !name.trim() || name === currentOrg.name && description === (currentOrg.description || '')}
-                  className="bg-amber-600 hover:bg-amber-600 text-white"
+                  disabled={saving || !name.trim() || (name === currentOrg.name && description === (currentOrg.description || ''))}
+                  className="bg-amber-600 hover:bg-amber-700 text-white"
                 >
                   {saving ? 'Saving...' : 'Save Changes'}
                 </Button>
@@ -272,7 +272,7 @@ export default function SettingsPage() {
                 <Input value={telegram} onChange={(e) => setTelegram(e.target.value)} placeholder="https://t.me/yourchannel" />
               </div>
               <div className="flex justify-end">
-                <Button type="submit" disabled={savingSocials} className="bg-amber-600 hover:bg-amber-600 text-white">
+                <Button type="submit" disabled={savingSocials} className="bg-amber-600 hover:bg-amber-700 text-white">
                   {savingSocials ? 'Saving...' : 'Save Social Links'}
                 </Button>
               </div>
@@ -338,7 +338,7 @@ export default function SettingsPage() {
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Organization ID:</span>
-                <span className="font-mono text-xs">{currentOrg.id}</span>
+                <span className="font-mono text-xs truncate max-w-[200px]">{currentOrg.id}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Owner Address:</span>
