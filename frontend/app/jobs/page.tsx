@@ -142,27 +142,37 @@ export default function JobsPage() {
         provider
       );
 
-      // Try getAllTasks first (more reliable than getOpenTasks for large sets),
-      // fall back to getOpenTasks if it fails
-      let raw;
-      try {
-        raw = await board.getAllTasks();
-      } catch {
-        raw = await board.getOpenTasks();
+      // Fetch tasks individually to avoid Hedera RPC response size limit.
+      // With 69+ tasks (many with long descriptions), getAllTasks/getOpenTasks
+      // returns a payload too large for the relay, which returns 0x instead.
+      const count = Number(await board.taskCount());
+      const BATCH = 10;
+      const parsed: Task[] = [];
+
+      for (let start = 0; start < count; start += BATCH) {
+        const end = Math.min(start + BATCH, count);
+        const batch = await Promise.all(
+          Array.from({ length: end - start }, (_, i) =>
+            board.getTask(start + i).catch(() => null)
+          )
+        );
+        for (const t of batch) {
+          if (!t) continue;
+          parsed.push({
+            taskId: Number(t.taskId),
+            vault: t.vault as string,
+            title: t.title as string,
+            description: t.description as string,
+            requiredSkills: t.requiredSkills as string,
+            deadline: Number(t.deadline),
+            budget: t.budget as bigint,
+            poster: t.poster as string,
+            claimedBy: t.claimedBy as string,
+            status: Number(t.status),
+          });
+        }
       }
 
-      const parsed: Task[] = raw.map((t: Record<string, unknown>) => ({
-        taskId: Number(t.taskId),
-        vault: t.vault as string,
-        title: t.title as string,
-        description: t.description as string,
-        requiredSkills: t.requiredSkills as string,
-        deadline: Number(t.deadline),
-        budget: t.budget as bigint,
-        poster: t.poster as string,
-        claimedBy: t.claimedBy as string,
-        status: Number(t.status),
-      }));
       setTasks(parsed);
     } catch (err) {
       setError(
