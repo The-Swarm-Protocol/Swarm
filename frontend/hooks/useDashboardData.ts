@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 import {
   HEDERA_RPC_URL,
@@ -49,13 +49,9 @@ export function useDashboardData(): UseDashboardDataReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
-  const providerRef = useRef<ethers.JsonRpcProvider | null>(null);
-
   const getProvider = useCallback(() => {
-    if (!providerRef.current) {
-      providerRef.current = new ethers.JsonRpcProvider(HEDERA_RPC_URL);
-    }
-    return providerRef.current;
+    // Create a fresh provider each fetch to avoid stale RPC cache
+    return new ethers.JsonRpcProvider(HEDERA_RPC_URL);
   }, []);
 
   const fetchData = useCallback(async () => {

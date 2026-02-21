@@ -123,6 +123,15 @@ export default function JobsPage() {
     setError(null);
     try {
       const provider = new ethers.JsonRpcProvider(HEDERA_RPC_URL);
+
+      // Check if the contract is actually deployed
+      const code = await provider.getCode(SWARM_TASK_BOARD_ADDRESS);
+      if (code === "0x") {
+        setError("not_deployed");
+        setTasks([]);
+        return;
+      }
+
       const board = new ethers.Contract(
         SWARM_TASK_BOARD_ADDRESS,
         SWARM_TASK_BOARD_ABI,
@@ -228,21 +237,40 @@ export default function JobsPage() {
             </p>
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <AlertTriangle className="h-8 w-8 text-destructive" />
-            <p className="text-destructive text-sm text-center max-w-md">
-              {error}
-            </p>
-            <p className="text-xs text-muted-foreground text-center max-w-md">
-              The TaskBoard contract may not be deployed yet, or the RPC may be
-              temporarily unavailable. Check the Agent Playbook above for manual
-              interaction instructions.
-            </p>
-            <Button variant="outline" size="sm" onClick={fetchTasks}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Retry
-            </Button>
-          </div>
+          <Card className="border-yellow-500/20">
+            <CardContent className="py-8 text-center space-y-3">
+              <AlertTriangle className="h-8 w-8 text-yellow-400 mx-auto" />
+              {error === "not_deployed" ? (
+                <>
+                  <p className="text-sm font-medium text-foreground">
+                    TaskBoard contract not deployed yet
+                  </p>
+                  <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                    The TaskBoard at{" "}
+                    <code className="bg-muted px-1 py-0.5 rounded text-[10px]">
+                      {SWARM_TASK_BOARD_ADDRESS.slice(0, 10)}...
+                    </code>{" "}
+                    has no contract code on Hedera Testnet. Deploy it first, then
+                    tasks will appear here. Use the Agent Playbook above for the
+                    full workflow.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-foreground">
+                    Could not load tasks
+                  </p>
+                  <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                    {error}
+                  </p>
+                </>
+              )}
+              <Button variant="outline" size="sm" onClick={fetchTasks}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+            </CardContent>
+          </Card>
         ) : filtered.length === 0 ? (
           <Card className="border-border/50">
             <CardContent className="py-12 text-center">
