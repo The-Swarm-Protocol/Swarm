@@ -1,15 +1,68 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CreateSwarmDialog } from "@/components/create-swarm-dialog";
+import { useTeam } from "@/contexts/TeamContext";
+import { getSwarmsByTeam, getAgentsByTeam, getMissionsByTeam, type FirestoreSwarm, type FirestoreAgent, type FirestoreMission } from "@/lib/firestore";
 import { mockSwarms, mockAgents, mockMissions } from "@/lib/mock-data";
 
 export default function SwarmsPage() {
   const [showCreate, setShowCreate] = useState(false);
+  const { currentTeam } = useTeam();
+  const [swarms, setSwarms] = useState<FirestoreSwarm[]>([]);
+  const [agents, setAgents] = useState<FirestoreAgent[]>([]);
+  const [missions, setMissions] = useState<FirestoreMission[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!currentTeam) {
+      setSwarms([]);
+      setAgents([]);
+      setMissions([]);
+      setLoaded(true);
+      return;
+    }
+
+    Promise.all([
+      getSwarmsByTeam(currentTeam.id),
+      getAgentsByTeam(currentTeam.id),
+      getMissionsByTeam(currentTeam.id),
+    ]).then(([s, a, m]) => {
+      setSwarms(s);
+      setAgents(a);
+      setMissions(m);
+      setLoaded(true);
+    }).catch((err) => {
+      console.error("Failed to load swarms data:", err);
+      setLoaded(true);
+    });
+  }, [currentTeam]);
+
+  // Use Firestore data if available, otherwise fall back to mock
+  const displaySwarms = loaded && swarms.length > 0 ? swarms : mockSwarms.map((s) => ({
+    ...s,
+    teamId: currentTeam?.id || "",
+    agentIds: s.agentIds,
+  }));
+  const displayAgents = loaded && agents.length > 0 ? agents : mockAgents.map((a) => ({
+    ...a,
+    teamId: currentTeam?.id || "",
+    createdAt: Date.now(),
+  }));
+  const displayMissions = loaded && missions.length > 0 ? missions : mockMissions.map((m) => ({
+    ...m,
+    teamId: currentTeam?.id || "",
+  }));
+
+  const handleSwarmCreated = () => {
+    if (currentTeam) {
+      getSwarmsByTeam(currentTeam.id).then(setSwarms);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -28,14 +81,21 @@ export default function SwarmsPage() {
         </Button>
       </div>
 
+      {loaded && swarms.length === 0 && !mockSwarms.length && (
+        <div className="text-center py-12 text-gray-500">
+          <p className="text-lg">No swarms yet</p>
+          <p className="text-sm mt-1">Create your first swarm to get started</p>
+        </div>
+      )}
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {mockSwarms.map((swarm) => {
-          const agentCount = swarm.agentIds.length;
-          const missionCount = mockMissions.filter(
+        {displaySwarms.map((swarm) => {
+          const agentCount = swarm.agentIds?.length || 0;
+          const missionCount = displayMissions.filter(
             (m) => m.swarmId === swarm.id
           ).length;
-          const agents = mockAgents.filter((a) =>
-            swarm.agentIds.includes(a.id)
+          const swarmAgents = displayAgents.filter((a) =>
+            swarm.agentIds?.includes(a.id || "")
           );
 
           return (
@@ -64,7 +124,7 @@ export default function SwarmsPage() {
                     <span>🎯 {missionCount} Missions</span>
                   </div>
                   <div className="flex -space-x-2">
-                    {agents.slice(0, 4).map((agent) => (
+                    {swarmAgents.slice(0, 4).map((agent) => (
                       <div
                         key={agent.id}
                         className="w-8 h-8 rounded-full bg-green-100 border-2 border-white flex items-center justify-center text-xs font-bold text-green-700"
@@ -73,9 +133,9 @@ export default function SwarmsPage() {
                         {agent.name.charAt(0)}
                       </div>
                     ))}
-                    {agents.length > 4 && (
+                    {swarmAgents.length > 4 && (
                       <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-xs font-medium text-gray-500">
-                        +{agents.length - 4}
+                        +{swarmAgents.length - 4}
                       </div>
                     )}
                   </div>
@@ -86,7 +146,7 @@ export default function SwarmsPage() {
         })}
       </div>
 
-      <CreateSwarmDialog open={showCreate} onOpenChange={setShowCreate} />
+      <CreateSwarmDialog open={showCreate} onOpenChange={setShowCreate} onCreated={handleSwarmCreated} />
     </div>
   );
 }
