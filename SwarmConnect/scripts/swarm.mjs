@@ -465,66 +465,17 @@ async function cmdChatListen() {
 async function cmdDaemon() {
   const creds = loadCreds();
   const db = getDb();
+  const hubUrl = arg("--hub") || process.env.SWARM_HUB_URL || "https://hub.perkos.xyz";
   const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL || "http://localhost:18789";
   const gatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN || arg("--gateway-token") || "";
 
   console.log(`🐝 Swarm Daemon starting for ${creds.agentName} (${creds.agentType})`);
+  console.log(`   Hub: ${hubUrl}`);
   console.log(`   Gateway: ${gatewayUrl}`);
 
-  // Update status to online
-  try {
-    await updateDoc(doc(db, "agents", creds.agentId), {
-      status: "online",
-      lastSeen: serverTimestamp(),
-    });
-  } catch {}
-
-  // 1. Get agent's projects
-  const agentSnap = await getDoc(doc(db, "agents", creds.agentId));
-  if (!agentSnap.exists()) {
-    console.error("❌ Agent not found in Firestore.");
-    process.exit(1);
-  }
-  const projectIds = agentSnap.data().projectIds || [];
-  if (projectIds.length === 0) {
-    console.log("📭 No projects assigned. Waiting...");
-  }
-
-  // 2. Find all channels and set up listeners
-  const activeListeners = [];
-  const processedMessages = new Set();
-
-  async function setupChannelListener(channelId, channelName, projName) {
-    const messagesQ = query(
-      collection(db, "messages"),
-      where("channelId", "==", channelId)
-    );
-
-    // Get existing message IDs so we don't respond to old messages
-    const existing = await getDocs(messagesQ);
-    existing.forEach((d) => processedMessages.add(d.id));
-    console.log(`   👂 Listening: [${projName}] #${channelName} (${existing.size} existing msgs)`);
-
-    // Real-time listener
-    const unsub = onSnapshot(messagesQ, (snapshot) => {
-      snapshot.docChanges().forEach(async (change) => {
-        if (change.type !== "added") return;
-        if (processedMessages.has(change.doc.id)) return;
-        processedMessages.add(change.doc.id);
-
-        const msg = change.doc.data();
-        // Skip own messages
-        if (msg.senderId === creds.agentId) return;
-        // Skip agent messages
-        if (msg.senderType === "agent") return;
-
-        const from = msg.senderName || msg.senderId || "unknown";
-        const text = msg.content || msg.text || "";
-        console.log(`\n📨 [${projName}] #${channelName} — ${from}: ${text}`);
-
-        // Trigger OpenClaw agent to respond
-        try {
-          const taskMsg = `New message in Swarm project channel. Respond now.
+  // --- Helper: trigger OpenClaw agent to respond ---
+  async function triggerAgentResponse(channelId, channelName, projName, from, text) {
+    const taskMsg = `New message in Swarm project channel. Respond now.
 
 Channel: ${channelName} (${channelId})
 Project: ${projName}
@@ -535,108 +486,271 @@ Respond using: node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs chat send
 
 Be helpful and professional. You are ${creds.agentName}, a ${creds.agentType} agent.`;
 
-          const headers = { "Content-Type": "application/json" };
-          if (gatewayToken) headers["Authorization"] = `Bearer ${gatewayToken}`;
+    const headers = { "Content-Type": "application/json" };
+    if (gatewayToken) headers["Authorization"] = `Bearer ${gatewayToken}`;
 
-          const resp = await fetch(`${gatewayUrl}/api/v1/sessions/main/message`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ message: taskMsg }),
-          });
-
-          if (resp.ok) {
-            console.log(`   ✅ Triggered agent response`);
-          } else {
-            // Fallback: try spawning an isolated session
-            const resp2 = await fetch(`${gatewayUrl}/api/v1/sessions`, {
-              method: "POST",
-              headers,
-              body: JSON.stringify({
-                message: taskMsg,
-                sessionTarget: "isolated",
-              }),
-            });
-            if (resp2.ok) {
-              console.log(`   ✅ Triggered agent response (isolated)`);
-            } else {
-              console.log(`   ⚠️ Could not trigger agent (${resp2.status})`);
-            }
-          }
-        } catch (err) {
-          console.log(`   ⚠️ Gateway error: ${err.message}`);
-          // Fallback: respond directly with a generic acknowledgment
-          try {
-            await addDoc(collection(db, "messages"), {
-              channelId,
-              senderId: creds.agentId,
-              senderName: creds.agentName,
-              senderType: "agent",
-              content: `👋 Hey ${from}! I received your message. Let me look into that.`,
-              orgId: creds.orgId,
-              createdAt: serverTimestamp(),
-            });
-            console.log(`   📤 Sent fallback response`);
-          } catch {}
-        }
+    try {
+      const resp = await fetch(`${gatewayUrl}/api/v1/sessions/main/message`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ message: taskMsg }),
       });
-    });
-
-    activeListeners.push(unsub);
-  }
-
-  for (const projectId of projectIds) {
-    const projSnap = await getDoc(doc(db, "projects", projectId));
-    const projName = projSnap.exists() ? projSnap.data().name : projectId;
-
-    const channelsQ = query(
-      collection(db, "channels"),
-      where("projectId", "==", projectId)
-    );
-    const channelsSnap = await getDocs(channelsQ);
-
-    for (const chDoc of channelsSnap.docs) {
-      const chData = chDoc.data();
-      await setupChannelListener(chDoc.id, chData.name || "Channel", projName);
+      if (resp.ok) {
+        console.log(`   ✅ Triggered agent response`);
+        return;
+      }
+      // Fallback: isolated session
+      const resp2 = await fetch(`${gatewayUrl}/api/v1/sessions`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ message: taskMsg, sessionTarget: "isolated" }),
+      });
+      if (resp2.ok) {
+        console.log(`   ✅ Triggered agent response (isolated)`);
+      } else {
+        console.log(`   ⚠️ Could not trigger agent (${resp2.status})`);
+      }
+    } catch (err) {
+      console.log(`   ⚠️ Gateway error: ${err.message}`);
+      // Fallback: send generic ack directly to Firestore
+      try {
+        await addDoc(collection(db, "messages"), {
+          channelId,
+          senderId: creds.agentId,
+          senderName: creds.agentName,
+          senderType: "agent",
+          content: `👋 Hey ${from}! I received your message. Let me look into that.`,
+          orgId: creds.orgId,
+          createdAt: serverTimestamp(),
+        });
+        console.log(`   📤 Sent fallback response`);
+      } catch {}
     }
   }
 
-  // 3. Heartbeat every 60s
+  // --- Step 1: Authenticate with Hub and get JWT ---
+  let jwt = null;
+  let refreshToken = null;
+  let ws = null;
+
+  async function authenticate() {
+    try {
+      const resp = await fetch(`${hubUrl}/auth/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentId: creds.agentId, apiKey: creds.apiKey }),
+      });
+      if (!resp.ok) {
+        const body = await resp.text();
+        console.log(`   ⚠️ Hub auth failed (${resp.status}): ${body}`);
+        return false;
+      }
+      const data = await resp.json();
+      jwt = data.token || data.accessToken;
+      refreshToken = data.refreshToken || null;
+      console.log(`   🔑 Authenticated with Hub (JWT obtained)`);
+      return true;
+    } catch (err) {
+      console.log(`   ⚠️ Hub unreachable: ${err.message}`);
+      return false;
+    }
+  }
+
+  async function refreshJwt() {
+    if (!refreshToken) return authenticate();
+    try {
+      const resp = await fetch(`${hubUrl}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!resp.ok) return authenticate();
+      const data = await resp.json();
+      jwt = data.token || data.accessToken;
+      if (data.refreshToken) refreshToken = data.refreshToken;
+      console.log(`   🔄 JWT refreshed`);
+      return true;
+    } catch {
+      return authenticate();
+    }
+  }
+
+  // --- Step 2: Connect via WebSocket ---
+  function connectWebSocket() {
+    const wsUrl = hubUrl.replace(/^http/, "ws") + `?token=${jwt}`;
+    const WebSocket = (await import("ws")).default;
+
+    ws = new WebSocket(wsUrl);
+
+    ws.on("open", () => {
+      console.log(`   🔗 WebSocket connected to Hub (secure)`);
+    });
+
+    ws.on("message", (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString());
+
+        if (msg.type === "message") {
+          // Skip own messages
+          if (msg.senderId === creds.agentId) return;
+          if (msg.senderType === "agent") return;
+
+          const from = msg.senderName || msg.senderId || "unknown";
+          const text = msg.content || "";
+          const channelName = msg.channelName || msg.channelId;
+          const projName = msg.projectName || "Project";
+          console.log(`\n📨 [${projName}] #${channelName} — ${from}: ${text}`);
+          triggerAgentResponse(msg.channelId, channelName, projName, from, text);
+        } else if (msg.type === "agent:online" || msg.type === "agent:offline") {
+          console.log(`   ${msg.type === "agent:online" ? "🟢" : "🔴"} ${msg.agentName || msg.agentId} ${msg.type.split(":")[1]}`);
+        }
+      } catch {}
+    });
+
+    ws.on("close", (code) => {
+      console.log(`   🔌 WebSocket closed (${code}). Reconnecting in 5s...`);
+      setTimeout(async () => {
+        const ok = await refreshJwt();
+        if (ok) connectWebSocket();
+        else {
+          console.log(`   ⚠️ Hub reconnect failed. Falling back to Firestore listeners.`);
+          startFirestoreListeners();
+        }
+      }, 5000);
+    });
+
+    ws.on("error", (err) => {
+      console.log(`   ⚠️ WebSocket error: ${err.message}`);
+    });
+  }
+
+  // --- Step 3: Firestore fallback listeners ---
+  const activeListeners = [];
+  const processedMessages = new Set();
+  let firestoreActive = false;
+
+  async function startFirestoreListeners() {
+    if (firestoreActive) return;
+    firestoreActive = true;
+    console.log(`   📡 Starting Firestore real-time listeners (fallback mode)`);
+
+    const agentSnap = await getDoc(doc(db, "agents", creds.agentId));
+    if (!agentSnap.exists()) return;
+    const projectIds = agentSnap.data().projectIds || [];
+
+    for (const projectId of projectIds) {
+      const projSnap = await getDoc(doc(db, "projects", projectId));
+      const projName = projSnap.exists() ? projSnap.data().name : projectId;
+      const channelsQ = query(collection(db, "channels"), where("projectId", "==", projectId));
+      const channelsSnap = await getDocs(channelsQ);
+
+      for (const chDoc of channelsSnap.docs) {
+        const chData = chDoc.data();
+        const channelId = chDoc.id;
+        const channelName = chData.name || "Channel";
+        const messagesQ = query(collection(db, "messages"), where("channelId", "==", channelId));
+        const existing = await getDocs(messagesQ);
+        existing.forEach((d) => processedMessages.add(d.id));
+        console.log(`   👂 Listening: [${projName}] #${channelName} (${existing.size} existing msgs)`);
+
+        const unsub = onSnapshot(messagesQ, (snapshot) => {
+          snapshot.docChanges().forEach(async (change) => {
+            if (change.type !== "added") return;
+            if (processedMessages.has(change.doc.id)) return;
+            processedMessages.add(change.doc.id);
+            const m = change.doc.data();
+            if (m.senderId === creds.agentId || m.senderType === "agent") return;
+            const from = m.senderName || m.senderId || "unknown";
+            const text = m.content || m.text || "";
+            console.log(`\n📨 [${projName}] #${channelName} — ${from}: ${text}`);
+            triggerAgentResponse(channelId, channelName, projName, from, text);
+          });
+        });
+        activeListeners.push(unsub);
+      }
+    }
+  }
+
+  // --- Step 4: Start ---
+  // Update status
+  try {
+    await updateDoc(doc(db, "agents", creds.agentId), { status: "online", lastSeen: serverTimestamp() });
+  } catch {}
+
+  // Try Hub first, fallback to Firestore
+  const hubOk = await authenticate();
+  if (hubOk) {
+    // Dynamic import ws for WebSocket client
+    try {
+      const { default: WebSocket } = await import("ws");
+      const wsUrl = hubUrl.replace(/^http/, "ws") + `?token=${jwt}`;
+      ws = new WebSocket(wsUrl);
+
+      ws.on("open", () => {
+        console.log(`   🔗 WebSocket connected to Hub (secure)`);
+      });
+
+      ws.on("message", (raw) => {
+        try {
+          const msg = JSON.parse(raw.toString());
+          if (msg.type === "message") {
+            if (msg.senderId === creds.agentId || msg.senderType === "agent") return;
+            const from = msg.senderName || msg.senderId || "unknown";
+            const text = msg.content || "";
+            const channelName = msg.channelName || msg.channelId;
+            const projName = msg.projectName || "Project";
+            console.log(`\n📨 [WSS] [${projName}] #${channelName} — ${from}: ${text}`);
+            triggerAgentResponse(msg.channelId, channelName, projName, from, text);
+          } else if (msg.type === "agent:online" || msg.type === "agent:offline") {
+            console.log(`   ${msg.type === "agent:online" ? "🟢" : "🔴"} ${msg.agentName || msg.agentId} ${msg.type.split(":")[1]}`);
+          }
+        } catch {}
+      });
+
+      ws.on("close", (code) => {
+        console.log(`   🔌 WebSocket closed (${code}). Reconnecting in 5s...`);
+        setTimeout(async () => {
+          const ok = await refreshJwt();
+          if (ok) {
+            const { default: WS } = await import("ws");
+            const url = hubUrl.replace(/^http/, "ws") + `?token=${jwt}`;
+            ws = new WS(url);
+            // Re-attach handlers (simplified reconnect)
+            ws.on("open", () => console.log(`   🔗 Reconnected to Hub`));
+            ws.on("message", ws.listeners("message")[0]);
+            ws.on("close", ws.listeners("close")[0]);
+          } else {
+            console.log(`   ⚠️ Falling back to Firestore listeners`);
+            startFirestoreListeners();
+          }
+        }, 5000);
+      });
+
+      ws.on("error", (err) => console.log(`   ⚠️ WS error: ${err.message}`));
+    } catch (err) {
+      console.log(`   ⚠️ WebSocket client failed: ${err.message}. Using Firestore.`);
+      await startFirestoreListeners();
+    }
+  } else {
+    console.log(`   📡 Hub unavailable. Using Firestore real-time listeners.`);
+    await startFirestoreListeners();
+  }
+
+  // Heartbeat every 60s
   setInterval(async () => {
     try {
-      await updateDoc(doc(db, "agents", creds.agentId), {
-        lastSeen: serverTimestamp(),
-        status: "online",
-      });
+      await updateDoc(doc(db, "agents", creds.agentId), { lastSeen: serverTimestamp(), status: "online" });
     } catch {}
   }, 60000);
 
-  // 4. Re-check for new project assignments every 5 min
-  setInterval(async () => {
-    try {
-      const snap = await getDoc(doc(db, "agents", creds.agentId));
-      if (!snap.exists()) return;
-      const newProjectIds = snap.data().projectIds || [];
-      for (const pid of newProjectIds) {
-        if (!projectIds.includes(pid)) {
-          projectIds.push(pid);
-          const projSnap = await getDoc(doc(db, "projects", pid));
-          const projName = projSnap.exists() ? projSnap.data().name : pid;
-          const channelsQ = query(collection(db, "channels"), where("projectId", "==", pid));
-          const channelsSnap = await getDocs(channelsQ);
-          for (const chDoc of channelsSnap.docs) {
-            await setupChannelListener(chDoc.id, chDoc.data().name || "Channel", projName);
-          }
-          console.log(`\n🆕 New project detected: ${projName}`);
-        }
-      }
-    } catch {}
-  }, 300000);
+  // Refresh JWT every 12 min
+  setInterval(() => refreshJwt(), 720000);
 
-  console.log(`\n🟢 Daemon running. Listening for messages in real-time. Ctrl+C to stop.`);
+  console.log(`\n🟢 Daemon running. Ctrl+C to stop.`);
 
-  // Keep process alive
   process.on("SIGINT", () => {
     console.log("\n🔴 Daemon stopping...");
+    if (ws) ws.close();
     activeListeners.forEach((unsub) => unsub());
     updateDoc(doc(db, "agents", creds.agentId), { status: "offline" }).catch(() => {});
     setTimeout(() => process.exit(0), 1000);
