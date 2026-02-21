@@ -19,6 +19,8 @@ import {
   type Project,
   type Agent,
 } from "@/lib/firestore";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 const columns = [
   { status: "todo" as const, label: "To Do", icon: "📋", bg: "bg-muted", border: "border-border" },
@@ -53,32 +55,36 @@ export default function TasksPage() {
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
 
-  const loadData = async () => {
+  useEffect(() => {
     if (!currentOrg) return;
 
-    try {
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
 
-      const [tasksData, projectsData, agentsData] = await Promise.all([
-        getTasksByOrg(currentOrg.id),
-        getProjectsByOrg(currentOrg.id),
-        getAgentsByOrg(currentOrg.id)
-      ]);
-
-      setTasks(tasksData);
+    // Load projects and agents once
+    Promise.all([
+      getProjectsByOrg(currentOrg.id),
+      getAgentsByOrg(currentOrg.id)
+    ]).then(([projectsData, agentsData]) => {
       setProjects(projectsData);
       setAgents(agentsData);
-    } catch (err) {
-      console.error("Failed to load tasks data:", err);
-      setError(err instanceof Error ? err.message : 'Failed to load tasks data');
-    } finally {
-      setLoading(false);
-    }
-  };
+    }).catch(err => {
+      setError(err instanceof Error ? err.message : 'Failed to load data');
+    });
 
-  useEffect(() => {
-    loadData();
+    // Real-time listener for tasks
+    const q = query(collection(db, "tasks"), where("orgId", "==", currentOrg.id));
+    const unsub = onSnapshot(q, (snap) => {
+      const tasksData = snap.docs.map(d => ({ id: d.id, ...d.data() } as Task));
+      setTasks(tasksData);
+      setLoading(false);
+    }, (err) => {
+      console.error("Tasks listener error:", err);
+      setError(err.message);
+      setLoading(false);
+    });
+
+    return () => unsub();
   }, [currentOrg]);
 
   const getProjectName = (projectId: string) => {
@@ -121,8 +127,7 @@ export default function TasksPage() {
       setTaskPriority('medium');
       setCreateOpen(false);
 
-      // Reload data
-      await loadData();
+      // Real-time listener auto-updates
     } catch (err) {
       console.error('Failed to create task:', err);
       setError(err instanceof Error ? err.message : 'Failed to create task');
@@ -135,7 +140,6 @@ export default function TasksPage() {
     try {
       setUpdating(true);
       await updateTask(task.id, { status: newStatus });
-      await loadData();
     } catch (err) {
       console.error('Failed to update task:', err);
       setError(err instanceof Error ? err.message : 'Failed to update task');

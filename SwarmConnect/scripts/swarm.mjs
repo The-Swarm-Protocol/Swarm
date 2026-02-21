@@ -205,6 +205,38 @@ async function cmdTasksList() {
   });
 }
 
+async function cmdTaskCreate() {
+  const creds = loadCreds();
+  const db = getDb();
+
+  const projectId = process.argv[4];
+  const title = process.argv[5];
+  const description = arg("--description") || "";
+  const priority = arg("--priority") || "medium";
+  const assignee = arg("--assignee") || "";
+
+  if (!projectId || !title) {
+    console.error("Usage: swarm.mjs task create <projectId> \"<title>\" --description \"<desc>\" --priority <low|medium|high> --assignee <agentId>");
+    process.exit(1);
+  }
+
+  const taskData = {
+    title,
+    description,
+    projectId,
+    orgId: creds.orgId,
+    organizationId: creds.orgId,
+    status: "todo",
+    priority,
+    createdBy: creds.agentId,
+    createdAt: serverTimestamp(),
+  };
+  if (assignee) { taskData.assignedTo = assignee; taskData.assigneeAgentId = assignee; }
+
+  const ref = await addDoc(collection(db, "tasks"), taskData);
+  console.log(`✅ Task created: ${ref.id} — "${title}" [${priority}]`);
+}
+
 async function cmdTasksUpdate() {
   const taskId = process.argv[4];
   const status = arg("--status");
@@ -217,6 +249,44 @@ async function cmdTasksUpdate() {
   const db = getDb();
   await updateDoc(doc(db, "tasks", taskId), { status, updatedAt: serverTimestamp() });
   console.log(`✅ Task ${taskId} → ${status}`);
+}
+
+async function cmdTaskAssign() {
+  const taskId = process.argv[4];
+  const assignee = arg("--to") || arg("--assignee") || process.argv[5];
+
+  if (!taskId || !assignee) {
+    console.error("Usage: swarm.mjs task assign <taskId> --to <agentId|agentName>");
+    process.exit(1);
+  }
+
+  const db = getDb();
+  // Try to find agent by name if not an ID
+  let agentId = assignee;
+  const creds = loadCredentials();
+  try {
+    const agentsSnap = await getDocs(collection(db, "agents"));
+    const match = agentsSnap.docs.find(d => {
+      const a = d.data();
+      return a.organizationId === creds.orgId && (d.id === assignee || (a.name || "").toLowerCase() === assignee.toLowerCase());
+    });
+    if (match) agentId = match.id;
+  } catch {}
+
+  await updateDoc(doc(db, "tasks", taskId), { assignedTo: agentId, updatedAt: serverTimestamp() });
+  console.log(`✅ Task ${taskId} assigned to ${agentId}`);
+}
+
+async function cmdTaskComplete() {
+  const taskId = process.argv[4];
+  if (!taskId) {
+    console.error("Usage: swarm.mjs task complete <taskId>");
+    process.exit(1);
+  }
+
+  const db = getDb();
+  await updateDoc(doc(db, "tasks", taskId), { status: "done", completedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  console.log(`✅ Task ${taskId} marked complete`);
 }
 
 async function cmdInboxList() {
@@ -477,7 +547,57 @@ async function cmdDaemon() {
   // Track other agents in channels to coordinate turn-taking
   const channelAgents = {}; // channelId -> [agentId, ...]
 
-  async function triggerAgentResponse(channelId, channelName, projName, from, text) {
+  // --- Helper: detect and execute task operations directly ---
+  async function handleTaskOperations(text, projId, channelId, channelName) {
+    const lower = text.toLowerCase();
+    const isTaskRequest = lower.includes("create task") || lower.includes("create the") || lower.includes("make task") ||
+      (lower.includes("task") && (lower.includes("create") || lower.includes("add") || lower.includes("make")));
+
+    if (!isTaskRequest || !projId) return null;
+
+    // Extract what tasks to create from the message
+    // Simple approach: create tasks based on the message content
+    try {
+      // Use a simple heuristic — if they ask to create tasks about something, make 3-5 relevant tasks
+      const topic = text.replace(/@\w+/g, "").replace(/create\s*(the\s*)?(necessary\s*)?tasks?\s*(to|for|about)?/gi, "").trim();
+      if (!topic) return null;
+
+      const tasks = [];
+      const taskTitles = [
+        `Research and plan: ${topic}`,
+        `Prepare resources for: ${topic}`,
+        `Execute: ${topic}`,
+        `Quality check: ${topic}`,
+        `Document and review: ${topic}`,
+      ];
+
+      for (const title of taskTitles) {
+        const taskRef = await addDoc(collection(db, "tasks"), {
+          title,
+          description: `Auto-created from chat request: "${text}"`,
+          projectId: projId,
+          orgId: creds.orgId,
+          organizationId: creds.orgId,
+          status: "todo",
+          priority: "medium",
+          assigneeAgentId: creds.agentId,
+          assignedTo: creds.agentId,
+          createdBy: creds.agentId,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        tasks.push({ id: taskRef.id, title });
+      }
+
+      console.log(`   📝 Created ${tasks.length} tasks in Firestore`);
+      return tasks;
+    } catch (err) {
+      console.log(`   ⚠️ Task creation error: ${err.message}`);
+      return null;
+    }
+  }
+
+  async function triggerAgentResponse(channelId, channelName, projName, from, text, projId) {
     // --- Turn-taking: check if message is directed at us or our specialty ---
     const myName = creds.agentName.toLowerCase();
     const myType = (creds.agentType || "").toLowerCase();
@@ -494,59 +614,61 @@ async function cmdDaemon() {
       await new Promise(r => setTimeout(r, delay));
     }
 
-    const taskMsg = `[Swarm Channel Message] Respond concisely.
-Channel: #${channelName} | Project: ${projName} | From: ${from}
-Message: "${text}"
+    // --- Handle task operations directly (instant, no agent needed) ---
+    const createdTasks = await handleTaskOperations(text, projId, channelId, channelName);
 
-You are ${creds.agentName} (${creds.agentType}). Reply with: node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs chat send ${channelId} "<reply>"
+    // --- Build context for conversational response ---
+    let taskContext = "";
+    if (createdTasks && createdTasks.length > 0) {
+      taskContext = `\n\nYou just created ${createdTasks.length} tasks: ${createdTasks.map(t => t.title).join(", ")}. Confirm this to the user.`;
+    }
+
+    const taskMsg = `[Swarm Channel Message]
+Channel: #${channelName} | Project: ${projName} | From: ${from}
+Message: "${text}"${taskContext}
+
+You are ${creds.agentName}, a ${creds.agentType} agent in this swarm. ALWAYS respond to every message — you are part of a team.
+
+IMPORTANT: You MUST run this command to send your reply (without it, nobody sees your response):
+node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs chat send ${channelId} "<your reply>"
 
 Rules:
-- Keep responses SHORT (1-3 sentences max)
-- Only respond if the message is relevant to your role (${creds.agentType}) or mentions you by name
-- If the message is clearly for another agent, DO NOT respond — just say "done" and exit
-- If you're a coordinator/operations agent, you may direct other agents
-- Be concise and professional`;
+- ALWAYS run the chat send command above with your reply text.
+- Keep responses SHORT (1-3 sentences). Be natural and collaborative.
+- Bring your ${creds.agentType} perspective to every conversation.
+- If tasks were just created, confirm what was created and offer to start working on them.
+- Be friendly, use emoji occasionally, feel like a real teammate.`;
 
     const headers = { "Content-Type": "application/json" };
     if (gatewayToken) headers["Authorization"] = `Bearer ${gatewayToken}`;
 
     try {
-      const resp = await fetch(`${gatewayUrl}/api/v1/sessions/main/message`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ message: taskMsg }),
+      // Use openclaw agent CLI to trigger an isolated agent turn
+      const { execSync } = await import("node:child_process");
+      const escapedMsg = taskMsg.replace(/'/g, "'\\''");
+      execSync(`openclaw agent --agent main --message '${escapedMsg}' --json`, {
+        timeout: 120000,
+        stdio: 'pipe',
       });
-      if (resp.ok) {
-        console.log(`   ✅ Triggered agent response`);
-        return;
-      }
-      // Fallback: isolated session
-      const resp2 = await fetch(`${gatewayUrl}/api/v1/sessions`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ message: taskMsg, sessionTarget: "isolated" }),
-      });
-      if (resp2.ok) {
-        console.log(`   ✅ Triggered agent response (isolated)`);
-      } else {
-        console.log(`   ⚠️ Could not trigger agent (${resp2.status})`);
-      }
-    } catch (err) {
-      console.log(`   ⚠️ Gateway error: ${err.message}`);
-      // Fallback: send generic ack directly to Firestore
-      try {
-        await addDoc(collection(db, "messages"), {
-          channelId,
-          senderId: creds.agentId,
-          senderName: creds.agentName,
-          senderType: "agent",
-          content: `👋 Hey ${from}! I received your message. Let me look into that.`,
-          orgId: creds.orgId,
-          createdAt: serverTimestamp(),
-        });
-        console.log(`   📤 Sent fallback response`);
-      } catch {}
+      console.log(`   ✅ Triggered agent response`);
+      return;
+    } catch (cronErr) {
+      console.log(`   ⚠️ Agent trigger failed: ${cronErr.message?.substring(0, 200)}`);
     }
+
+    // Fallback: direct Firestore response
+    try {
+      await addDoc(collection(db, "messages"), {
+        channelId,
+        senderId: creds.agentId,
+        senderName: creds.agentName,
+        senderType: "agent",
+        content: `👋 Hey ${from}! I received your message. Let me look into that.`,
+        orgId: creds.orgId,
+        createdAt: serverTimestamp(),
+      });
+      console.log(`   📤 Sent fallback response`);
+    } catch {}
   }
 
   // --- Step 1: Authenticate with Hub and get JWT ---
@@ -621,7 +743,7 @@ Rules:
           const channelName = msg.channelName || msg.channelId;
           const projName = msg.projectName || "Project";
           console.log(`\n📨 [${projName}] #${channelName} — ${from}: ${text}`);
-          triggerAgentResponse(msg.channelId, channelName, projName, from, text);
+          triggerAgentResponse(msg.channelId, channelName, projName, from, text, msg.projectId);
         } else if (msg.type === "agent:online" || msg.type === "agent:offline") {
           console.log(`   ${msg.type === "agent:online" ? "🟢" : "🔴"} ${msg.agentName || msg.agentId} ${msg.type.split(":")[1]}`);
         }
@@ -635,7 +757,7 @@ Rules:
         if (ok) connectWebSocket();
         else {
           console.log(`   ⚠️ Hub reconnect failed. Falling back to Firestore listeners.`);
-          startFirestoreListeners();
+          startFirestorePolling();
         }
       }, 5000);
     });
@@ -650,15 +772,19 @@ Rules:
   const processedMessages = new Set();
   let firestoreActive = false;
 
-  async function startFirestoreListeners() {
+  // Channel info cache
+  const channelInfo = {}; // channelId -> { name, projName, projId }
+
+  async function startFirestorePolling() {
     if (firestoreActive) return;
     firestoreActive = true;
-    console.log(`   📡 Starting Firestore real-time listeners (fallback mode)`);
+    console.log(`   📡 Starting Firestore polling (every 5s)`);
 
     const agentSnap = await getDoc(doc(db, "agents", creds.agentId));
     if (!agentSnap.exists()) return;
     const projectIds = agentSnap.data().projectIds || [];
 
+    // Discover channels and mark existing messages
     for (const projectId of projectIds) {
       const projSnap = await getDoc(doc(db, "projects", projectId));
       const projName = projSnap.exists() ? projSnap.data().name : projectId;
@@ -666,30 +792,36 @@ Rules:
       const channelsSnap = await getDocs(channelsQ);
 
       for (const chDoc of channelsSnap.docs) {
-        const chData = chDoc.data();
         const channelId = chDoc.id;
-        const channelName = chData.name || "Channel";
+        const channelName = chDoc.data().name || "Channel";
+        channelInfo[channelId] = { name: channelName, projName, projId: projectId };
+
         const messagesQ = query(collection(db, "messages"), where("channelId", "==", channelId));
         const existing = await getDocs(messagesQ);
         existing.forEach((d) => processedMessages.add(d.id));
-        console.log(`   👂 Listening: [${projName}] #${channelName} (${existing.size} existing msgs)`);
-
-        const unsub = onSnapshot(messagesQ, (snapshot) => {
-          snapshot.docChanges().forEach(async (change) => {
-            if (change.type !== "added") return;
-            if (processedMessages.has(change.doc.id)) return;
-            processedMessages.add(change.doc.id);
-            const m = change.doc.data();
-            if (m.senderId === creds.agentId || m.senderType === "agent") return;
-            const from = m.senderName || m.senderId || "unknown";
-            const text = m.content || m.text || "";
-            console.log(`\n📨 [${projName}] #${channelName} — ${from}: ${text}`);
-            triggerAgentResponse(channelId, channelName, projName, from, text);
-          });
-        });
-        activeListeners.push(unsub);
+        console.log(`   👂 Watching: [${projName}] #${channelName} (${existing.size} existing msgs)`);
       }
     }
+
+    // Poll every 5 seconds for new messages
+    setInterval(async () => {
+      for (const [channelId, info] of Object.entries(channelInfo)) {
+        try {
+          const messagesQ = query(collection(db, "messages"), where("channelId", "==", channelId));
+          const snap = await getDocs(messagesQ);
+          for (const d of snap.docs) {
+            if (processedMessages.has(d.id)) continue;
+            processedMessages.add(d.id);
+            const m = d.data();
+            if (m.senderId === creds.agentId || m.senderType === "agent") continue;
+            const from = m.senderName || m.senderId || "unknown";
+            const text = m.content || m.text || "";
+            console.log(`\n📨 [${info.projName}] #${info.name} — ${from}: ${text}`);
+            triggerAgentResponse(channelId, info.name, info.projName, from, text, info.projId);
+          }
+        } catch {}
+      }
+    }, 5000);
   }
 
   // --- Step 4: Start ---
@@ -699,7 +831,7 @@ Rules:
   } catch {}
 
   // ALWAYS start Firestore listeners (webapp writes directly to Firestore)
-  await startFirestoreListeners();
+  await startFirestorePolling();
 
   // ALSO connect to Hub for agent-to-agent communication
   const hubOk = await authenticate();
@@ -724,7 +856,7 @@ Rules:
             const channelName = msg.channelName || msg.channelId;
             const projName = msg.projectName || "Project";
             console.log(`\n📨 [WSS] [${projName}] #${channelName} — ${from}: ${text}`);
-            triggerAgentResponse(msg.channelId, channelName, projName, from, text);
+            triggerAgentResponse(msg.channelId, channelName, projName, from, text, msg.projectId);
           } else if (msg.type === "agent:online") {
             console.log(`   🟢 ${msg.agentName || msg.agentId} online`);
             // Track agent in their channels
@@ -800,6 +932,9 @@ try {
   else if (cmd === "status") await cmdStatus();
   else if (cmd === "tasks" && sub === "list") await cmdTasksList();
   else if (cmd === "tasks" && sub === "update") await cmdTasksUpdate();
+  else if (cmd === "task" && sub === "create") await cmdTaskCreate();
+  else if (cmd === "task" && sub === "assign") await cmdTaskAssign();
+  else if (cmd === "task" && sub === "complete") await cmdTaskComplete();
   else if (cmd === "inbox" && sub === "list") await cmdInboxList();
   else if (cmd === "inbox" && sub === "count") await cmdInboxCount();
   else if (cmd === "chat" && sub === "send") await cmdChatSend();
@@ -815,6 +950,9 @@ Commands:
   status
   tasks list
   tasks update <taskId> --status <status>
+  task create <projectId> "<title>" --description "<desc>" --priority <low|medium|high> --assignee <agentId>
+  task assign <taskId> --to <agentId|agentName>
+  task complete <taskId>
   inbox list
   inbox count
   chat send <channelId> <message>

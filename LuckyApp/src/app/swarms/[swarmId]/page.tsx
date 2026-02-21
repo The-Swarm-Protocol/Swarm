@@ -33,8 +33,11 @@ import {
   type Task,
   type Message,
   type Channel,
+  type Profile,
   updateProject,
   deleteProject,
+  getProfile,
+  getProfilesByAddresses,
 } from "@/lib/firestore";
 
 const TASK_STATUS_COLORS: Record<string, string> = {
@@ -90,6 +93,17 @@ export default function ProjectDetailPage() {
   const [agentThinking, setAgentThinking] = useState(false);
   const lastMsgCountRef = useRef(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // @ mention autocomplete state
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [mentionStart, setMentionStart] = useState(0);
+  const chatInputRef = useRef<HTMLInputElement>(null);
+  const mentionRef = useRef<HTMLDivElement>(null);
+
+  // Profile state
+  const [profileMap, setProfileMap] = useState<Map<string, Profile>>(new Map());
+  const [myProfile, setMyProfile] = useState<Profile | null>(null);
 
   const loadProjectData = async () => {
     if (!currentOrg) return;
@@ -150,9 +164,71 @@ export default function ProjectDetailPage() {
     return () => { unsub?.(); };
   }, [projectId, currentOrg, project]);
 
+  // Fetch own profile
+  useEffect(() => {
+    if (!account?.address) return;
+    getProfile(account.address).then(p => setMyProfile(p));
+  }, [account?.address]);
+
+  // Fetch profiles for human message senders
+  useEffect(() => {
+    const humanAddrs = [...new Set(
+      messages.filter(m => m.senderType === 'human').map(m => m.senderId)
+    )];
+    if (humanAddrs.length === 0) return;
+    getProfilesByAddresses(humanAddrs).then(setProfileMap);
+  }, [messages]);
+
+  // Filtered agents for @ mention
+  const mentionAgents = mentionQuery !== null
+    ? assignedAgents.filter(a => a.name.toLowerCase().includes(mentionQuery.toLowerCase()))
+    : [];
+
+  // Click outside to dismiss mention popup
+  useEffect(() => {
+    if (mentionQuery === null) return;
+    const handler = (e: MouseEvent) => {
+      if (mentionRef.current && !mentionRef.current.contains(e.target as Node)) {
+        setMentionQuery(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [mentionQuery]);
+
+  const handleChatInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setChatInput(val);
+    const pos = e.target.selectionStart || 0;
+    // Find @ before cursor
+    const before = val.slice(0, pos);
+    const atIdx = before.lastIndexOf('@');
+    if (atIdx !== -1) {
+      const between = before.slice(atIdx + 1);
+      // Only trigger if @ is at start or preceded by space, and no space in query
+      if ((atIdx === 0 || before[atIdx - 1] === ' ') && !between.includes(' ')) {
+        setMentionQuery(between);
+        setMentionStart(atIdx);
+        setMentionIndex(0);
+        return;
+      }
+    }
+    setMentionQuery(null);
+  };
+
+  const insertMention = (agentName: string) => {
+    const before = chatInput.slice(0, mentionStart);
+    const after = chatInput.slice((chatInputRef.current?.selectionStart || mentionStart + (mentionQuery?.length || 0) + 1));
+    setChatInput(before + '@' + agentName + ' ' + after);
+    setMentionQuery(null);
+    chatInputRef.current?.focus();
+  };
+
   // Auto-scroll on new messages + detect agent responses
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Use instant scroll on first load, smooth for subsequent messages
+    const behavior = lastMsgCountRef.current === 0 ? 'instant' : 'smooth';
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior }), 100);
     // If new messages arrived and any are from agents, stop thinking
     if (messages.length > lastMsgCountRef.current) {
       const newMsgs = messages.slice(lastMsgCountRef.current);
@@ -171,7 +247,7 @@ export default function ProjectDetailPage() {
       await sendMessage({
         channelId: channel.id,
         senderId: addr,
-        senderName: addr.slice(0, 6) + '...' + addr.slice(-4),
+        senderName: myProfile?.displayName || (addr.slice(0, 6) + '...' + addr.slice(-4)),
         senderType: 'human',
         content: chatInput.trim(),
         orgId: currentOrg.id,
@@ -533,9 +609,10 @@ export default function ProjectDetailPage() {
 
                     // Resolve display name
                     const agentMatch = isAgent ? assignedAgents.find(a => a.id === msg.senderId || a.name === msg.senderName) : null;
+                    const humanProfile = !isAgent ? profileMap.get(msg.senderId.toLowerCase()) : null;
                     const displayName = isAgent
                       ? (agentMatch?.name || msg.senderName)
-                      : isMe ? 'You' : (msg.senderId.slice(0, 6) + '...' + msg.senderId.slice(-4));
+                      : isMe ? 'You' : (humanProfile?.displayName || msg.senderName || (msg.senderId.slice(0, 6) + '...' + msg.senderId.slice(-4)));
                     const badgeLabel = isAgent
                       ? (agentMatch?.type || 'Agent')
                       : 'Operator';
@@ -606,12 +683,43 @@ export default function ProjectDetailPage() {
                   <div ref={messagesEndRef} />
                 </div>
                 {/* Input */}
-                <div className="border-t p-3 flex gap-2">
+                <div className="border-t p-3 relative">
+                  {/* @ Mention Autocomplete Popup */}
+                  {mentionQuery !== null && mentionAgents.length > 0 && (
+                    <div
+                      ref={mentionRef}
+                      className="absolute bottom-full left-3 right-3 mb-1 rounded-lg border border-amber-500/30 bg-[#1a1a1a] shadow-lg overflow-hidden z-50"
+                    >
+                      {mentionAgents.map((agent, i) => (
+                        <button
+                          key={agent.id}
+                          className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm transition-colors ${
+                            i === mentionIndex ? 'bg-amber-500/15 text-amber-400' : 'text-amber-200/80 hover:bg-amber-500/10'
+                          }`}
+                          onMouseDown={(e) => { e.preventDefault(); insertMention(agent.name); }}
+                          onMouseEnter={() => setMentionIndex(i)}
+                        >
+                          <span className="font-medium text-amber-400">{agent.name}</span>
+                          <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500/70 border border-amber-500/20">{agent.type}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
                   <Input
-                    placeholder="Type a message..."
+                    ref={chatInputRef}
+                    placeholder="Type a message... (@ to mention)"
                     value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendChat(); } }}
+                    onChange={handleChatInputChange}
+                    onKeyDown={(e) => {
+                      if (mentionQuery !== null && mentionAgents.length > 0) {
+                        if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIndex(i => Math.min(i + 1, mentionAgents.length - 1)); return; }
+                        if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIndex(i => Math.max(i - 1, 0)); return; }
+                        if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionAgents[mentionIndex].name); return; }
+                        if (e.key === 'Escape') { e.preventDefault(); setMentionQuery(null); return; }
+                      }
+                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendChat(); }
+                    }}
                     disabled={sendingChat || !channel}
                     className="flex-1"
                   />
@@ -622,6 +730,7 @@ export default function ProjectDetailPage() {
                   >
                     Send
                   </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -637,7 +746,7 @@ export default function ProjectDetailPage() {
                   <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-xs">👤</div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium truncate">
-                      {account?.address ? account.address.slice(0, 6) + '...' + account.address.slice(-4) : 'You'}
+                      {myProfile?.displayName || (account?.address ? account.address.slice(0, 6) + '...' + account.address.slice(-4) : 'You')}
                     </p>
                     <p className="text-[10px] text-blue-400">Operator</p>
                   </div>

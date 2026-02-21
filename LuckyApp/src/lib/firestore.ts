@@ -4,6 +4,7 @@ import {
   addDoc,
   getDoc,
   getDocs,
+  setDoc,
   updateDoc,
   deleteDoc,
   query,
@@ -12,6 +13,7 @@ import {
   onSnapshot,
   serverTimestamp,
   type Unsubscribe,
+  type Timestamp,
   arrayUnion,
   arrayRemove,
 } from "firebase/firestore";
@@ -87,6 +89,48 @@ export interface Message {
   content: string;
   orgId?: string;
   createdAt: unknown;
+}
+
+// ─── Profiles ───────────────────────────────────────────
+
+export interface Profile {
+  walletAddress: string;
+  displayName: string;
+  avatar?: string;
+  bio?: string;
+  updatedAt: Timestamp;
+}
+
+export async function getProfile(walletAddress: string): Promise<Profile | null> {
+  const snap = await getDoc(doc(db, "profiles", walletAddress.toLowerCase()));
+  if (!snap.exists()) return null;
+  return snap.data() as Profile;
+}
+
+export async function setProfile(walletAddress: string, data: Partial<Profile>): Promise<void> {
+  const key = walletAddress.toLowerCase();
+  await setDoc(doc(db, "profiles", key), {
+    ...data,
+    walletAddress: key,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+export async function getProfilesByAddresses(addresses: string[]): Promise<Map<string, Profile>> {
+  const map = new Map<string, Profile>();
+  if (addresses.length === 0) return map;
+  // Firestore 'in' queries limited to 30, batch if needed
+  const lowered = addresses.map(a => a.toLowerCase());
+  for (let i = 0; i < lowered.length; i += 30) {
+    const batch = lowered.slice(i, i + 30);
+    const q = query(collection(db, "profiles"), where("walletAddress", "in", batch));
+    const snap = await getDocs(q);
+    snap.docs.forEach(d => {
+      const profile = d.data() as Profile;
+      map.set(profile.walletAddress, profile);
+    });
+  }
+  return map;
 }
 
 // ─── Organizations ──────────────────────────────────────
