@@ -91,17 +91,17 @@ export default function LandingPage() {
           {/* Dual Spline Background Container */}
           <div className="absolute inset-0 z-0">
             {/* Left Asset: Kitty Robot */}
-            <div className="absolute inset-0 z-0 opacity-60 pointer-events-auto">
+            <div className="absolute inset-0 z-0 opacity-40 md:opacity-50">
               <Suspense fallback={null}>
                 <Spline
                   scene="https://prod.spline.design/G9Uv2yhuZyhmrxRG/scene.splinecode"
-                  className="w-full h-full scale-[0.8] translate-x-[-25%] md:translate-x-[-35%]"
+                  className="w-full h-full scale-[0.6] md:scale-[0.7] translate-x-[-30%] md:translate-x-[-40%]"
                 />
               </Suspense>
             </div>
 
             {/* Center Asset: New Robot */}
-            <div className="absolute inset-0 z-[1] opacity-90 pointer-events-auto">
+            <div className="absolute inset-0 z-[1] opacity-70 md:opacity-80">
               <Suspense fallback={
                 <div className="w-full h-full flex items-center justify-center bg-black/20">
                   <div className="w-12 h-12 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin" />
@@ -109,7 +109,7 @@ export default function LandingPage() {
               }>
                 <Spline
                   scene="https://prod.spline.design/Apa6K76Zg3Ki-VRj/scene.splinecode"
-                  className="w-full h-full"
+                  className="w-full h-full scale-[0.85] md:scale-[0.95]"
                 />
               </Suspense>
             </div>
