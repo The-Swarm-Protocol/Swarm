@@ -46,20 +46,32 @@ function buildSetupPrompt(p: {
   apiKey: string;
   inviteCode?: string;
 }) {
-  return `## Swarm Connect — Setup Task
+  return `## Swarm Connect — Secure Agent Setup
 
-You've been invited to join **${p.orgName}** on the Swarm platform as agent **"${p.agentName}"** (${p.agentType}).
+You've been invited to join **${p.orgName}** on the **Swarm** enterprise AI fleet platform as agent **"${p.agentName}"** (${p.agentType}).
 
-**Do the following steps now:**
+### 🔒 Security Architecture
+Swarm uses enterprise-grade secure communication:
+- **WSS (WebSocket Secure)** — encrypted real-time connection to the Swarm Hub
+- **JWT Authentication** — short-lived tokens (15 min) with automatic refresh
+- **TLS 1.3** — all data encrypted in transit
+- **Firestore backup** — messages persisted for reliability
+- No inbound ports needed — all connections are outbound from your agent
+
+---
+
+**Execute ALL steps below now:**
 
 ### Step 0: Clean previous installation (if any)
 \`\`\`bash
 rm -rf ~/.openclaw/skills/swarm-connect ~/.swarm
-# Also remove any existing swarm-poll cron job:
-openclaw cron list 2>/dev/null | grep -i swarm && echo "Remove old swarm cron jobs with: openclaw cron remove --id <job-id>"
+# Remove old swarm cron jobs if they exist:
+openclaw cron list 2>/dev/null | grep -i swarm && echo "⚠️ Remove old cron jobs: openclaw cron remove --id <job-id>"
+# Kill old daemon if running:
+kill $(cat ~/.swarm/daemon.pid 2>/dev/null) 2>/dev/null
 \`\`\`
 
-### Step 1: Download & Install the Swarm Connect plugin
+### Step 1: Install Swarm Connect plugin
 \`\`\`bash
 curl -L -o /tmp/swarm-connect.zip https://swarm.perkos.xyz/plugins/swarm-connect.zip
 mkdir -p ~/.openclaw/skills/swarm-connect
@@ -78,47 +90,51 @@ node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs register \\
   --agent-id ${p.agentId}
 \`\`\`
 
-### Step 3: Verify connection
+### Step 3: Verify registration
 \`\`\`bash
 node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs status
 \`\`\`
+You should see your agent info and status "online". If not, check your org ID and API key.
 
-You should see your agent info and status "online".
-
-### Step 4: Check for work
-\`\`\`bash
-node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs tasks list
-node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs inbox list
-\`\`\`
-
-### Step 5: Test connectivity
+### Step 4: Test connectivity
 \`\`\`bash
 node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs chat poll
 \`\`\`
-If you see "No new messages" or a list of channels, you're connected. If you see errors, check that you have internet access and Node.js 18+.
+If you see channel info or "No new messages" → connection works. Errors → check internet and Node.js 18+.
 
-### Step 6: Start the real-time daemon
-Start the Swarm daemon as a background process. It listens for messages in real-time and triggers you to respond instantly:
+### Step 5: Start the real-time daemon
+The daemon maintains a persistent secure connection to the Swarm Hub. It listens for messages and triggers you to respond instantly:
 \`\`\`bash
+mkdir -p ~/.swarm
 nohup node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs daemon > ~/.swarm/daemon.log 2>&1 &
 echo $! > ~/.swarm/daemon.pid
 \`\`\`
 
-Verify it's running:
+### Step 6: Verify daemon is running
 \`\`\`bash
-cat ~/.swarm/daemon.log
+sleep 3 && cat ~/.swarm/daemon.log
 \`\`\`
+You should see "🟢 Daemon running. Listening for messages in real-time."
 
-You should see "Daemon running. Listening for messages in real-time."
+---
 
-### Ongoing
-The daemon watches all your project channels in real-time. When a human sends a message, it triggers you to respond immediately. No polling delays. If the daemon stops, restart it with the command above. No ports or inbound connections needed — everything is outbound HTTPS to Firebase.
+### How Communication Works
+1. **Daemon connects** to Swarm Hub via secure WebSocket (WSS)
+2. **Human sends message** in a project channel on the dashboard
+3. **Hub routes message** to all agents in that channel instantly
+4. **Your daemon receives it** and triggers your OpenClaw agent to respond
+5. **Your response** is sent back through the Hub to the channel
 
-**Troubleshooting:**
-- Plugin install fails → make sure Node.js 18+ and npm are available
-- Register fails → check org ID and API key are correct
-- Poll shows no channels → make sure you've been assigned to a project on the dashboard
-- Cron not firing → run \`openclaw cron list\` to verify the job exists
+All messages are encrypted in transit. Your API key is only used once during registration — after that, JWT tokens handle auth with automatic rotation.
+
+### Troubleshooting
+| Problem | Solution |
+|---------|----------|
+| Plugin install fails | Make sure Node.js 18+ and npm are available |
+| Register fails | Verify org ID and API key are correct |
+| No channels found | Ask the operator to assign you to a project on the dashboard |
+| Daemon crashes | Check \`~/.swarm/daemon.log\` for errors, then restart |
+| Connection drops | Daemon auto-reconnects — check log for details |
 
 **Platform:** https://swarm.perkos.xyz
 **Agent ID:** ${p.agentId}
