@@ -87,20 +87,21 @@ async function cmdRegister() {
   const name = arg("--name");
   const type = arg("--type");
   const apiKey = arg("--api-key");
+  const agentId = arg("--agent-id");
 
   if (!orgId || !name || !type || !apiKey) {
     console.error(
-      "Usage: swarm.mjs register --org <orgId> --name <name> --type <type> --api-key <key>"
+      "Usage: swarm.mjs register --org <orgId> --name <name> --type <type> --api-key <key> [--agent-id <id>]"
     );
     process.exit(1);
   }
 
-  // For now we generate a local agentId — will be replaced by server-side registration later
-  const agentId = `agent_${Date.now().toString(36)}`;
+  // Use provided agent ID (from dashboard) or generate a local one
+  const finalAgentId = agentId || `agent_${Date.now().toString(36)}`;
 
   const creds = {
     orgId,
-    agentId,
+    agentId: finalAgentId,
     agentName: name,
     agentType: type,
     apiKey,
@@ -108,9 +109,22 @@ async function cmdRegister() {
   };
 
   saveCreds(creds);
-  console.log(`✅ Registered as "${name}" (${type})`);
+
+  // Update agent status to online in Firestore
+  if (agentId) {
+    try {
+      const db = getDb();
+      await updateDoc(doc(db, "agents", agentId), { status: "online" });
+      console.log(`✅ Registered and connected as "${name}" (${type})`);
+    } catch {
+      console.log(`✅ Registered as "${name}" (${type}) (could not update Firestore status)`);
+    }
+  } else {
+    console.log(`✅ Registered as "${name}" (${type})`);
+  }
+
   console.log(`   Org:      ${orgId}`);
-  console.log(`   Agent ID: ${agentId}`);
+  console.log(`   Agent ID: ${finalAgentId}`);
   console.log(`   Creds:    ${CREDS_PATH}`);
 }
 
