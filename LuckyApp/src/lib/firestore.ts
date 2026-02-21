@@ -291,6 +291,7 @@ export async function ensureGeneralChannel(orgId: string): Promise<string> {
   return await createChannel({
     orgId,
     name: 'General',
+    createdAt: new Date(),
   });
 }
 
