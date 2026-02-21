@@ -26,14 +26,14 @@ import SpotlightCard from "@/components/reactbits/SpotlightCard";
 
 const columns = [
   { status: "todo" as const, label: "To Do", icon: "📋", bg: "bg-muted", border: "border-border" },
-  { status: "in_progress" as const, label: "In Progress", icon: "🔄", bg: "bg-amber-50", border: "border-amber-200" },
-  { status: "done" as const, label: "Done", icon: "✅", bg: "bg-emerald-50", border: "border-green-200" },
+  { status: "in_progress" as const, label: "In Progress", icon: "🔄", bg: "bg-amber-50 dark:bg-amber-950/30", border: "border-amber-200 dark:border-amber-800" },
+  { status: "done" as const, label: "Done", icon: "✅", bg: "bg-emerald-50 dark:bg-emerald-950/30", border: "border-green-200 dark:border-green-800" },
 ];
 
 const priorityColors = {
   low: "bg-muted text-muted-foreground",
-  medium: "bg-amber-100 text-amber-700", 
-  high: "bg-orange-100 text-orange-700",
+  medium: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
+  high: "bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400",
 };
 
 export default function TasksPage() {
@@ -199,7 +199,7 @@ export default function TasksPage() {
       </div>
 
       {error && (
-        <div className="p-3 rounded-md bg-red-50 border border-red-200 text-sm text-red-600">
+        <div className="p-3 rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600 dark:text-red-400">
           {error}
         </div>
       )}

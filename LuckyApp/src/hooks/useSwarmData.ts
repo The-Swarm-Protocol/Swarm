@@ -61,16 +61,35 @@ export function useSwarmData(): SwarmData {
       const registry = new ethers.Contract(CONTRACTS.AGENT_REGISTRY, AGENT_REGISTRY_ABI, provider);
       const treasuryContract = new ethers.Contract(CONTRACTS.AGENT_TREASURY, TREASURY_ABI, provider);
 
-      const [rawTasks, rawAgents, taskCount, agentCount, rawPnL] = await Promise.all([
-        board.getAllTasks().catch(() => []),
+      // Fetch counts + bulk calls in parallel; bulk calls may revert if too large
+      const [rawTasksBulk, rawAgents, taskCount, agentCount, rawPnL] = await Promise.all([
+        board.getAllTasks().catch(() => null),
         registry.getAllAgents().catch(() => []),
         board.taskCount().catch(() => BigInt(0)),
         registry.agentCount().catch(() => BigInt(0)),
         treasuryContract.getPnL().catch(() => null),
       ]);
 
-      // New tuple order from playbook ABI:
-      // (taskId, vault, title, description, requiredSkills, deadline, budget, poster, claimedBy, deliveryHash, createdAt, status)
+      // If getAllTasks() reverted (too many tasks for RPC), fetch individually in batches
+      let rawTasks: unknown[] = rawTasksBulk ?? [];
+      if (!rawTasksBulk && Number(taskCount) > 0) {
+        const count = Number(taskCount);
+        const BATCH = 10;
+        const results: unknown[] = [];
+        for (let i = 0; i < count; i += BATCH) {
+          const batch = Array.from(
+            { length: Math.min(BATCH, count - i) },
+            (_, j) => board.getTask(i + j).catch(() => null)
+          );
+          const batchResults = await Promise.all(batch);
+          for (const r of batchResults) {
+            if (r) results.push(r);
+          }
+        }
+        rawTasks = results;
+      }
+
+      // Tuple: (taskId, vault, title, description, requiredSkills, deadline, budget, poster, claimedBy, deliveryHash, createdAt, status)
       const parsedTasks: TaskListing[] = (rawTasks as unknown[]).map((t: unknown) => {
         const a = t as [bigint, string, string, string, string, bigint, bigint, string, string, string, bigint, number];
         return {
@@ -90,8 +109,7 @@ export function useSwarmData(): SwarmData {
         };
       });
 
-      // New tuple order from playbook ABI:
-      // (agentAddress, name, skills, feeRate, active, registeredAt)
+      // Tuple: (agentAddress, name, skills, feeRate, active, registeredAt)
       const parsedAgents: AgentProfile[] = (rawAgents as unknown[]).map((a: unknown) => {
         const r = a as [string, string, string, bigint, boolean, bigint];
         return {
