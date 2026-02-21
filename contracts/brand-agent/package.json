@@ -1,0 +1,19 @@
+{
+  "name": "brand-vault-hedera",
+  "version": "1.0.0",
+  "description": "BrandVault — Encrypted onchain brand management on Hedera",
+  "scripts": {
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.ts --network hederaTestnet",
+    "init-vault": "hardhat run scripts/init_vault.ts --network hederaTestnet",
+    "deploy:local": "hardhat run scripts/deploy.ts --network hardhat"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "dotenv": "^16.4.5",
+    "hardhat": "^2.22.0",
+    "typescript": "^5.4.0",
+    "ts-node": "^10.9.0",
+    "@types/node": "^20.0.0"
+  }
+}
