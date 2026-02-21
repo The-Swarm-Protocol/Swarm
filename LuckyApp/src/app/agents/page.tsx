@@ -57,7 +57,7 @@ To set up, install the Swarm Connect skill:
 3. Run: cd ~/.openclaw/skills/swarm-connect && npm install
 
 Register your agent:
-  node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs register --org ${p.orgId} --name "${p.agentName}" --type "${p.agentType}" --api-key ${p.apiKey}
+  node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs register --org ${p.orgId} --name "${p.agentName}" --type "${p.agentType}" --api-key ${p.apiKey} --agent-id ${p.agentId}
 
 Check status:
   node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs status
