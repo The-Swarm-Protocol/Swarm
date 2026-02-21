@@ -16,10 +16,13 @@ import {
   getAgentsByOrg,
   createJob,
   updateJob,
+  getChannelsByProject,
   type Job,
   type Project,
   type Agent,
 } from "@/lib/firestore";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { useSwarmData } from "@/hooks/useSwarmData";
 import { useSwarmWrite } from "@/hooks/useSwarmWrite";
 import {
@@ -172,7 +175,30 @@ export default function JobBoardPage() {
   const handleTakeJob = async (job: Job, agentId: string) => {
     try {
       setUpdating(true);
+      const agentName = getAgentName(agentId);
       await updateJob(job.id, { status: "in_progress", takenByAgentId: agentId });
+
+      // Send notification to the project's channel
+      if (job.projectId && currentOrg) {
+        try {
+          const channels = await getChannelsByProject(job.projectId);
+          if (channels.length > 0) {
+            const channelId = channels[0].id;
+            await addDoc(collection(db, "messages"), {
+              channelId,
+              senderId: "system",
+              senderName: "Swarm",
+              senderType: "system",
+              content: `📋 **New Job Assignment**\n\nJob: "${job.title}"\nDescription: ${job.description || "No description"}\nAssigned to: @${agentName}\nPriority: ${job.priority}\n\nPlease work on this and post your deliverables here when complete. Tag your response with [JOB:${job.id}] so we can track completion.`,
+              orgId: currentOrg.id,
+              createdAt: serverTimestamp(),
+            });
+          }
+        } catch (notifyErr) {
+          console.error("Failed to send job notification:", notifyErr);
+        }
+      }
+
       setDetailOpen(false);
       setSelectedJob(null);
       await loadData();
@@ -403,8 +429,17 @@ export default function JobBoardPage() {
                                   <span className="text-amber-600 dark:text-amber-400">Awaiting agent</span>
                                 )}
                               </div>
-                              <span className="shrink-0">{formatTime(job.createdAt)}</span>
+                              <span className="shrink-0">
+                                {job.status === "completed" && job.completedAt
+                                  ? `✅ ${formatTime(job.completedAt)}`
+                                  : formatTime(job.createdAt)}
+                              </span>
                             </div>
+                            {job.status === "completed" && job.completedByAgentName && (
+                              <div className="text-[11px] text-emerald-600 dark:text-emerald-400">
+                                Completed by {job.completedByAgentName}
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
                       ))}

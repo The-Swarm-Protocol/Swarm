@@ -742,10 +742,21 @@ async function runAgentDaemon(creds, { agentIndex = 0, allLocalAgents = [], hubU
       .map(a => `${a.agentName} (${a.agentType})`)
       .join(", ");
 
+    // Detect job assignment messages and add job instructions
+    let jobContext = "";
+    if (senderType === "system" && text.includes("New Job Assignment")) {
+      const jobIdMatch = text.match(/\[JOB:([^\]]+)\]/);
+      if (jobIdMatch) {
+        jobContext = `\n\nIMPORTANT: You have been assigned a job. Work on it and post your deliverables.
+When you're done, include [JOB:${jobIdMatch[1]}] in your response so the system can mark it complete.
+Focus on the job description above and deliver quality work.`;
+      }
+    }
+
     const taskMsg = `[Swarm Channel Message]
 Channel: #${channelName} | Project: ${projName}
 This message is from: ${from} (${senderType}).
-Message: "${text}"${taskContext}
+Message: "${text}"${taskContext}${jobContext}
 
 You are ${creds.agentName}, a ${creds.agentType} agent in this swarm.
 ${otherAgentsList ? `Other agents in this channel: ${otherAgentsList}.` : ""}
@@ -826,15 +837,59 @@ Rules:
   let firestoreActive = false;
   const channelInfo = {};
 
+  // --- Job completion detection ---
+  async function detectJobCompletion(channelId, senderId, senderName, text) {
+    const jobTagMatch = text.match(/\[JOB:([^\]]+)\]/);
+    if (!jobTagMatch) return;
+
+    const jobId = jobTagMatch[1];
+    try {
+      const jobSnap = await getDoc(doc(db, "jobs", jobId));
+      if (!jobSnap.exists()) { log(`   ⚠️ Job ${jobId} not found for completion`); return; }
+      const jobData = jobSnap.data();
+      if (jobData.status === "completed") return; // already done
+
+      // Mark job completed
+      await updateDoc(doc(db, "jobs", jobId), {
+        status: "completed",
+        completedAt: serverTimestamp(),
+        completedByAgentName: senderName,
+        updatedAt: serverTimestamp(),
+      });
+
+      // Send confirmation message
+      await addDoc(collection(db, "messages"), {
+        channelId,
+        senderId: "system",
+        senderName: "Swarm",
+        senderType: "system",
+        content: `✅ Job "${jobData.title}" completed by @${senderName}`,
+        orgId: creds.orgId,
+        createdAt: serverTimestamp(),
+      });
+
+      log(`   🎉 Job "${jobData.title}" (${jobId}) auto-completed by ${senderName}`);
+    } catch (err) {
+      log(`   ⚠️ Job completion error: ${err.message}`);
+    }
+  }
+
   function handleNewMessage(channelId, m, mDocId) {
     if (processedMessages.has(mDocId)) return;
     processedMessages.add(mDocId);
 
     const senderId = m.senderId || "";
     const senderType = m.senderType || "user";
+    const senderName = m.senderName || senderId || "unknown";
+    const text = m.content || m.text || "";
 
     // Track sender for agent-only decay
     trackSender(channelId, senderId, senderType);
+
+    // Check for job completion tags (from any agent, including self)
+    if (senderType === "agent" && text.includes("[JOB:")) {
+      detectJobCompletion(channelId, senderId, senderName, text);
+    }
 
     // Self-skip (NOT senderType filter — agents CAN respond to other agents)
     if (senderId === creds.agentId) return;
@@ -842,8 +897,7 @@ Rules:
     // Anti-loop checks
     if (!shouldRespond(channelId, senderId, senderType)) return;
 
-    const from = m.senderName || senderId || "unknown";
-    const text = m.content || m.text || "";
+    const from = senderName;
     const info = channelInfo[channelId] || { name: channelId, projName: "Project", projId: "" };
     log(`\n📨 [${info.projName}] #${info.name} — ${from} (${senderType}): ${text}`);
     triggerAgentResponse(channelId, info.name, info.projName, from, senderType, text, info.projId);

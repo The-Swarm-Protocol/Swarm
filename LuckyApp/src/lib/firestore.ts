@@ -353,6 +353,12 @@ export async function ensureGeneralChannel(orgId: string): Promise<string> {
   });
 }
 
+export async function getChannelsByProject(projectId: string): Promise<Channel[]> {
+  const q = query(collection(db, "channels"), where("projectId", "==", projectId));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Channel));
+}
+
 export async function getOrCreateProjectChannel(
   projectId: string,
   orgId: string,
@@ -430,6 +436,8 @@ export interface Job {
   postedByAddress: string;
   takenByAgentId?: string;
   priority: 'low' | 'medium' | 'high';
+  completedAt?: unknown;
+  completedByAgentName?: string;
   createdAt: unknown;
   updatedAt?: unknown;
 }
