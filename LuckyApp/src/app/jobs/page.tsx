@@ -21,6 +21,7 @@ import {
   type Agent,
 } from "@/lib/firestore";
 import { useSwarmData } from "@/hooks/useSwarmData";
+import { useSwarmWrite } from "@/hooks/useSwarmWrite";
 import {
   TaskStatus,
   STATUS_CONFIG,
@@ -31,6 +32,7 @@ import {
   type TaskListing,
   type AgentProfile,
 } from "@/lib/swarm-contracts";
+import { ethers } from "ethers";
 import { cn } from "@/lib/utils";
 import BlurText from "@/components/reactbits/BlurText";
 import SpotlightCard from "@/components/reactbits/SpotlightCard";
@@ -83,8 +85,16 @@ export default function JobBoardPage() {
 
   // ── Onchain state (Hedera) ──
   const swarm = useSwarmData();
+  const swarmWrite = useSwarmWrite();
   const [selectedOnchainTask, setSelectedOnchainTask] = useState<TaskListing | null>(null);
   const [onchainDetailOpen, setOnchainDetailOpen] = useState(false);
+  const [onchainPostOpen, setOnchainPostOpen] = useState(false);
+  const [ocTitle, setOcTitle] = useState("");
+  const [ocDesc, setOcDesc] = useState("");
+  const [ocSkills, setOcSkills] = useState("");
+  const [ocBudget, setOcBudget] = useState("");
+  const [ocDeadlineDays, setOcDeadlineDays] = useState("7");
+  const [deliveryInput, setDeliveryInput] = useState("");
 
   // ── Firestore loaders ──
 
@@ -143,7 +153,7 @@ export default function JobBoardPage() {
         requiredSkills: jobSkills,
         status: "open",
         postedByAddress: account?.address || "",
-        projectId: jobProject || "",
+        projectId: jobProject === "__none__" ? "" : jobProject,
         priority: jobPriority,
         createdAt: new Date(),
       });
@@ -255,9 +265,18 @@ export default function JobBoardPage() {
             </span>
           )}
           {tab === "onchain" && (
-            <Button size="sm" variant="outline" onClick={swarm.refetch}>
-              Refresh
-            </Button>
+            <>
+              <Button size="sm" variant="outline" onClick={swarm.refetch}>
+                Refresh
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setOnchainPostOpen(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                + Post Onchain Task
+              </Button>
+            </>
           )}
           {tab === "org" && (
             <Button
@@ -653,7 +672,7 @@ export default function JobBoardPage() {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-xs text-muted-foreground">Posted by</span>
-                  <p className="font-medium font-mono text-xs truncate">{shortAddr(selectedOnchainTask.creator)}</p>
+                  <p className="font-medium font-mono text-xs truncate">{shortAddr(selectedOnchainTask.poster)}</p>
                 </div>
                 <div>
                   <span className="text-xs text-muted-foreground">Deadline</span>
@@ -668,10 +687,10 @@ export default function JobBoardPage() {
                     <p className="font-medium font-mono text-xs truncate">{shortAddr(selectedOnchainTask.claimedBy)}</p>
                   </div>
                 )}
-                {selectedOnchainTask.completedAt > 0 && (
+                {selectedOnchainTask.createdAt > 0 && (
                   <div>
-                    <span className="text-xs text-muted-foreground">Completed</span>
-                    <p className="font-medium text-xs">{new Date(selectedOnchainTask.completedAt * 1000).toLocaleDateString()}</p>
+                    <span className="text-xs text-muted-foreground">Created</span>
+                    <p className="font-medium text-xs">{new Date(selectedOnchainTask.createdAt * 1000).toLocaleDateString()}</p>
                   </div>
                 )}
               </div>
@@ -684,12 +703,54 @@ export default function JobBoardPage() {
               )}
 
               {selectedOnchainTask.status === TaskStatus.Open && (
-                <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-3">
-                  <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium mb-2">Claim via smart contract:</p>
-                  <code className="text-[11px] text-muted-foreground block bg-muted rounded p-2 overflow-x-auto whitespace-pre">
-{`const board = new ethers.Contract("${CONTRACTS.TASK_BOARD}", abi, wallet);
-await board.claimTask(${selectedOnchainTask.taskId});`}
-                  </code>
+                <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-3 space-y-3">
+                  <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Claim this task to start working on it</p>
+                  <Button
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                    disabled={swarmWrite.state.isLoading || !account}
+                    onClick={async () => {
+                      const hash = await swarmWrite.claimTask(selectedOnchainTask.taskId);
+                      if (hash) {
+                        setOnchainDetailOpen(false);
+                        swarm.refetch();
+                      }
+                    }}
+                  >
+                    {swarmWrite.state.isLoading ? "Claiming..." : `Claim Task #${selectedOnchainTask.taskId}`}
+                  </Button>
+                  {!account && <p className="text-[10px] text-muted-foreground">Connect your wallet to claim</p>}
+                  {swarmWrite.state.error && <p className="text-[10px] text-red-500">{swarmWrite.state.error}</p>}
+                </div>
+              )}
+
+              {selectedOnchainTask.status === TaskStatus.Claimed && selectedOnchainTask.claimedBy?.toLowerCase() === account?.address?.toLowerCase() && (
+                <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 space-y-3">
+                  <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">Submit your delivery hash</p>
+                  <Input
+                    placeholder="Paste your output text to hash, or a 0x... hash"
+                    value={deliveryInput}
+                    onChange={(e) => setDeliveryInput(e.target.value)}
+                    className="text-xs"
+                  />
+                  <Button
+                    className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                    disabled={swarmWrite.state.isLoading || !deliveryInput.trim()}
+                    onClick={async () => {
+                      let hash = deliveryInput.trim();
+                      if (!hash.startsWith("0x")) {
+                        hash = ethers.keccak256(ethers.toUtf8Bytes(hash));
+                      }
+                      const txHash = await swarmWrite.submitDelivery(selectedOnchainTask.taskId, hash);
+                      if (txHash) {
+                        setDeliveryInput("");
+                        setOnchainDetailOpen(false);
+                        swarm.refetch();
+                      }
+                    }}
+                  >
+                    {swarmWrite.state.isLoading ? "Submitting..." : "Submit Delivery"}
+                  </Button>
+                  {swarmWrite.state.error && <p className="text-[10px] text-red-500">{swarmWrite.state.error}</p>}
                 </div>
               )}
             </div>
@@ -771,6 +832,72 @@ await board.claimTask(${selectedOnchainTask.taskId});`}
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Post Onchain Task Dialog */}
+      <Dialog open={onchainPostOpen} onOpenChange={setOnchainPostOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Post Onchain Task</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              This posts a task to the Hedera Testnet SwarmTaskBoard. Budget is escrowed in HBAR.
+            </p>
+            <div>
+              <label className="text-xs font-medium mb-1 block">Title <span className="text-red-500">*</span></label>
+              <Input placeholder="Task title" value={ocTitle} onChange={(e) => setOcTitle(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-medium mb-1 block">Description</label>
+              <Textarea placeholder="What needs to be done..." value={ocDesc} onChange={(e) => setOcDesc(e.target.value)} rows={3} />
+            </div>
+            <div>
+              <label className="text-xs font-medium mb-1 block">Required Skills</label>
+              <Input placeholder="e.g. Research, Trading, Analytics" value={ocSkills} onChange={(e) => setOcSkills(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium mb-1 block">Budget (HBAR) <span className="text-red-500">*</span></label>
+                <Input type="number" placeholder="e.g. 10" value={ocBudget} onChange={(e) => setOcBudget(e.target.value)} min="0" step="0.01" />
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1 block">Deadline (days)</label>
+                <Input type="number" placeholder="7" value={ocDeadlineDays} onChange={(e) => setOcDeadlineDays(e.target.value)} min="1" />
+              </div>
+            </div>
+            {swarmWrite.state.error && (
+              <p className="text-xs text-red-500">{swarmWrite.state.error}</p>
+            )}
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="outline" onClick={() => setOnchainPostOpen(false)} disabled={swarmWrite.state.isLoading}>Cancel</Button>
+              <Button
+                onClick={async () => {
+                  if (!ocTitle.trim() || !ocBudget.trim()) return;
+                  const deadlineUnix = Math.floor(Date.now() / 1000) + (parseInt(ocDeadlineDays) || 7) * 86400;
+                  const hash = await swarmWrite.postTask(
+                    CONTRACTS.BRAND_VAULT,
+                    ocTitle.trim(),
+                    ocDesc.trim(),
+                    ocSkills.trim(),
+                    deadlineUnix,
+                    ocBudget.trim(),
+                  );
+                  if (hash) {
+                    setOcTitle(""); setOcDesc(""); setOcSkills(""); setOcBudget(""); setOcDeadlineDays("7");
+                    setOnchainPostOpen(false);
+                    swarm.refetch();
+                  }
+                }}
+                disabled={swarmWrite.state.isLoading || !ocTitle.trim() || !ocBudget.trim() || !account}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {swarmWrite.state.isLoading ? "Posting..." : `Post Task (${ocBudget || "0"} HBAR)`}
+              </Button>
+            </div>
+            {!account && <p className="text-[10px] text-muted-foreground text-center">Connect your wallet to post onchain tasks</p>}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -833,7 +960,7 @@ function OnchainTaskCard({ task, onClick }: { task: TaskListing; onClick: () => 
         )}
 
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <span className="truncate">By {shortAddr(task.creator)}</span>
+          <span className="truncate">By {shortAddr(task.poster)}</span>
           {task.claimedBy && task.claimedBy !== "0x0000000000000000000000000000000000000000" && (
             <>
               <span>&middot;</span>
@@ -848,10 +975,6 @@ function OnchainTaskCard({ task, onClick }: { task: TaskListing; onClick: () => 
 
 function OnchainAgentCard({ agent }: { agent: AgentProfile }) {
   const skills = agent.skills.split(",").map((s) => s.trim()).filter(Boolean);
-  const completionRate =
-    agent.tasksCompleted + agent.tasksDisputed > 0
-      ? ((agent.tasksCompleted / (agent.tasksCompleted + agent.tasksDisputed)) * 100).toFixed(0)
-      : null;
 
   return (
     <Card>
@@ -874,9 +997,8 @@ function OnchainAgentCard({ agent }: { agent: AgentProfile }) {
           </div>
         )}
         <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-          <span>{agent.tasksCompleted} completed</span>
-          {completionRate && <span>{completionRate}% success</span>}
-          <span className="text-emerald-500 font-medium">{agent.totalEarned.toFixed(2)} HBAR</span>
+          <span>Fee: {agent.feeRate} bps</span>
+          <span className={agent.active ? "text-emerald-500" : "text-gray-500"}>{agent.active ? "Active" : "Inactive"}</span>
         </div>
       </CardContent>
     </Card>
