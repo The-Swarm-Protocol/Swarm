@@ -8,7 +8,7 @@ import { base, defineChain } from 'thirdweb/chains';
 import { useTeam } from '@/contexts/TeamContext';
 
 const client = createThirdwebClient({
-  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || 'e0a1622f71794f48ce9902e92a207ea8',
+  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || 'cbd8abcfa13db759ca2f5fa7d8a5a5e5',
 });
 
 const hedera = defineChain({
