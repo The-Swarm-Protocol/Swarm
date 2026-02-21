@@ -10,9 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOrg } from "@/contexts/OrgContext";
+import { useActiveAccount } from "thirdweb/react";
 import { createAgent, updateAgent, deleteAgent, type Agent } from "@/lib/firestore";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useSwarmWrite } from "@/hooks/useSwarmWrite";
+import { useSwarmData } from "@/hooks/useSwarmData";
+import { shortAddr } from "@/lib/swarm-contracts";
 import BlurText from "@/components/reactbits/BlurText";
 import SpotlightCard from "@/components/reactbits/SpotlightCard";
 
@@ -168,6 +172,15 @@ export default function AgentsPage() {
   const [showRegister, setShowRegister] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
   const { currentOrg } = useOrg();
+  const account = useActiveAccount();
+  const swarmWrite = useSwarmWrite();
+  const swarm = useSwarmData();
+
+  // Onchain registration form state
+  const [showOnchainRegister, setShowOnchainRegister] = useState(false);
+  const [ocAgentName, setOcAgentName] = useState("");
+  const [ocAgentSkills, setOcAgentSkills] = useState("");
+  const [ocAgentFeeRate, setOcAgentFeeRate] = useState("500");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -387,12 +400,21 @@ export default function AgentsPage() {
             Monitor and manage your enterprise AI agents
           </p>
         </div>
-        <Button
-          onClick={() => setShowRegister(true)}
-          className="bg-amber-600 hover:bg-amber-700 text-white"
-        >
-          + Register Agent
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setShowOnchainRegister(true)}
+            variant="outline"
+            className="border-emerald-500/50 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+          >
+            + Register Onchain
+          </Button>
+          <Button
+            onClick={() => setShowRegister(true)}
+            className="bg-amber-600 hover:bg-amber-700 text-white"
+          >
+            + Register Agent
+          </Button>
+        </div>
       </div>
 
       {currentOrg.inviteCode && (
@@ -689,6 +711,115 @@ export default function AgentsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Onchain Agent Registration Dialog */}
+      <Dialog open={showOnchainRegister} onOpenChange={setShowOnchainRegister}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Register Agent Onchain</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Register your agent on the Hedera Testnet SwarmAgentRegistry smart contract.
+            </p>
+            <div>
+              <label className="text-xs font-medium mb-1 block">Agent Name <span className="text-red-500">*</span></label>
+              <Input
+                placeholder="e.g. Alpha Scout"
+                value={ocAgentName}
+                onChange={(e) => setOcAgentName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium mb-1 block">Skills</label>
+              <Input
+                placeholder="e.g. Research, Trading, Analytics"
+                value={ocAgentSkills}
+                onChange={(e) => setOcAgentSkills(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium mb-1 block">Fee Rate (basis points)</label>
+              <Input
+                type="number"
+                placeholder="500 = 5%"
+                value={ocAgentFeeRate}
+                onChange={(e) => setOcAgentFeeRate(e.target.value)}
+                min="0"
+                max="10000"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">500 bps = 5% fee on completed tasks</p>
+            </div>
+            {swarmWrite.state.error && (
+              <p className="text-xs text-red-500">{swarmWrite.state.error}</p>
+            )}
+            {swarmWrite.state.txHash && (
+              <p className="text-xs text-emerald-500">Registered! Tx: {swarmWrite.state.txHash.slice(0, 16)}...</p>
+            )}
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="outline" onClick={() => setShowOnchainRegister(false)} disabled={swarmWrite.state.isLoading}>Cancel</Button>
+              <Button
+                onClick={async () => {
+                  if (!ocAgentName.trim()) return;
+                  const hash = await swarmWrite.registerAgent(
+                    ocAgentName.trim(),
+                    ocAgentSkills.trim(),
+                    parseInt(ocAgentFeeRate) || 500,
+                  );
+                  if (hash) {
+                    setOcAgentName(""); setOcAgentSkills(""); setOcAgentFeeRate("500");
+                    swarm.refetch();
+                  }
+                }}
+                disabled={swarmWrite.state.isLoading || !ocAgentName.trim() || !account}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {swarmWrite.state.isLoading ? "Registering..." : "Register Onchain"}
+              </Button>
+            </div>
+            {!account && <p className="text-[10px] text-muted-foreground text-center">Connect your wallet to register onchain</p>}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Onchain Registered Agents Section */}
+      {swarm.agents.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-semibold">Onchain Agents</h2>
+            <Badge variant="secondary" className="text-xs">{swarm.agents.length}</Badge>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {swarm.agents.map((agent) => {
+              const skills = agent.skills.split(",").map((s) => s.trim()).filter(Boolean);
+              return (
+                <Card key={agent.agentAddress}>
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex items-center justify-between min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className={`h-2 w-2 rounded-full shrink-0 ${agent.active ? "bg-emerald-400" : "bg-gray-400"}`} />
+                        <p className="text-sm font-medium truncate">{agent.name}</p>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground font-mono shrink-0">{shortAddr(agent.agentAddress)}</p>
+                    </div>
+                    {skills.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {skills.slice(0, 4).map((s) => (
+                          <Badge key={s} variant="outline" className="text-[10px]">{s}</Badge>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span>Fee: {agent.feeRate} bps</span>
+                      <span className={agent.active ? "text-emerald-500" : "text-gray-500"}>{agent.active ? "Active" : "Inactive"}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

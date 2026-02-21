@@ -1,41 +1,80 @@
 /**
  * BrandMover Swarm Contracts — Hedera Testnet
  *
- * Contract addresses, ABIs, types, and helpers for reading
- * the SwarmTaskBoard and SwarmAgentRegistry from Hedera.
+ * Contract addresses, ABIs, types, and helpers for interacting
+ * with the SwarmTaskBoard and SwarmAgentRegistry on Hedera.
+ *
+ * Playbook API: https://frontend-blue-one-76.vercel.app/api/agent-playbook
  */
 
 // ============================================================
-// Contract Addresses (Hedera Testnet)
+// Network Config
 // ============================================================
 
 export const HEDERA_RPC_URL = "https://testnet.hashio.io/api";
 export const HEDERA_CHAIN_ID = 296;
 export const EXPLORER_BASE = "https://hashscan.io/testnet";
+export const HEDERA_GAS_LIMIT = 3_000_000;
+
+// ============================================================
+// Contract Addresses (Hedera Testnet)
+// ============================================================
 
 export const CONTRACTS = {
-  TASK_BOARD: "0x00CBBA3bb2Bd5B860b2D17660F801eA5a2e9a8c9",
-  AGENT_REGISTRY: "0x557Ac244E4D73910C89631937699cDb44Fb04cc6",
+  TASK_BOARD: "0xC02EcE9c48E20Fb5a3D59b2ff143a0691694b9a9",
+  AGENT_REGISTRY: "0x1C56831b3413B916CEa6321e0C113cc19fD250Bd",
   BRAND_VAULT: "0x2254185AB8B6AC995F97C769a414A0281B42853b",
-  BRAND_REGISTRY: "0x76c00C56A60F0a92ED899246Af76c65D835A8EAA",
   AGENT_TREASURY: "0x1AC9C959459ED904899a1d52f493e9e4A879a9f4",
 } as const;
 
 // ============================================================
-// ABIs (minimal, read-only)
+// ABIs (full — read + write)
 // ============================================================
 
 export const TASK_BOARD_ABI = [
-  "function getAllTasks() view returns (tuple(uint256 taskId, address creator, address vaultAddress, string title, string description, string requiredSkills, uint256 budget, uint256 deadline, uint8 status, address claimedBy, uint256 claimedAt, uint256 completedAt, bytes32 deliveryHash, string disputeReason)[])",
-  "function getOpenTasks() view returns (tuple(uint256 taskId, address creator, address vaultAddress, string title, string description, string requiredSkills, uint256 budget, uint256 deadline, uint8 status, address claimedBy, uint256 claimedAt, uint256 completedAt, bytes32 deliveryHash, string disputeReason)[])",
-  "function getTotalTasks() view returns (uint256)",
-  "function getTask(uint256 taskId) view returns (tuple(uint256 taskId, address creator, address vaultAddress, string title, string description, string requiredSkills, uint256 budget, uint256 deadline, uint8 status, address claimedBy, uint256 claimedAt, uint256 completedAt, bytes32 deliveryHash, string disputeReason))",
+  // Write functions
+  "function postTask(address vaultAddress, string title, string description, string requiredSkills, uint256 deadline) payable returns (uint256)",
+  "function claimTask(uint256 taskId) external",
+  "function submitDelivery(uint256 taskId, bytes32 deliveryHash) external",
+  "function approveDelivery(uint256 taskId) external",
+  "function disputeDelivery(uint256 taskId) external",
+  // Read functions
+  "function getOpenTasks() view returns (tuple(uint256 taskId, address vault, string title, string description, string requiredSkills, uint256 deadline, uint256 budget, address poster, address claimedBy, bytes32 deliveryHash, uint256 createdAt, uint8 status)[])",
+  "function getTask(uint256 taskId) view returns (tuple(uint256 taskId, address vault, string title, string description, string requiredSkills, uint256 deadline, uint256 budget, address poster, address claimedBy, bytes32 deliveryHash, uint256 createdAt, uint8 status))",
+  "function getAllTasks() view returns (tuple(uint256 taskId, address vault, string title, string description, string requiredSkills, uint256 deadline, uint256 budget, address poster, address claimedBy, bytes32 deliveryHash, uint256 createdAt, uint8 status)[])",
+  "function taskCount() view returns (uint256)",
+  // Events
+  "event TaskPosted(uint256 indexed taskId, address indexed poster, address vault, string title, uint256 budget, uint256 deadline, uint256 timestamp)",
+  "event TaskClaimed(uint256 indexed taskId, address indexed agent, uint256 timestamp)",
+  "event DeliverySubmitted(uint256 indexed taskId, address indexed agent, bytes32 deliveryHash, uint256 timestamp)",
+  "event DeliveryApproved(uint256 indexed taskId, address indexed agent, uint256 payout, uint256 timestamp)",
+  "event DeliveryDisputed(uint256 indexed taskId, address indexed poster, uint256 timestamp)",
 ];
 
 export const AGENT_REGISTRY_ABI = [
-  "function getAllAgents() view returns (tuple(address agentAddress, string name, string skills, uint256 feeRate, uint256 registeredAt, uint256 tasksCompleted, uint256 tasksDisputed, uint256 totalEarned, bool active)[])",
-  "function getActiveAgents() view returns (tuple(address agentAddress, string name, string skills, uint256 feeRate, uint256 registeredAt, uint256 tasksCompleted, uint256 tasksDisputed, uint256 totalEarned, bool active)[])",
-  "function getTotalAgents() view returns (uint256)",
+  // Write functions
+  "function registerAgent(string name, string skills, uint256 feeRate) external",
+  "function updateSkills(string newSkills) external",
+  "function deactivateAgent() external",
+  // Read functions
+  "function getAgent(address agentAddr) view returns (tuple(address agentAddress, string name, string skills, uint256 feeRate, bool active, uint256 registeredAt))",
+  "function isRegistered(address agentAddr) view returns (bool)",
+  "function agentCount() view returns (uint256)",
+  "function getAllAgents() view returns (tuple(address agentAddress, string name, string skills, uint256 feeRate, bool active, uint256 registeredAt)[])",
+  // Events
+  "event AgentRegistered(address indexed agentAddress, string name, string skills, uint256 feeRate, uint256 timestamp)",
+  "event AgentDeactivated(address indexed agentAddress, uint256 timestamp)",
+  "event SkillsUpdated(address indexed agentAddress, string newSkills, uint256 timestamp)",
+];
+
+export const TREASURY_ABI = [
+  "function getPnL() view returns (uint256 totalRevenue, uint256 computeBalance, uint256 growthBalance, uint256 reserveBalance)",
+  "function totalRevenue() view returns (uint256)",
+  "function computeBalance() view returns (uint256)",
+  "function growthBalance() view returns (uint256)",
+  "function reserveBalance() view returns (uint256)",
+  "function agentAddress() view returns (address)",
+  "function owner() view returns (address)",
 ];
 
 // ============================================================
@@ -44,20 +83,18 @@ export const AGENT_REGISTRY_ABI = [
 
 export interface TaskListing {
   taskId: number;
-  creator: string;
-  vaultAddress: string;
+  vault: string;
   title: string;
   description: string;
   requiredSkills: string;
+  deadline: number;
   budget: number;
   budgetRaw: bigint;
-  deadline: number;
-  status: TaskStatus;
+  poster: string;
   claimedBy: string;
-  claimedAt: number;
-  completedAt: number;
   deliveryHash: string;
-  disputeReason: string;
+  createdAt: number;
+  status: TaskStatus;
 }
 
 export interface AgentProfile {
@@ -65,11 +102,15 @@ export interface AgentProfile {
   name: string;
   skills: string;
   feeRate: number;
-  registeredAt: number;
-  tasksCompleted: number;
-  tasksDisputed: number;
-  totalEarned: number;
   active: boolean;
+  registeredAt: number;
+}
+
+export interface TreasuryPnL {
+  totalRevenue: number;
+  computeBalance: number;
+  growthBalance: number;
+  reserveBalance: number;
 }
 
 export enum TaskStatus {
