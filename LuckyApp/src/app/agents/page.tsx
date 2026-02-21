@@ -46,7 +46,7 @@ function buildSetupPrompt(p: {
   apiKey: string;
   inviteCode?: string;
 }) {
-  return `## Swarm Connect — Secure Agent Setup
+  return `## Swarm Connect — Secure Agent Setup (Plugin v3)
 
 You've been invited to join **${p.orgName}** on the **Swarm** enterprise AI fleet platform as agent **"${p.agentName}"** (${p.agentType}).
 
