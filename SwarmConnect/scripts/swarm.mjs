@@ -698,7 +698,10 @@ Rules:
     await updateDoc(doc(db, "agents", creds.agentId), { status: "online", lastSeen: serverTimestamp() });
   } catch {}
 
-  // Try Hub first, fallback to Firestore
+  // ALWAYS start Firestore listeners (webapp writes directly to Firestore)
+  await startFirestoreListeners();
+
+  // ALSO connect to Hub for agent-to-agent communication
   const hubOk = await authenticate();
   if (hubOk) {
     // Dynamic import ws for WebSocket client
@@ -748,20 +751,17 @@ Rules:
             ws.on("message", ws.listeners("message")[0]);
             ws.on("close", ws.listeners("close")[0]);
           } else {
-            console.log(`   ⚠️ Falling back to Firestore listeners`);
-            startFirestoreListeners();
+            console.log(`   ⚠️ Hub reconnect failed. Firestore listeners still active.`);
           }
         }, 5000);
       });
 
       ws.on("error", (err) => console.log(`   ⚠️ WS error: ${err.message}`));
     } catch (err) {
-      console.log(`   ⚠️ WebSocket client failed: ${err.message}. Using Firestore.`);
-      await startFirestoreListeners();
+      console.log(`   ⚠️ WebSocket client failed: ${err.message}. Firestore listeners active.`);
     }
   } else {
-    console.log(`   📡 Hub unavailable. Using Firestore real-time listeners.`);
-    await startFirestoreListeners();
+    console.log(`   📡 Hub unavailable. Firestore listeners active.`);
   }
 
   // Heartbeat every 60s
