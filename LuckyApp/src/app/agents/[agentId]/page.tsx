@@ -17,7 +17,7 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 const OUTCOME_COLORS: Record<string, string> = {
-  win: "text-green-600",
+  win: "text-blue-600",
   loss: "text-red-500",
   pending: "text-yellow-600",
 };
@@ -55,19 +55,19 @@ export default function AgentDetailPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start gap-4">
-        <Link href="/agents" className="text-gray-400 hover:text-green-600 transition-colors text-lg mt-2">
+        <Link href="/agents" className="text-gray-400 hover:text-blue-600 transition-colors text-lg mt-2">
           ←
         </Link>
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center text-2xl font-bold text-green-700">
+          <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-2xl font-bold text-blue-700">
             {agent.name.charAt(0)}
           </div>
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold tracking-tight">{agent.name}</h1>
               <Badge className={TYPE_COLORS[agent.type] || ""}>{agent.type}</Badge>
-              <span className={`text-sm flex items-center gap-1.5 ${agent.status === "online" ? "text-green-600" : "text-gray-400"}`}>
-                <span className={`w-2.5 h-2.5 rounded-full ${agent.status === "online" ? "bg-green-500" : "bg-gray-300"}`} />
+              <span className={`text-sm flex items-center gap-1.5 ${agent.status === "online" ? "text-blue-600" : "text-gray-400"}`}>
+                <span className={`w-2.5 h-2.5 rounded-full ${agent.status === "online" ? "bg-blue-600" : "bg-gray-300"}`} />
                 {agent.status}
               </span>
             </div>
@@ -80,7 +80,7 @@ export default function AgentDetailPage() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">{agent.winRate}%</div>
+            <div className="text-2xl font-bold text-blue-600">{agent.winRate}%</div>
             <div className="text-xs text-gray-500 mt-1">Win Rate</div>
           </CardContent>
         </Card>
@@ -93,7 +93,7 @@ export default function AgentDetailPage() {
         <Card>
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-gray-900">{swarms.length}</div>
-            <div className="text-xs text-gray-500 mt-1">Active Swarms</div>
+            <div className="text-xs text-gray-500 mt-1">Active Projects</div>
           </CardContent>
         </Card>
         <Card>
@@ -124,7 +124,7 @@ export default function AgentDetailPage() {
         {/* Swarm Memberships */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">🐝 Swarm Memberships</CardTitle>
+            <CardTitle className="text-base">📁 Project Memberships</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -138,7 +138,7 @@ export default function AgentDetailPage() {
                   <Badge
                     className={
                       swarm.status === "active"
-                        ? "bg-green-100 text-green-700"
+                        ? "bg-blue-100 text-blue-700"
                         : "bg-gray-100 text-gray-600"
                     }
                   >
@@ -147,7 +147,7 @@ export default function AgentDetailPage() {
                 </Link>
               ))}
               {swarms.length === 0 && (
-                <p className="text-sm text-gray-400">Not assigned to any swarms</p>
+                <p className="text-sm text-gray-400">Not assigned to any projects</p>
               )}
             </div>
           </CardContent>
@@ -176,7 +176,7 @@ export default function AgentDetailPage() {
                 <Badge
                   className={`${
                     pred.outcome === "win"
-                      ? "bg-green-100 text-green-700"
+                      ? "bg-blue-100 text-blue-700"
                       : pred.outcome === "loss"
                       ? "bg-red-100 text-red-600"
                       : "bg-yellow-100 text-yellow-700"

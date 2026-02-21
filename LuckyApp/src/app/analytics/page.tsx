@@ -62,7 +62,7 @@ const agentColumns = [
     render: (a: AgentPerformance) => {
       const isWin = a.streak > 0;
       return (
-        <span className={cn("text-sm font-medium", isWin ? "text-green-600" : "text-red-500")}>
+        <span className={cn("text-sm font-medium", isWin ? "text-blue-600" : "text-red-500")}>
           {isWin ? `🔥 ${a.streak}W` : `${Math.abs(a.streak)}L`}
         </span>
       );
@@ -73,13 +73,13 @@ const agentColumns = [
 const swarmColumns = [
   {
     key: "name",
-    label: "Swarm",
+    label: "Project",
     render: (s: SwarmPerformance) => (
       <div className="flex items-center gap-2">
         <span className="font-medium">{s.name}</span>
         <Badge className={cn(
           "text-[10px]",
-          s.status === "active" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"
+          s.status === "active" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-500"
         )}>
           {s.status}
         </Badge>
@@ -102,7 +102,7 @@ const swarmColumns = [
   },
   {
     key: "missions",
-    label: "Missions",
+    label: "Tasks",
     sortable: true,
     getValue: (s: SwarmPerformance) => s.missionsCompleted,
     render: (s: SwarmPerformance) => (
@@ -190,7 +190,7 @@ export default function AnalyticsPage() {
       {/* Swarm Performance */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">🐝 Swarm Performance</CardTitle>
+          <CardTitle className="text-lg">📁 Project Performance</CardTitle>
         </CardHeader>
         <CardContent>
           <PerformanceTable
@@ -228,13 +228,13 @@ export default function AnalyticsPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">P&L</span>
-                    <span className={cn("font-semibold", m.totalPnl >= 0 ? "text-green-600" : "text-red-500")}>
+                    <span className={cn("font-semibold", m.totalPnl >= 0 ? "text-blue-600" : "text-red-500")}>
                       {m.totalPnl >= 0 ? "+" : ""}${Math.abs(m.totalPnl).toLocaleString()}
                     </span>
                   </div>
                   <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mt-1">
                     <div
-                      className="h-full bg-green-500 rounded-full"
+                      className="h-full bg-blue-600 rounded-full"
                       style={{ width: `${m.winRate}%` }}
                     />
                   </div>

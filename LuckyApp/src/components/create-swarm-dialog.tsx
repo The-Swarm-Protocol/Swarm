@@ -69,15 +69,15 @@ export function CreateSwarmDialog({ open, onOpenChange, onCreated }: CreateSwarm
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogHeader>
-        <DialogTitle>Create Swarm</DialogTitle>
-        <DialogDescription>Set up a new prediction swarm with your agents.</DialogDescription>
+        <DialogTitle>Create Project</DialogTitle>
+        <DialogDescription>Set up a new project with your agents.</DialogDescription>
       </DialogHeader>
       <DialogContent>
         <div className="space-y-2">
-          <Label htmlFor="swarm-name">Swarm Name *</Label>
+          <Label htmlFor="swarm-name">Project Name *</Label>
           <Input
             id="swarm-name"
-            placeholder="e.g. Polymarket Alpha"
+            placeholder="e.g. Q1 Research Sprint"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
@@ -86,7 +86,7 @@ export function CreateSwarmDialog({ open, onOpenChange, onCreated }: CreateSwarm
           <Label htmlFor="swarm-desc">Description</Label>
           <Textarea
             id="swarm-desc"
-            placeholder="What is this swarm's strategy?"
+            placeholder="What is this project's objective?"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
@@ -101,11 +101,11 @@ export function CreateSwarmDialog({ open, onOpenChange, onCreated }: CreateSwarm
                 onClick={() => toggleAgent(agent.id)}
                 className={`flex items-center gap-2 p-2 rounded-lg border text-left text-sm transition-colors ${
                   selectedAgents.includes(agent.id)
-                    ? "border-green-500 bg-green-50 text-green-700"
+                    ? "border-blue-600 bg-blue-50 text-blue-700"
                     : "border-gray-200 hover:border-gray-300"
                 }`}
               >
-                <span className={`w-2 h-2 rounded-full ${agent.status === "online" ? "bg-green-500" : "bg-gray-300"}`} />
+                <span className={`w-2 h-2 rounded-full ${agent.status === "online" ? "bg-blue-600" : "bg-gray-300"}`} />
                 <div>
                   <div className="font-medium">{agent.name}</div>
                   <div className="text-xs text-gray-500">{agent.type}</div>
@@ -122,9 +122,9 @@ export function CreateSwarmDialog({ open, onOpenChange, onCreated }: CreateSwarm
         <Button
           onClick={handleCreate}
           disabled={!name.trim() || saving}
-          className="bg-green-500 hover:bg-green-600 text-white"
+          className="bg-blue-600 hover:bg-blue-700 text-white"
         >
-          {saving ? "Creating..." : "Create Swarm"}
+          {saving ? "Creating..." : "Create Project"}
         </Button>
       </DialogFooter>
     </Dialog>

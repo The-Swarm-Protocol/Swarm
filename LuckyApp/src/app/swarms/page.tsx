@@ -15,14 +15,14 @@ export default function SwarmsPage() {
   const { currentTeam } = useTeam();
   const [swarms, setSwarms] = useState<FirestoreSwarm[]>([]);
   const [agents, setAgents] = useState<FirestoreAgent[]>([]);
-  const [missions, setMissions] = useState<FirestoreMission[]>([]);
+  const [missions, setTasks] = useState<FirestoreMission[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (!currentTeam) {
       setSwarms([]);
       setAgents([]);
-      setMissions([]);
+      setTasks([]);
       setLoaded(true);
       return;
     }
@@ -34,7 +34,7 @@ export default function SwarmsPage() {
     ]).then(([s, a, m]) => {
       setSwarms(s);
       setAgents(a);
-      setMissions(m);
+      setTasks(m);
       setLoaded(true);
     }).catch((err) => {
       console.error("Failed to load swarms data:", err);
@@ -53,7 +53,7 @@ export default function SwarmsPage() {
     teamId: currentTeam?.id || "",
     createdAt: Date.now(),
   }));
-  const displayMissions = loaded && missions.length > 0 ? missions : mockMissions.map((m) => ({
+  const displayTasks = loaded && missions.length > 0 ? missions : mockMissions.map((m) => ({
     ...m,
     teamId: currentTeam?.id || "",
   }));
@@ -68,30 +68,30 @@ export default function SwarmsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">🐝 Swarms</h1>
+          <h1 className="text-3xl font-bold tracking-tight">📁 Projects</h1>
           <p className="text-gray-500 mt-1">
-            Manage your prediction market swarms
+            Manage your agent projects and workflows
           </p>
         </div>
         <Button
           onClick={() => setShowCreate(true)}
-          className="bg-green-500 hover:bg-green-600 text-white"
+          className="bg-blue-600 hover:bg-blue-700 text-white"
         >
-          + Create Swarm
+          + Create Project
         </Button>
       </div>
 
       {loaded && swarms.length === 0 && !mockSwarms.length && (
         <div className="text-center py-12 text-gray-500">
-          <p className="text-lg">No swarms yet</p>
-          <p className="text-sm mt-1">Create your first swarm to get started</p>
+          <p className="text-lg">No projects yet</p>
+          <p className="text-sm mt-1">Create your first project to get started</p>
         </div>
       )}
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {displaySwarms.map((swarm) => {
           const agentCount = swarm.agentIds?.length || 0;
-          const missionCount = displayMissions.filter(
+          const missionCount = displayTasks.filter(
             (m) => m.swarmId === swarm.id
           ).length;
           const swarmAgents = displayAgents.filter((a) =>
@@ -100,7 +100,7 @@ export default function SwarmsPage() {
 
           return (
             <Link key={swarm.id} href={`/swarms/${swarm.id}`}>
-              <Card className="hover:border-green-300 transition-colors cursor-pointer h-full">
+              <Card className="hover:border-blue-300 transition-colors cursor-pointer h-full">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
@@ -110,7 +110,7 @@ export default function SwarmsPage() {
                     <Badge
                       className={
                         swarm.status === "active"
-                          ? "bg-green-100 text-green-700 border-green-200"
+                          ? "bg-blue-100 text-blue-700 border-blue-200"
                           : "bg-gray-100 text-gray-600 border-gray-200"
                       }
                     >
@@ -121,13 +121,13 @@ export default function SwarmsPage() {
                 <CardContent>
                   <div className="flex items-center gap-4 text-sm text-gray-500 mb-3">
                     <span>🤖 {agentCount} Agents</span>
-                    <span>🎯 {missionCount} Missions</span>
+                    <span>🎯 {missionCount} Tasks</span>
                   </div>
                   <div className="flex -space-x-2">
                     {swarmAgents.slice(0, 4).map((agent) => (
                       <div
                         key={agent.id}
-                        className="w-8 h-8 rounded-full bg-green-100 border-2 border-white flex items-center justify-center text-xs font-bold text-green-700"
+                        className="w-8 h-8 rounded-full bg-blue-100 border-2 border-white flex items-center justify-center text-xs font-bold text-blue-700"
                         title={agent.name}
                       >
                         {agent.name.charAt(0)}

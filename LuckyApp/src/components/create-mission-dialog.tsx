@@ -63,23 +63,23 @@ export function CreateMissionDialog({ open, onOpenChange, onSubmit }: CreateMiss
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogHeader>
-        <DialogTitle>🎯 Create Mission</DialogTitle>
+        <DialogTitle>📋 Create Task</DialogTitle>
       </DialogHeader>
       <DialogContent>
         <div className="space-y-4">
           <div>
             <Label htmlFor="title">Title</Label>
-            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Mission title..." />
+            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Task title..." />
           </div>
           <div>
             <Label htmlFor="description">Description</Label>
             <textarea
               id="description"
-              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe the mission..."
+              placeholder="Describe the task..."
             />
           </div>
           <div>
@@ -90,7 +90,7 @@ export function CreateMissionDialog({ open, onOpenChange, onSubmit }: CreateMiss
                   key={mt.value}
                   className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
                     marketType === mt.value
-                      ? "bg-green-50 border-green-300 text-green-700"
+                      ? "bg-blue-50 border-blue-300 text-blue-700"
                       : "border-gray-200 text-gray-600 hover:bg-gray-50"
                   }`}
                   onClick={() => setMarketType(mt.value)}
@@ -101,15 +101,15 @@ export function CreateMissionDialog({ open, onOpenChange, onSubmit }: CreateMiss
             </div>
           </div>
           <div>
-            <Label htmlFor="swarm">Assign to Swarm</Label>
+            <Label htmlFor="swarm">Assign to Project</Label>
             <select
               id="swarm"
-              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
               value={swarmId}
               onChange={(e) => setSwarmId(e.target.value)}
             >
               {displaySwarms.map((s) => (
-                <option key={s.id} value={s.id}>🐝 {s.name}</option>
+                <option key={s.id} value={s.id}>📁 {s.name}</option>
               ))}
             </select>
           </div>
@@ -121,8 +121,8 @@ export function CreateMissionDialog({ open, onOpenChange, onSubmit }: CreateMiss
       </DialogContent>
       <DialogFooter>
         <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-        <Button onClick={handleSubmit} disabled={!title.trim()} className="bg-green-600 hover:bg-green-700 text-white">
-          Create Mission
+        <Button onClick={handleSubmit} disabled={!title.trim()} className="bg-blue-600 hover:bg-blue-700 text-white">
+          Create Task
         </Button>
       </DialogFooter>
     </Dialog>

@@ -35,8 +35,8 @@ export function useTeam() {
   return useContext(TeamContext);
 }
 
-const TEAM_STORAGE_KEY = 'luckyst_selected_team_id';
-const TEAMS_STORAGE_KEY = 'luckyst_teams';
+const TEAM_STORAGE_KEY = 'swarm_selected_org_id';
+const TEAMS_STORAGE_KEY = 'swarm_orgs';
 
 function loadTeamsFromStorage(): Team[] {
   if (typeof window === 'undefined') return [];

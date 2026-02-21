@@ -7,8 +7,8 @@ import { TeamProvider } from "@/contexts/TeamContext";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "LuckySt — Swarm Mission Control",
-  description: "Command fleets of AI agents for prediction markets",
+  title: "Swarm — Enterprise AI Fleet Orchestration",
+  description: "Enterprise AI fleet orchestration for solo founders",
 };
 
 export default function RootLayout({
