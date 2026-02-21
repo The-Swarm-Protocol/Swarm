@@ -15,12 +15,23 @@ import {
   EXPLORER_BASE,
 } from "@/lib/constants";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Cache-Control": "public, max-age=300",
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
 export async function GET() {
   const playbook = {
     version: "1.0.0",
     name: "BrandMover Swarm Agent Playbook",
     description:
-      "Machine-readable instructions for bots to interact with the BrandMover swarm on Hedera Testnet.",
+      "Machine-readable instructions for bots to interact with the BrandMover swarm on Hedera Testnet. Fetch this JSON from any origin — CORS is fully open.",
     network: {
       name: "Hedera Testnet",
       rpc: HEDERA_RPC_URL,
@@ -151,12 +162,17 @@ await board.postTask(
       "If you get 'gas estimation failed', you probably forgot to set gasLimit explicitly.",
       "The Hedera JSON-RPC relay does NOT support eth_estimateGas reliably — always pass gasLimit.",
     ],
+    embed: {
+      description:
+        "To consume this playbook from another site, fetch this URL. CORS is fully open.",
+      example: `fetch("https://YOUR_DOMAIN/api/agent-playbook")
+  .then(r => r.json())
+  .then(playbook => {
+    const { contracts, workflow, network } = playbook;
+    // Use contracts.taskBoard.address, contracts.taskBoard.abi, etc.
+  });`,
+    },
   };
 
-  return NextResponse.json(playbook, {
-    headers: {
-      "Cache-Control": "public, max-age=300",
-      "Access-Control-Allow-Origin": "*",
-    },
-  });
+  return NextResponse.json(playbook, { headers: CORS_HEADERS });
 }
