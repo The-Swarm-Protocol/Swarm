@@ -241,7 +241,7 @@ export default function SettingsPage() {
                 <Button
                   type="submit"
                   disabled={saving || !name.trim() || (name === currentOrg.name && description === (currentOrg.description || ''))}
-                  className="bg-amber-600 hover:bg-amber-700 text-white"
+                  className="bg-amber-600 hover:bg-amber-700 text-black"
                 >
                   {saving ? 'Saving...' : 'Save Changes'}
                 </Button>
@@ -274,7 +274,7 @@ export default function SettingsPage() {
                 <Input value={telegram} onChange={(e) => setTelegram(e.target.value)} placeholder="https://t.me/yourchannel" />
               </div>
               <div className="flex justify-end">
-                <Button type="submit" disabled={savingSocials} className="bg-amber-600 hover:bg-amber-700 text-white">
+                <Button type="submit" disabled={savingSocials} className="bg-amber-600 hover:bg-amber-700 text-black">
                   {savingSocials ? 'Saving...' : 'Save Social Links'}
                 </Button>
               </div>

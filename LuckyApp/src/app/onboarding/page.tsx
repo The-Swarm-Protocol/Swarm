@@ -73,7 +73,7 @@ export default function OnboardingPage() {
           <Button
             onClick={handleCreate}
             disabled={creating || !name.trim()}
-            className="w-full bg-amber-600 hover:bg-amber-600 text-white"
+            className="w-full bg-amber-600 hover:bg-amber-700 text-black"
           >
             {creating ? 'Creating...' : 'Create Organization'}
           </Button>

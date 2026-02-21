@@ -83,7 +83,7 @@ function ChannelItem({
       <Hash className="w-4 h-4 shrink-0 text-muted-foreground" />
       <span className="truncate flex-1 text-left">{channel.name}</span>
       {channel.unreadCount > 0 && (
-        <span className="bg-amber-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0">
+        <span className="bg-amber-600 text-black text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0">
           {channel.unreadCount}
         </span>
       )}
@@ -120,7 +120,7 @@ function DMItem({
       </div>
       <span className="truncate flex-1 text-left">{dm.participantName}</span>
       {dm.unreadCount > 0 && (
-        <span className="bg-amber-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0">
+        <span className="bg-amber-600 text-black text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0">
           {dm.unreadCount}
         </span>
       )}
