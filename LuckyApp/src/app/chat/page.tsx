@@ -1,33 +1,87 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+"use client";
+
+import { useState, useCallback } from "react";
+import { ChannelList } from "@/components/chat/channel-list";
+import { MessageList } from "@/components/chat/message-list";
+import { MessageInput } from "@/components/chat/message-input";
+import {
+  CommandMessage,
+  mockChannelMessages,
+  mockDMMessages,
+  mockChannels,
+  mockDirectMessages,
+} from "@/lib/mock-data";
 
 export default function ChatPage() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Command Channel</h1>
-        <p className="text-gray-500 mt-1">Issue commands to your swarms</p>
-      </div>
+  const [activeId, setActiveId] = useState("ch-general");
+  const [activeType, setActiveType] = useState<"channel" | "dm">("channel");
+  const [messages, setMessages] = useState<Record<string, CommandMessage[]>>({
+    ...mockChannelMessages,
+    ...mockDMMessages,
+  });
 
-      <Card className="h-[60vh] flex flex-col">
-        <CardHeader>
-          <CardTitle className="text-lg">Mission Control</CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 flex flex-col justify-end gap-4">
-          <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
-            Command interface coming soon...
+  const handleSelectChannel = (id: string, type: "channel" | "dm") => {
+    setActiveId(id);
+    setActiveType(type);
+  };
+
+  const handleSend = useCallback(
+    (content: string) => {
+      const newMsg: CommandMessage = {
+        id: `msg-${Date.now()}`,
+        senderId: "operator-1",
+        senderName: "Julio",
+        senderType: "operator",
+        content,
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => ({
+        ...prev,
+        [activeId]: [...(prev[activeId] || []), newMsg],
+      }));
+    },
+    [activeId]
+  );
+
+  const currentMessages = messages[activeId] || [];
+
+  // Get display name for the active channel
+  const activeName =
+    activeType === "channel"
+      ? mockChannels.find((c) => c.id === activeId)?.name || "General"
+      : mockDirectMessages.find((d) => d.id === activeId)?.participantName ||
+        "Chat";
+
+  return (
+    <div className="flex h-[calc(100vh-8rem)] bg-white rounded-lg border border-gray-200 overflow-hidden">
+      {/* Sidebar */}
+      <ChannelList
+        activeChannelId={activeId}
+        onSelectChannel={handleSelectChannel}
+      />
+
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Channel Header */}
+        <div className="border-b border-gray-200 px-6 py-3 bg-white">
+          <div className="flex items-center gap-2">
+            <h2 className="font-semibold text-gray-900">
+              {activeType === "channel" ? "#" : ""} {activeName}
+            </h2>
+            {activeType === "dm" && (
+              <span className="text-[11px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                Direct Message
+              </span>
+            )}
           </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Type a command..."
-              className="flex-1 rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              disabled
-            />
-            <Button disabled>Send</Button>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Messages */}
+        <MessageList messages={currentMessages} />
+
+        {/* Input */}
+        <MessageInput onSend={handleSend} channelName={activeName} />
+      </div>
     </div>
   );
 }
