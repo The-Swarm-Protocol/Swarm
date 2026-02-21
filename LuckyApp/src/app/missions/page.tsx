@@ -175,7 +175,7 @@ export default function TasksPage() {
     return (
       <div className="space-y-6">
         <div>
-          <BlurText text="📋 Tasks" className="text-3xl font-bold tracking-tight" delay={80} animateBy="letters" />
+          <BlurText text="Tasks" className="text-3xl font-bold tracking-tight" delay={80} animateBy="words" />
           <p className="text-muted-foreground mt-1">No organization selected</p>
         </div>
       </div>
@@ -186,7 +186,7 @@ export default function TasksPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <BlurText text="📋 Tasks" className="text-3xl font-bold tracking-tight" delay={80} animateBy="letters" />
+          <BlurText text="Tasks" className="text-3xl font-bold tracking-tight" delay={80} animateBy="words" />
           <p className="text-muted-foreground mt-1">Track agent tasks and deliverables</p>
         </div>
         <Button 
