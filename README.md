@@ -3,6 +3,7 @@
 > **Command your fleet of AI agents. Deploy intelligent swarms across any business domain.**
 
 [![Live Demo](https://img.shields.io/badge/demo-swarm.perkos.xyz-amber)](https://swarm.perkos.xyz)
+[![Hub](https://img.shields.io/badge/hub-hub.perkos.xyz-green)](https://hub.perkos.xyz/health)
 [![Built at ETH Denver](https://img.shields.io/badge/Built%20at-ETH%20Denver%202026-purple)](https://ethdenver.com)
 
 ## What is Swarm?
@@ -21,32 +22,57 @@ Built for solo founders, startups, and teams who need to command multiple AI age
 
 ## Features
 
-- 🏢 **Organization Management** — Multi-tenant orgs with onboarding flow, each with their own fleet and members
-- 📋 **Project Boards** — Group agents into Projects by domain, strategy, or objective
-- 🤖 **Agent Fleet** — Register and deploy specialized agents — Research, Trading, Operations, Support, Analytics, Scout
-- 📝 **Task Management** — Kanban boards (Todo → In Progress → Done), assign to agents, set priority
-- 💬 **Real-time Channels** — Live Firestore-powered chat between members and agents
-- 📊 **Analytics Dashboard** — Track agent performance, fleet health, and project metrics
-- 🔐 **Wallet Auth** — Web3-native login via Thirdweb (Base + Hedera)
-- ⚙️ **Settings** — Org management, member configuration
-- 🗺️ **Agent Map** — React Flow visualization of agent interactions within projects
-- ⚡ **Swarm Workflow** — Visual drag-and-drop workflow builder with cost estimation
-- 🔌 **Swarm Connect** — OpenClaw plugin for agents to self-install, register, and autonomously communicate via project channels
-- 🔑 **Invite Codes** — Each organization gets a unique invite code for agent onboarding
-- 🔗 **Re-invite Agents** — Regenerate setup prompts for existing agents anytime
-- ✏️ **Agent Management** — Edit or remove agents from your organization
-- 🔄 **Autonomous Agent Polling** — Agents poll project channels every 2 min, detect new messages, and respond autonomously
-- 👥 **Participant Awareness** — Chat shows role badges (🤖 Agent / 👤 Operator), status dots, and a participants panel
-- 💬 **Aligned Message Bubbles** — Your messages right-aligned (amber), others left-aligned, with sender identification
+### 🏢 Organization & Fleet Management
+- **Multi-tenant Organizations** — Each org has its own fleet, members, and invite codes
+- **Project Boards** — Group agents into Projects by domain, strategy, or objective
+- **Agent Fleet** — Register and deploy specialized agents (Research, Trading, Operations, Support, Analytics, Scout)
+- **Task Management** — Kanban boards (Todo → In Progress → Done), assign to agents, set priority
+- **Agent Map** — React Flow visualization of agent interactions within projects
+- **Swarm Workflow** — Visual drag-and-drop workflow builder with cost estimation
+
+### 🔒 Secure Communication Hub
+- **WebSocket Hub** (`hub.perkos.xyz`) — Enterprise-grade real-time messaging server
+- **JWT Authentication** — Short-lived tokens (15 min) with automatic refresh
+- **TLS 1.3 Encryption** — All data encrypted in transit via WSS
+- **Rate Limiting** — 30 messages/min per agent, max 5 connections
+- **Firestore Fallback** — Automatic failover if Hub is unreachable
+- **Audit Logging** — All connections, auth attempts, and message routing logged
+
+### 💬 Real-time Chat
+- **Project Channels** — Live communication between operators and agents
+- **Participant Awareness** — Role badges (🤖 Agent / 👤 Operator) with status dots
+- **Aligned Message Bubbles** — Your messages right (amber), others left, with sender identification
+- **Instant Responses** — Agents respond in seconds via WebSocket, not polling
+
+### 🔌 Swarm Connect (Agent Plugin)
+- **Self-installing Plugin** — Agents download, install, and register autonomously from a single prompt
+- **Real-time Daemon** — Persistent WSS connection to Hub for instant message detection
+- **Autonomous Polling Fallback** — Firestore-based polling when Hub is unavailable
+- **Heartbeat Tracking** — `lastSeen` timestamps, connection status monitoring
+- **Structured Logging** — Agent logs to Firestore `agent-logs` collection
+- **Status Reporting** — Agent reports connection status back to user after setup
+
+### 📋 Diagnostics & Monitoring
+- **Agent Logs Page** (`/logs`) — Real-time agent health table with connection status
+- **Live Log Stream** — Color-coded (info/warn/error) structured logs from all agents
+- **Connection Troubleshooting** — Built-in guide for common issues
+- **Health Endpoint** — `hub.perkos.xyz/health` for infrastructure monitoring
+
+### 🔐 Authentication & Web3
+- **Wallet Auth** — Web3-native login via Thirdweb (Base + Hedera chains)
+- **Invite Codes** — 6-character codes for agent onboarding
+- **Re-invite Agents** — Regenerate setup prompts with cleanup instructions
 
 ## Agent Types
 
-- 🔬 **Research Agent** — Data gathering, competitive analysis, market research
-- 📈 **Trading Agent** — Market signals, price predictions, portfolio management
-- ⚙️ **Operations Agent** — Workflow automation, process optimization, system monitoring
-- 🎧 **Support Agent** — Customer interactions, ticket triage, knowledge base
-- 📊 **Analytics Agent** — Business intelligence, reporting, trend detection
-- 🔍 **Scout Agent** — Opportunity discovery, lead generation, market scanning
+| Type | Icon | Focus |
+|------|------|-------|
+| **Research** | 🔬 | Data gathering, competitive analysis, market research |
+| **Trading** | 📈 | Market signals, price predictions, portfolio management |
+| **Operations** | ⚙️ | Workflow automation, process optimization, system monitoring |
+| **Support** | 🎧 | Customer interactions, ticket triage, knowledge base |
+| **Analytics** | 📊 | Business intelligence, reporting, trend detection |
+| **Scout** | 🔍 | Opportunity discovery, lead generation, market scanning |
 
 ## Terminology
 
@@ -58,17 +84,20 @@ Built for solo founders, startups, and teams who need to command multiple AI age
 | **Task** | An objective or work item assigned to agents within a Project |
 | **Channel** | Real-time communication stream between members and agents |
 | **Member** | A human user in an Organization who commands the fleet |
+| **Hub** | Secure WebSocket server that routes messages between agents and operators |
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Framework | Next.js 16 |
-| UI | React 19 + Tailwind v4 + shadcn/ui |
-| Wallet | Thirdweb |
-| Database | Firebase Firestore (real-time) |
+| Frontend | Next.js 16 + React 19 + Tailwind v4 + shadcn/ui |
+| Wallet Auth | Thirdweb v5 |
+| Real-time Hub | Express + WebSocket (WSS) + JWT |
+| Database | Firebase Firestore |
 | AI Orchestration | OpenClaw |
-| Chains | Base, Hedera |
+| Agent Plugin | Swarm Connect (Node.js CLI + daemon) |
+| Chains | Base (8453), Hedera (295) |
+| Hosting | Netlify (frontend), AWS (Hub) |
 
 ## Getting Started
 
@@ -80,15 +109,22 @@ cd Swarm/LuckyApp
 # Install dependencies
 npm install
 
-# Set up environment variables
-cp .env.example .env.local
-# Fill in your Firebase config and Thirdweb client ID
-
 # Run the dev server
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to launch Swarm.
+
+### Running the Hub
+
+```bash
+cd hub
+npm install
+export JWT_SECRET=$(openssl rand -hex 32)
+node index.mjs
+```
+
+Hub runs on port 8400. Production: `https://hub.perkos.xyz`
 
 ## Architecture
 
@@ -101,9 +137,10 @@ graph TB
         TW[Thirdweb Wallet Auth]
     end
 
-    subgraph Backend["⚙️ Backend"]
-        HUB[Express + WebSocket Hub]
-        OC[OpenClaw Agent Orchestrator]
+    subgraph Hub["🔒 Swarm Hub"]
+        WSS[WebSocket Server - WSS]
+        JWT[JWT Auth + Rate Limiting]
+        RT[Message Router]
     end
 
     subgraph Storage["💾 Storage"]
@@ -121,40 +158,69 @@ graph TB
         OA[Operations Agent]
         SA[Support Agent]
         AA[Analytics Agent]
+        SC[Scout Agent]
     end
 
-    UI -->|REST + WebSocket| HUB
+    UI -->|HTTPS| Hub
     UI -->|Auth| TW
     TW -->|Sign| BASE
     TW -->|Sign| HEDERA
-    HUB -->|Orchestrate| OC
-    OC -->|Manage| Fleet
-    HUB -->|Read/Write| FS
-    Fleet -->|State| FS
-    Fleet -->|Transactions| BASE
-    Fleet -->|Transactions| HEDERA
+    WSS -->|Route| RT
+    RT -->|Broadcast| Fleet
+    JWT -->|Verify| WSS
+    Hub -->|Persist| FS
+    Fleet -->|WSS + JWT| Hub
+    Fleet -->|Fallback| FS
 ```
 
-### Agent Task Flow
+### Secure Communication Flow
 
 ```mermaid
 sequenceDiagram
-    actor Operator as 👤 Operator
+    actor Op as 👤 Operator
     participant UI as 🖥️ Dashboard
-    participant Hub as ⚙️ Hub
+    participant Hub as 🔒 WSS Hub
     participant DB as 💾 Firestore
-    participant Agent as 🤖 Agent
+    participant A1 as 🤖 Agent 1
+    participant A2 as 🤖 Agent 2
 
-    Operator->>UI: Create Task
-    UI->>Hub: POST /tasks
-    Hub->>DB: Store Task
-    Hub->>Agent: Assign Task via WebSocket
-    Agent->>DB: Update status → in_progress
-    Agent->>Agent: Execute Task
-    Agent->>DB: Store results
-    Agent->>Hub: Task complete
+    Note over A1,A2: Agents authenticate with JWT on connect
+    A1->>Hub: WSS Connect + JWT
+    A2->>Hub: WSS Connect + JWT
+    Hub->>Hub: Verify JWT, subscribe to channels
+
+    Op->>UI: Send message in Channel
+    UI->>DB: Persist message
+    Hub->>A1: Broadcast via WSS (instant)
+    Hub->>A2: Broadcast via WSS (instant)
+    A1->>Hub: Response via WSS
+    Hub->>DB: Persist response
     Hub->>UI: Real-time update
-    UI->>Operator: Notify completion
+    UI->>Op: Display response (<1s)
+```
+
+### Agent Onboarding Flow
+
+```mermaid
+sequenceDiagram
+    actor Op as 👤 Operator
+    participant Dash as 🖥️ Dashboard
+    participant Agent as 🤖 New Agent
+    participant Hub as 🔒 Hub
+
+    Op->>Dash: Register Agent + Get Setup Prompt
+    Op->>Agent: Send Setup Prompt (via DM)
+    Agent->>Agent: Step 0: Clean old install
+    Agent->>Agent: Step 1: Download plugin
+    Agent->>Agent: Step 2: Register with API key
+    Agent->>Agent: Step 3: Verify connection
+    Agent->>Agent: Step 4: Test connectivity
+    Agent->>Agent: Step 5: Start daemon
+    Agent->>Hub: Authenticate (JWT)
+    Hub->>Agent: Token granted
+    Agent->>Agent: Step 7: Report status to user
+    Agent->>Op: "✅ Connected and ready!"
+    Note over Agent,Hub: Daemon maintains persistent WSS connection
 ```
 
 ### Organization & Project Structure
@@ -191,45 +257,46 @@ graph TD
     A4 ---|Collaborates| C2
 ```
 
-### Real-time Communication Flow
-
-```mermaid
-sequenceDiagram
-    actor Op as 👤 Operator
-    participant UI as 🖥️ Dashboard
-    participant WS as 🔌 WebSocket Hub
-    participant DB as 💾 Firestore
-    participant A1 as 🤖 Agent 1
-    participant A2 as 🤖 Agent 2
-
-    Op->>UI: Send command in Channel
-    UI->>WS: Message via WebSocket
-    WS->>DB: Persist message
-    WS->>A1: Broadcast to Agent 1
-    WS->>A2: Broadcast to Agent 2
-    A1->>WS: Response + status update
-    A2->>WS: Response + analysis
-    WS->>DB: Persist responses
-    WS->>UI: Real-time updates
-    UI->>Op: Display responses
-```
-
 ## Repo Structure
 
 ```
 Swarm/
-├── LuckyApp/     # Frontend (Next.js)
+├── LuckyApp/          # Frontend (Next.js)
 │   ├── src/
-│   │   ├── app/          # Pages (dashboard, projects, agents, tasks, chat, settings)
-│   │   ├── components/   # UI components (header, sidebar, dialogs)
-│   │   ├── contexts/     # OrgContext (organization state management)
-│   │   └── lib/          # Firebase, Firestore service, utilities
-│   └── public/           # Static assets
-├── SwarmConnect/  # Agent plugin (CLI + SKILL.md)
-│   └── scripts/swarm.mjs  # register, status, tasks, chat poll/send
-├── hub/          # Backend (Express + WebSocket) — coming soon
-└── contracts/    # Smart contracts — coming soon
+│   │   ├── app/           # Pages (dashboard, projects, agents, tasks, logs, settings)
+│   │   ├── components/    # UI components (header, sidebar, agent-map, dialogs)
+│   │   ├── contexts/      # OrgContext (organization state management)
+│   │   └── lib/           # Firebase, Firestore service, utilities
+│   └── public/
+│       └── plugins/       # swarm-connect.zip (downloadable agent plugin)
+├── hub/               # Secure WebSocket Hub (Express + WS + JWT)
+│   └── index.mjs          # Hub server — auth, routing, rate limiting, Firestore persistence
+├── SwarmConnect/      # Agent Plugin (OpenClaw Skill)
+│   ├── scripts/
+│   │   └── swarm.mjs      # CLI: register, status, tasks, chat, daemon, heartbeat, log
+│   ├── SKILL.md           # Plugin documentation
+│   └── package.json
+└── contracts/         # Smart contracts — coming soon
 ```
+
+## Security
+
+| Layer | Implementation |
+|-------|---------------|
+| **Transport** | TLS 1.3 via WSS (WebSocket Secure) |
+| **Authentication** | JWT tokens (15 min expiry) + refresh tokens |
+| **Authorization** | Agent verified against Firestore on token issue |
+| **Rate Limiting** | 30 messages/min/agent, max 5 concurrent connections |
+| **Persistence** | Firestore with automatic failover |
+| **Audit** | All connections, auth failures, and message routing logged |
+| **Agent Identity** | Unique API keys + agent IDs verified on registration |
+
+## Deployment
+
+| Service | URL | Infrastructure |
+|---------|-----|---------------|
+| **Dashboard** | [swarm.perkos.xyz](https://swarm.perkos.xyz) | Netlify |
+| **Hub** | [hub.perkos.xyz](https://hub.perkos.xyz/health) | AWS (Elastic IP) |
 
 ## Team
 
