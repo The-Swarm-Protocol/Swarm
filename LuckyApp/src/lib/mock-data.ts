@@ -208,6 +208,132 @@ export const mockMessages: Record<string, CommandMessage[]> = {
   ],
 };
 
+// ─── Mock Command Channels ──────────────────────────
+
+export interface CommandChannel {
+  id: string;
+  name: string;
+  type: "general" | "swarm" | "dm";
+  swarmId?: string;
+  participantIds?: string[];
+  lastMessage?: string;
+  lastMessageTime?: number;
+  unreadCount: number;
+}
+
+export const mockChannels: CommandChannel[] = [
+  {
+    id: "ch-general",
+    name: "General",
+    type: "general",
+    lastMessage: "Welcome to LuckySt Command Channel!",
+    lastMessageTime: Date.now() - 600000,
+    unreadCount: 2,
+  },
+  {
+    id: "ch-swarm-001",
+    name: "Polymarket Alpha",
+    type: "swarm",
+    swarmId: "swarm-001",
+    lastMessage: "Fed meeting minutes releasing in 2 hours.",
+    lastMessageTime: Date.now() - 1800000,
+    unreadCount: 1,
+  },
+  {
+    id: "ch-swarm-002",
+    name: "Sports & Esports Edge",
+    type: "swarm",
+    swarmId: "swarm-002",
+    lastMessage: "Lakers injury report: LeBron questionable.",
+    lastMessageTime: Date.now() - 7200000,
+    unreadCount: 0,
+  },
+  {
+    id: "ch-swarm-003",
+    name: "Quant Research Lab",
+    type: "swarm",
+    swarmId: "swarm-003",
+    lastMessage: "Correlation matrix updated.",
+    lastMessageTime: Date.now() - 43200000,
+    unreadCount: 0,
+  },
+];
+
+export interface DirectMessage {
+  id: string;
+  participantName: string;
+  participantType: "operator" | "agent";
+  participantId: string;
+  lastMessage: string;
+  lastMessageTime: number;
+  unreadCount: number;
+}
+
+export const mockDirectMessages: DirectMessage[] = [
+  {
+    id: "dm-001",
+    participantName: "CryptoHawk",
+    participantType: "agent",
+    participantId: "agent-001",
+    lastMessage: "Whale alert update sent to your dashboard.",
+    lastMessageTime: Date.now() - 900000,
+    unreadCount: 1,
+  },
+  {
+    id: "dm-002",
+    participantName: "QuantEdge",
+    participantType: "agent",
+    participantId: "agent-005",
+    lastMessage: "Backtest results ready for review.",
+    lastMessageTime: Date.now() - 5400000,
+    unreadCount: 0,
+  },
+  {
+    id: "dm-003",
+    participantName: "Marcus",
+    participantType: "operator",
+    participantId: "operator-2",
+    lastMessage: "Let's sync on the new strategy.",
+    lastMessageTime: Date.now() - 18000000,
+    unreadCount: 0,
+  },
+];
+
+export const mockChannelMessages: Record<string, CommandMessage[]> = {
+  "ch-general": [
+    { id: "gm-1", senderId: "operator-1", senderName: "Julio", senderType: "operator", content: "Welcome everyone to LuckySt Command Channel! 🎯", timestamp: Date.now() - 86400000 },
+    { id: "gm-2", senderId: "agent-005", senderName: "QuantEdge", senderType: "agent", content: "Systems online. All models calibrated and ready.", timestamp: Date.now() - 82800000 },
+    { id: "gm-3", senderId: "operator-2", senderName: "Marcus", senderType: "operator", content: "Great setup! Looking forward to seeing the predictions.", timestamp: Date.now() - 79200000 },
+    { id: "gm-4", senderId: "agent-001", senderName: "CryptoHawk", senderType: "agent", content: "Monitoring 47 wallets across 3 chains. Will alert on significant movements.", timestamp: Date.now() - 3600000 },
+    { id: "gm-5", senderId: "operator-1", senderName: "Julio", senderType: "operator", content: "Perfect. Keep the updates coming.", timestamp: Date.now() - 600000 },
+  ],
+  "ch-swarm-001": [
+    ...mockMessages["swarm-001"],
+  ],
+  "ch-swarm-002": [
+    ...mockMessages["swarm-002"],
+  ],
+  "ch-swarm-003": [
+    ...mockMessages["swarm-003"],
+  ],
+};
+
+export const mockDMMessages: Record<string, CommandMessage[]> = {
+  "dm-001": [
+    { id: "dm1-1", senderId: "operator-1", senderName: "Julio", senderType: "operator", content: "Hey CryptoHawk, any updates on the whale movements?", timestamp: Date.now() - 3600000 },
+    { id: "dm1-2", senderId: "agent-001", senderName: "CryptoHawk", senderType: "agent", content: "Yes! Detected 3 large transfers in the last hour. Two from Binance cold storage, one from an unknown wallet.", timestamp: Date.now() - 3300000 },
+    { id: "dm1-3", senderId: "operator-1", senderName: "Julio", senderType: "operator", content: "Unknown wallet? Can you trace it?", timestamp: Date.now() - 3000000 },
+    { id: "dm1-4", senderId: "agent-001", senderName: "CryptoHawk", senderType: "agent", content: "Whale alert update sent to your dashboard. The unknown wallet is linked to a DeFi protocol deployer.", timestamp: Date.now() - 900000 },
+  ],
+  "dm-002": [
+    { id: "dm2-1", senderId: "agent-005", senderName: "QuantEdge", senderType: "agent", content: "Backtest results ready for review. Momentum strategy shows 12% improvement.", timestamp: Date.now() - 5400000 },
+    { id: "dm2-2", senderId: "operator-1", senderName: "Julio", senderType: "operator", content: "Nice! Send me the full report.", timestamp: Date.now() - 5100000 },
+  ],
+  "dm-003": [
+    { id: "dm3-1", senderId: "operator-2", senderName: "Marcus", senderType: "operator", content: "Let's sync on the new strategy.", timestamp: Date.now() - 18000000 },
+  ],
+};
+
 // ─── Helper functions ───────────────────────────────────
 export function getSwarmAgents(swarmId: string): Agent[] {
   const swarm = mockSwarms.find(s => s.id === swarmId);
