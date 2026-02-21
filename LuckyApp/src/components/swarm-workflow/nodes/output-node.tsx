@@ -14,7 +14,7 @@ export function OutputNode({ data, selected }: NodeProps) {
 
   return (
     <div className={cn(
-      'rounded-lg border-2 bg-white shadow-sm px-4 py-3 min-w-[180px]',
+      'rounded-lg border-2 bg-card shadow-sm px-4 py-3 min-w-[180px]',
       selected ? 'border-emerald-500 ring-2 ring-emerald-200' : 'border-emerald-300'
     )}>
       <Handle
@@ -26,8 +26,8 @@ export function OutputNode({ data, selected }: NodeProps) {
         <span className="text-lg">{OUTPUT_ICONS[outputType] || '🎯'}</span>
         <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Output</span>
       </div>
-      <p className="text-sm font-medium text-gray-900">{data.label as string}</p>
-      <p className="text-xs text-gray-500 mt-1 capitalize">{outputType}</p>
+      <p className="text-sm font-medium text-foreground">{data.label as string}</p>
+      <p className="text-xs text-muted-foreground mt-1 capitalize">{outputType}</p>
     </div>
   );
 }

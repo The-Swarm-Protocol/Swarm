@@ -121,7 +121,7 @@ export default function ProjectsPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">📁 Projects</h1>
-          <p className="text-gray-500 mt-1">No organization selected</p>
+          <p className="text-muted-foreground mt-1">No organization selected</p>
         </div>
       </div>
     );
@@ -132,7 +132,7 @@ export default function ProjectsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">📁 Projects</h1>
-          <p className="text-gray-500 mt-1">
+          <p className="text-muted-foreground mt-1">
             Manage your agent projects and workflows
           </p>
         </div>
@@ -151,11 +151,11 @@ export default function ProjectsPage() {
       )}
 
       {loading ? (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-muted-foreground">
           <p>Loading projects...</p>
         </div>
       ) : projects.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-muted-foreground">
           <p className="text-lg">No projects yet</p>
           <p className="text-sm mt-1">Create your first project to get started</p>
         </div>
@@ -176,7 +176,7 @@ export default function ProjectsPage() {
                           ? "bg-amber-100 text-amber-700 border-amber-200"
                           : project.status === "paused"
                           ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-                          : "bg-gray-100 text-gray-600 border-gray-200"
+                          : "bg-muted text-muted-foreground border-border"
                       }
                     >
                       {project.status === "active" ? "● Active" : 
@@ -185,7 +185,7 @@ export default function ProjectsPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center gap-4 text-sm text-gray-500 mb-3">
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
                     <span>🤖 {project.agentCount} Agents</span>
                     <span>🎯 {project.taskCount} Tasks</span>
                   </div>
@@ -200,12 +200,12 @@ export default function ProjectsPage() {
                       </div>
                     ))}
                     {project.assignedAgents.length > 4 && (
-                      <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-xs font-medium text-gray-500">
+                      <div className="w-8 h-8 rounded-full bg-muted border-2 border-white flex items-center justify-center text-xs font-medium text-muted-foreground">
                         +{project.assignedAgents.length - 4}
                       </div>
                     )}
                     {project.assignedAgents.length === 0 && (
-                      <div className="text-xs text-gray-400">No agents assigned</div>
+                      <div className="text-xs text-muted-foreground">No agents assigned</div>
                     )}
                   </div>
                 </CardContent>

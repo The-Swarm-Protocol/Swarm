@@ -52,7 +52,7 @@ export default function OnboardingPage() {
           <div>
             <label className="text-sm font-medium mb-1 block">Organization Name *</label>
             <input
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
               placeholder="e.g. Acme AI Ops"
               value={name}
               onChange={e => setName(e.target.value)}
@@ -63,7 +63,7 @@ export default function OnboardingPage() {
           <div>
             <label className="text-sm font-medium mb-1 block">Description (optional)</label>
             <textarea
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 min-h-[80px]"
+              className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 min-h-[80px]"
               placeholder="What does your organization do?"
               value={description}
               onChange={e => setDescription(e.target.value)}
@@ -81,7 +81,7 @@ export default function OnboardingPage() {
           <div className="flex items-center justify-center gap-4 pt-2">
             <button
               onClick={() => router.push('/')}
-              className="text-sm text-gray-500 hover:text-gray-700 underline"
+              className="text-sm text-muted-foreground hover:text-muted-foreground underline"
             >
               ← Back to Home
             </button>

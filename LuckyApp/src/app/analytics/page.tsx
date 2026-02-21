@@ -22,7 +22,7 @@ const agentColumns = [
     render: (a: AgentPerformance) => (
       <div>
         <span className="font-medium">{a.name}</span>
-        <span className="text-xs text-gray-400 ml-2">{a.type}</span>
+        <span className="text-xs text-muted-foreground ml-2">{a.type}</span>
       </div>
     ),
   },
@@ -48,7 +48,7 @@ const agentColumns = [
     render: (a: AgentPerformance) => (
       <div className="text-sm">
         <span className="font-medium">{a.totalPredictions}</span>
-        <span className="text-gray-400 ml-1 text-xs">
+        <span className="text-muted-foreground ml-1 text-xs">
           ({a.wins}W / {a.losses}L)
         </span>
       </div>
@@ -79,7 +79,7 @@ const swarmColumns = [
         <span className="font-medium">{s.name}</span>
         <Badge className={cn(
           "text-[10px]",
-          s.status === "active" ? "bg-amber-50 text-amber-700" : "bg-gray-100 text-gray-500"
+          s.status === "active" ? "bg-amber-50 text-amber-700" : "bg-muted text-muted-foreground"
         )}>
           {s.status}
         </Badge>
@@ -108,10 +108,10 @@ const swarmColumns = [
     render: (s: SwarmPerformance) => (
       <span className="text-sm">
         <span className="font-medium">{s.missionsCompleted}</span>
-        <span className="text-gray-400"> done</span>
-        <span className="text-gray-300 mx-1">·</span>
+        <span className="text-muted-foreground"> done</span>
+        <span className="text-muted-foreground mx-1">·</span>
         <span className="font-medium">{s.missionsActive}</span>
-        <span className="text-gray-400"> active</span>
+        <span className="text-muted-foreground"> active</span>
       </span>
     ),
   },
@@ -133,7 +133,7 @@ export default function AnalyticsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
-        <p className="text-gray-500 mt-1">Performance metrics and leaderboards</p>
+        <p className="text-muted-foreground mt-1">Performance metrics and leaderboards</p>
       </div>
 
       {/* Overview Stats */}
@@ -211,7 +211,7 @@ export default function AnalyticsPage() {
             {mockMarketBreakdown.map((m) => (
               <div
                 key={m.category}
-                className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                className="border rounded-lg p-4 hover:bg-muted transition-colors"
               >
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-2xl">{m.icon}</span>
@@ -219,20 +219,20 @@ export default function AnalyticsPage() {
                 </div>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Predictions</span>
+                    <span className="text-muted-foreground">Predictions</span>
                     <span className="font-medium">{m.totalPredictions}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Win Rate</span>
+                    <span className="text-muted-foreground">Win Rate</span>
                     <span className="font-medium">{m.winRate}%</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">P&L</span>
+                    <span className="text-muted-foreground">P&L</span>
                     <span className={cn("font-semibold", m.totalPnl >= 0 ? "text-amber-600" : "text-red-500")}>
                       {m.totalPnl >= 0 ? "+" : ""}${Math.abs(m.totalPnl).toLocaleString()}
                     </span>
                   </div>
-                  <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mt-1">
+                  <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden mt-1">
                     <div
                       className="h-full bg-amber-600 rounded-full"
                       style={{ width: `${m.winRate}%` }}

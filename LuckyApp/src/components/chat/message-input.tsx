@@ -119,16 +119,16 @@ export function MessageInput({ onSend, channelName }: MessageInputProps) {
   };
 
   return (
-    <div className="border-t border-gray-200 p-4 bg-white">
+    <div className="border-t border-border p-4 bg-card">
       <div className="relative">
         {/* Mention dropdown */}
         {showMentions && filtered.length > 0 && (
-          <div className="absolute bottom-full left-0 right-0 mb-1 max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg z-50">
+          <div className="absolute bottom-full left-0 right-0 mb-1 max-h-40 overflow-y-auto rounded-lg border border-border bg-card shadow-lg z-50">
             {filtered.map((m, idx) => (
               <button
                 key={m.id}
                 className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors ${
-                  idx === selectedIndex ? "bg-amber-50" : "hover:bg-gray-50"
+                  idx === selectedIndex ? "bg-amber-50" : "hover:bg-muted"
                 }`}
                 onMouseDown={(e) => {
                   e.preventDefault();
@@ -138,8 +138,8 @@ export function MessageInput({ onSend, channelName }: MessageInputProps) {
                 <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-[10px]">
                   🤖
                 </span>
-                <span className="text-gray-900">{m.name}</span>
-                <span className="text-[10px] text-gray-400 ml-auto">
+                <span className="text-foreground">{m.name}</span>
+                <span className="text-[10px] text-muted-foreground ml-auto">
                   Agent
                 </span>
               </button>
@@ -155,7 +155,7 @@ export function MessageInput({ onSend, channelName }: MessageInputProps) {
             onKeyDown={handleKeyDown}
             placeholder={`Message #${channelName}... (@ to mention)`}
             rows={1}
-            className="flex-1 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent placeholder:text-gray-400"
+            className="flex-1 rounded-lg border border-border bg-card px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent placeholder:text-muted-foreground"
             style={{ overflow: "hidden" }}
           />
           <Button

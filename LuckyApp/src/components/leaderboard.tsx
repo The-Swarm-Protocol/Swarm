@@ -37,11 +37,11 @@ export function Leaderboard({ limit = 6, compact = false }: LeaderboardProps) {
               key={agent.agentId}
               className={cn(
                 "flex items-center gap-3 py-2 rounded-md transition-colors",
-                !compact && "px-3 hover:bg-gray-50"
+                !compact && "px-3 hover:bg-muted"
               )}
             >
               <span className="text-lg w-7 text-center flex-shrink-0">
-                {i < 3 ? medals[i] : <span className="text-sm text-gray-400 font-medium">#{i + 1}</span>}
+                {i < 3 ? medals[i] : <span className="text-sm text-muted-foreground font-medium">#{i + 1}</span>}
               </span>
 
               <div className="flex-1 min-w-0">
@@ -49,7 +49,7 @@ export function Leaderboard({ limit = 6, compact = false }: LeaderboardProps) {
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-sm truncate">{agent.name}</span>
                     {!compact && (
-                      <span className="text-xs text-gray-400">{agent.type}</span>
+                      <span className="text-xs text-muted-foreground">{agent.type}</span>
                     )}
                   </div>
                   <span
@@ -63,7 +63,7 @@ export function Leaderboard({ limit = 6, compact = false }: LeaderboardProps) {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                     <div
                       className={cn(
                         "h-full rounded-full transition-all",
@@ -72,7 +72,7 @@ export function Leaderboard({ limit = 6, compact = false }: LeaderboardProps) {
                       style={{ width: `${barWidth}%` }}
                     />
                   </div>
-                  <span className="text-xs text-gray-400 w-12 text-right">
+                  <span className="text-xs text-muted-foreground w-12 text-right">
                     {agent.winRate.toFixed(1)}%
                   </span>
                 </div>

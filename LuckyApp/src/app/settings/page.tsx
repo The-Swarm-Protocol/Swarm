@@ -72,7 +72,7 @@ export default function SettingsPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">⚙️ Settings</h1>
-          <p className="text-gray-500 mt-1">No organization selected</p>
+          <p className="text-muted-foreground mt-1">No organization selected</p>
         </div>
       </div>
     );
@@ -82,7 +82,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">⚙️ Settings</h1>
-        <p className="text-gray-500 mt-1">Manage your organization settings</p>
+        <p className="text-muted-foreground mt-1">Manage your organization settings</p>
       </div>
 
       <div className="max-w-2xl space-y-6">
@@ -97,8 +97,8 @@ export default function SettingsPage() {
                 <div className="w-16 h-16 rounded-xl border border-amber-200 bg-amber-50 flex items-center justify-center">
                   <span className="text-2xl">⚡</span>
                 </div>
-                <div className="text-sm text-gray-500">
-                  <p className="font-medium text-gray-900">{currentOrg.name}</p>
+                <div className="text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground">{currentOrg.name}</p>
                   <p className="text-xs">Created {formatDate(currentOrg.createdAt)}</p>
                 </div>
               </div>
@@ -162,7 +162,7 @@ export default function SettingsPage() {
                   <p className="text-sm font-medium">
                     {currentOrg.ownerAddress.slice(0, 8)}...{currentOrg.ownerAddress.slice(-6)}
                   </p>
-                  <p className="text-xs text-gray-500">Owner</p>
+                  <p className="text-xs text-muted-foreground">Owner</p>
                 </div>
                 <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
                   Admin
@@ -173,14 +173,14 @@ export default function SettingsPage() {
               {currentOrg.members
                 .filter(member => member !== currentOrg.ownerAddress)
                 .map((member, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 rounded-md bg-gray-50 border border-gray-200">
+                  <div key={index} className="flex items-center justify-between p-3 rounded-md bg-muted border border-border">
                     <div>
                       <p className="text-sm font-medium">
                         {member.slice(0, 8)}...{member.slice(-6)}
                       </p>
-                      <p className="text-xs text-gray-500">Member</p>
+                      <p className="text-xs text-muted-foreground">Member</p>
                     </div>
-                    <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                    <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full">
                       Member
                     </span>
                   </div>
@@ -188,7 +188,7 @@ export default function SettingsPage() {
               }
             </div>
             
-            <div className="mt-4 text-sm text-gray-500">
+            <div className="mt-4 text-sm text-muted-foreground">
               <p>Total members: {currentOrg.members.length}</p>
             </div>
 
@@ -206,21 +206,21 @@ export default function SettingsPage() {
           <CardContent>
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-500">Organization ID:</span>
+                <span className="text-muted-foreground">Organization ID:</span>
                 <span className="font-mono text-xs">{currentOrg.id}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Owner Address:</span>
+                <span className="text-muted-foreground">Owner Address:</span>
                 <span className="font-mono text-xs">
                   {currentOrg.ownerAddress.slice(0, 8)}...{currentOrg.ownerAddress.slice(-6)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Created:</span>
+                <span className="text-muted-foreground">Created:</span>
                 <span>{formatDate(currentOrg.createdAt)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Member Count:</span>
+                <span className="text-muted-foreground">Member Count:</span>
                 <span>{currentOrg.members.length}</span>
               </div>
             </div>
@@ -234,7 +234,7 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 Once you delete an organization, there is no going back. All projects, agents, 
                 tasks, and chat history will be permanently removed.
               </p>

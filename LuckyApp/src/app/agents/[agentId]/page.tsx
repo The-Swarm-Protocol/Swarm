@@ -141,7 +141,7 @@ export default function AgentDetailPage() {
         <div className="text-center">
           <div className="text-4xl mb-4">😕</div>
           <h2 className="text-xl font-bold mb-2">Agent Not Found</h2>
-          <p className="text-gray-500 mb-4">{error}</p>
+          <p className="text-muted-foreground mb-4">{error}</p>
           <Button asChild variant="outline">
             <Link href="/agents">← Back to Fleet</Link>
           </Button>
@@ -157,7 +157,7 @@ export default function AgentDetailPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start gap-4">
-        <Link href="/agents" className="text-gray-400 hover:text-amber-600 transition-colors text-lg mt-2">
+        <Link href="/agents" className="text-muted-foreground hover:text-amber-600 transition-colors text-lg mt-2">
           ←
         </Link>
         <div className="flex items-center gap-4 flex-1">
@@ -170,16 +170,16 @@ export default function AgentDetailPage() {
               <Badge className={TYPE_COLORS[agent.type] || ""}>{agent.type}</Badge>
               <span className={`text-sm flex items-center gap-1.5 ${
                 agent.status === "online" ? "text-emerald-600" : 
-                agent.status === "busy" ? "text-orange-600" : "text-gray-400"
+                agent.status === "busy" ? "text-orange-600" : "text-muted-foreground"
               }`}>
                 <span className={`w-2.5 h-2.5 rounded-full ${
                   agent.status === "online" ? "bg-emerald-500" : 
-                  agent.status === "busy" ? "bg-orange-500" : "bg-gray-300"
+                  agent.status === "busy" ? "bg-orange-500" : "bg-muted"
                 }`} />
                 {agent.status}
               </span>
             </div>
-            <p className="text-gray-500 mt-1">{agent.description}</p>
+            <p className="text-muted-foreground mt-1">{agent.description}</p>
           </div>
           <div>
             <Button 
@@ -205,25 +205,25 @@ export default function AgentDetailPage() {
         <Card>
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-amber-600">{assignedProjects.length}</div>
-            <div className="text-xs text-gray-500 mt-1">Assigned Projects</div>
+            <div className="text-xs text-muted-foreground mt-1">Assigned Projects</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-gray-900">{agentTasks.length}</div>
-            <div className="text-xs text-gray-500 mt-1">Total Tasks</div>
+            <div className="text-2xl font-bold text-foreground">{agentTasks.length}</div>
+            <div className="text-xs text-muted-foreground mt-1">Total Tasks</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-emerald-600">{completedTasks}</div>
-            <div className="text-xs text-gray-500 mt-1">Completed</div>
+            <div className="text-xs text-muted-foreground mt-1">Completed</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-orange-600">{activeTasks}</div>
-            <div className="text-xs text-gray-500 mt-1">In Progress</div>
+            <div className="text-xs text-muted-foreground mt-1">In Progress</div>
           </CardContent>
         </Card>
       </div>
@@ -242,7 +242,7 @@ export default function AgentDetailPage() {
                 </Badge>
               ))}
               {agent.capabilities.length === 0 && (
-                <p className="text-sm text-gray-400">No capabilities defined</p>
+                <p className="text-sm text-muted-foreground">No capabilities defined</p>
               )}
             </div>
           </CardContent>
@@ -259,7 +259,7 @@ export default function AgentDetailPage() {
                 <Link
                   key={project.id}
                   href={`/swarms/${project.id}`}
-                  className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex items-center justify-between p-2 rounded-lg hover:bg-muted transition-colors"
                 >
                   <span className="font-medium text-sm">{project.name}</span>
                   <Badge
@@ -268,7 +268,7 @@ export default function AgentDetailPage() {
                         ? "bg-amber-100 text-amber-700"
                         : project.status === "paused"
                         ? "bg-yellow-100 text-yellow-700"
-                        : "bg-gray-100 text-gray-600"
+                        : "bg-muted text-muted-foreground"
                     }
                   >
                     {project.status}
@@ -276,7 +276,7 @@ export default function AgentDetailPage() {
                 </Link>
               ))}
               {assignedProjects.length === 0 && (
-                <p className="text-sm text-gray-400">Not assigned to any projects</p>
+                <p className="text-sm text-muted-foreground">Not assigned to any projects</p>
               )}
             </div>
           </CardContent>
@@ -294,14 +294,14 @@ export default function AgentDetailPage() {
             {agentTasks.slice(0, 10).map((task) => (
               <div
                 key={task.id}
-                className="flex items-center justify-between p-3 rounded-lg border border-gray-100"
+                className="flex items-center justify-between p-3 rounded-lg border border-border"
               >
                 <div className="flex-1">
                   <div className="font-medium text-sm">{task.title}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">
+                  <div className="text-xs text-muted-foreground mt-0.5">
                     {task.description && `${task.description.substring(0, 80)}${task.description.length > 80 ? '...' : ''}`}
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-muted-foreground mt-1">
                     Priority: {task.priority} · Created {formatTime(task.createdAt)}
                   </div>
                 </div>
@@ -312,7 +312,7 @@ export default function AgentDetailPage() {
                         ? "bg-emerald-100 text-emerald-700"
                         : task.status === "in_progress"
                         ? "bg-amber-100 text-amber-700"
-                        : "bg-gray-100 text-gray-700"
+                        : "bg-muted text-muted-foreground"
                     }
                   >
                     {task.status === 'in_progress' ? 'In Progress' : 
@@ -322,7 +322,7 @@ export default function AgentDetailPage() {
               </div>
             ))}
             {agentTasks.length === 0 && (
-              <div className="text-center py-8 text-gray-400">
+              <div className="text-center py-8 text-muted-foreground">
                 <div className="text-4xl mb-3">📋</div>
                 <p>No tasks assigned yet</p>
               </div>

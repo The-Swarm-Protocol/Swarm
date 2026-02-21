@@ -18,7 +18,7 @@ export function StatCard({ title, value, icon, change, changeLabel, prefix }: St
     <Card>
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-medium text-gray-500">{title}</span>
+          <span className="text-sm font-medium text-muted-foreground">{title}</span>
           <span className="text-2xl">{icon}</span>
         </div>
         <div className="text-2xl font-bold tracking-tight">
@@ -35,7 +35,7 @@ export function StatCard({ title, value, icon, change, changeLabel, prefix }: St
               {isPositive ? "↑" : "↓"} {Math.abs(change).toFixed(1)}%
             </span>
             {changeLabel && (
-              <span className="text-xs text-gray-400">{changeLabel}</span>
+              <span className="text-xs text-muted-foreground">{changeLabel}</span>
             )}
           </div>
         )}

@@ -24,7 +24,7 @@ const SwarmCanvas = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex items-center justify-center h-96 text-gray-500">
+      <div className="flex items-center justify-center h-96 text-muted-foreground">
         Loading workflow editor...
       </div>
     ),
@@ -41,7 +41,7 @@ interface OrgStats {
 }
 
 const statusColors: Record<string, string> = {
-  todo: "bg-gray-100 text-gray-800",
+  todo: "bg-muted text-foreground",
   in_progress: "bg-amber-100 text-amber-800",
   done: "bg-emerald-100 text-emerald-800",
 };
@@ -122,7 +122,7 @@ export default function DashboardPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-gray-500 mt-1">No organization selected</p>
+          <p className="text-muted-foreground mt-1">No organization selected</p>
         </div>
       </div>
     );
@@ -133,7 +133,7 @@ export default function DashboardPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-gray-500 mt-1">Loading...</p>
+          <p className="text-muted-foreground mt-1">Loading...</p>
         </div>
       </div>
     );
@@ -155,7 +155,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-gray-500 mt-1">{currentOrg.name} operations overview</p>
+          <p className="text-muted-foreground mt-1">{currentOrg.name} operations overview</p>
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline">
@@ -216,7 +216,7 @@ export default function DashboardPage() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {recentTasks.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500">
+                      <div className="text-center py-8 text-muted-foreground">
                         <p>No tasks yet</p>
                         <Link href="/missions" className="text-amber-600 hover:underline text-sm">
                           Create your first task →
@@ -224,10 +224,10 @@ export default function DashboardPage() {
                       </div>
                     ) : (
                       recentTasks.map((task) => (
-                        <div key={task.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                        <div key={task.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium truncate">{task.title}</p>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-muted-foreground">
                               📁 {task.projectName} · 🤖 {task.agentName}
                             </p>
                           </div>
@@ -246,7 +246,7 @@ export default function DashboardPage() {
                     <CardTitle className="text-lg">📈 Recent Activity</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-center py-8 text-gray-500">
+                    <div className="text-center py-8 text-muted-foreground">
                       <p>Activity feed coming soon</p>
                       <p className="text-sm">Track agent actions and task updates here</p>
                     </div>
@@ -293,9 +293,9 @@ export default function DashboardPage() {
                     <div className="space-y-2">
                       <p className="font-medium">{currentOrg.name}</p>
                       {currentOrg.description && (
-                        <p className="text-sm text-gray-600">{currentOrg.description}</p>
+                        <p className="text-sm text-muted-foreground">{currentOrg.description}</p>
                       )}
-                      <div className="text-xs text-gray-500 pt-2 border-t">
+                      <div className="text-xs text-muted-foreground pt-2 border-t">
                         <p>Members: {currentOrg.members.length}</p>
                         <p>Owner: {currentOrg.ownerAddress.slice(0, 6)}...{currentOrg.ownerAddress.slice(-4)}</p>
                       </div>

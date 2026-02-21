@@ -17,7 +17,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
   return (
     <div
-      className={`flex items-start gap-3 py-2 px-3 rounded-lg transition-colors hover:bg-gray-50 ${
+      className={`flex items-start gap-3 py-2 px-3 rounded-lg transition-colors hover:bg-muted ${
         isAgent ? "bg-amber-50/50" : ""
       }`}
     >
@@ -37,7 +37,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         <div className="flex items-baseline gap-2">
           <span
             className={`font-semibold text-sm ${
-              isAgent ? "text-amber-700" : "text-gray-900"
+              isAgent ? "text-amber-700" : "text-foreground"
             }`}
           >
             {message.senderName}
@@ -47,11 +47,11 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               Agent
             </span>
           )}
-          <span className="text-[11px] text-gray-400">
+          <span className="text-[11px] text-muted-foreground">
             {formatTime(message.timestamp)}
           </span>
         </div>
-        <p className="text-sm text-gray-700 break-words whitespace-pre-wrap mt-0.5">
+        <p className="text-sm text-muted-foreground break-words whitespace-pre-wrap mt-0.5">
           {message.content}
         </p>
       </div>

@@ -27,13 +27,13 @@ import {
 } from "@/lib/firestore";
 
 const TASK_STATUS_COLORS: Record<string, string> = {
-  todo: "bg-gray-100 text-gray-700",
+  todo: "bg-muted text-muted-foreground",
   in_progress: "bg-amber-100 text-amber-700",
   done: "bg-emerald-100 text-emerald-700",
 };
 
 const PRIORITY_LABELS: Record<string, { label: string; color: string }> = {
-  low: { label: "Low", color: "text-gray-500" },
+  low: { label: "Low", color: "text-muted-foreground" },
   medium: { label: "Medium", color: "text-amber-600" },
   high: { label: "High", color: "text-orange-600" },
 };
@@ -210,7 +210,7 @@ export default function ProjectDetailPage() {
         <div className="text-center">
           <div className="text-4xl mb-4">😕</div>
           <h2 className="text-xl font-bold mb-2">Project Not Found</h2>
-          <p className="text-gray-500 mb-4">{error}</p>
+          <p className="text-muted-foreground mb-4">{error}</p>
           <Button asChild variant="outline">
             <Link href="/swarms">← Back to Projects</Link>
           </Button>
@@ -224,7 +224,7 @@ export default function ProjectDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/swarms" className="text-gray-400 hover:text-amber-600 transition-colors text-lg">
+          <Link href="/swarms" className="text-muted-foreground hover:text-amber-600 transition-colors text-lg">
             ←
           </Link>
           <div>
@@ -236,14 +236,14 @@ export default function ProjectDetailPage() {
                     ? "bg-amber-100 text-amber-700 border-amber-200"
                     : project.status === "paused"
                     ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-                    : "bg-gray-100 text-gray-600 border-gray-200"
+                    : "bg-muted text-muted-foreground border-border"
                 }
               >
                 {project.status === "active" ? "● Active" : 
                  project.status === "paused" ? "⏸ Paused" : "✓ Done"}
               </Badge>
             </div>
-            <p className="text-gray-500 mt-1">{project.description || 'No description'}</p>
+            <p className="text-muted-foreground mt-1">{project.description || 'No description'}</p>
           </div>
         </div>
       </div>
@@ -285,7 +285,7 @@ export default function ProjectDetailPage() {
                       <CardTitle className="text-base">{agent.name}</CardTitle>
                       <div className="flex items-center gap-2 mt-0.5">
                         <Badge variant="secondary" className="text-xs">{agent.type}</Badge>
-                        <span className={`text-xs ${agent.status === "online" ? "text-emerald-600" : agent.status === "busy" ? "text-orange-600" : "text-gray-400"}`}>
+                        <span className={`text-xs ${agent.status === "online" ? "text-emerald-600" : agent.status === "busy" ? "text-orange-600" : "text-muted-foreground"}`}>
                           {agent.status === "online" ? "● Online" : 
                            agent.status === "busy" ? "● Busy" : "○ Offline"}
                         </span>
@@ -294,9 +294,9 @@ export default function ProjectDetailPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <p className="text-sm text-gray-600 mb-3">{agent.description}</p>
+                  <p className="text-sm text-muted-foreground mb-3">{agent.description}</p>
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-muted-foreground">
                       {agent.capabilities.length} capabilities
                     </span>
                     <Button
@@ -312,7 +312,7 @@ export default function ProjectDetailPage() {
               </Card>
             ))}
             {assignedAgents.length === 0 && (
-              <div className="col-span-full text-center py-12 text-gray-400">
+              <div className="col-span-full text-center py-12 text-muted-foreground">
                 <div className="text-4xl mb-3">🤖</div>
                 <p>No agents assigned</p>
                 <Button 
@@ -356,7 +356,7 @@ export default function ProjectDetailPage() {
                           </Badge>
                         </div>
                         <CardDescription>{task.description}</CardDescription>
-                        <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                        <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                           <span className={priority.color}>● {priority.label}</span>
                           {assignee && <span>🤖 {assignee.name}</span>}
                           <span>Created {formatTime(task.createdAt)}</span>
@@ -368,7 +368,7 @@ export default function ProjectDetailPage() {
               );
             })}
             {tasks.length === 0 && (
-              <div className="text-center py-12 text-gray-400">
+              <div className="text-center py-12 text-muted-foreground">
                 <div className="text-4xl mb-3">🎯</div>
                 <p>No tasks yet</p>
                 <Button 
@@ -391,10 +391,10 @@ export default function ProjectDetailPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="h-[400px] overflow-y-auto p-4 flex items-center justify-center">
-                <div className="text-center text-gray-400">
+                <div className="text-center text-muted-foreground">
                   <div className="text-4xl mb-3">💬</div>
                   <p className="text-sm">Channel integration coming soon</p>
-                  <p className="text-xs text-gray-500 mt-1">Connect with agents in real-time</p>
+                  <p className="text-xs text-muted-foreground mt-1">Connect with agents in real-time</p>
                 </div>
               </div>
             </CardContent>
@@ -511,17 +511,17 @@ export default function ProjectDetailPage() {
               <DialogTitle>{selectedTask.title}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <p className="text-sm text-gray-600">{selectedTask.description}</p>
+              <p className="text-sm text-muted-foreground">{selectedTask.description}</p>
               
               <div className="flex items-center gap-4 text-sm">
-                <span className="text-gray-500">Priority:</span>
+                <span className="text-muted-foreground">Priority:</span>
                 <Badge className={PRIORITY_LABELS[selectedTask.priority]?.color}>
                   {PRIORITY_LABELS[selectedTask.priority]?.label}
                 </Badge>
               </div>
               
               <div className="flex items-center gap-4 text-sm">
-                <span className="text-gray-500">Status:</span>
+                <span className="text-muted-foreground">Status:</span>
                 <div className="flex gap-2">
                   {(['todo', 'in_progress', 'done'] as const).map((status) => (
                     <Button
