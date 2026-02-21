@@ -8,16 +8,7 @@ import { base, defineChain } from "thirdweb/chains";
 import { useRouter } from "next/navigation";
 import { useEffect, Suspense, lazy, useRef } from "react";
 import Image from "next/image";
-import {
-  Shield,
-  Zap,
-  BarChart3,
-  Users,
-  Cpu,
-  Globe,
-  LayoutDashboard,
-  ArrowRight
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 const Spline = lazy(() => import('@splinetool/react-spline'));
 
@@ -27,38 +18,6 @@ const client = createThirdwebClient({
 
 const hedera = defineChain({ id: 295, name: 'Hedera', rpc: 'https://mainnet.hashio.io/api' });
 
-const features = [
-  {
-    icon: <LayoutDashboard className="w-6 h-6 text-amber-500" />,
-    title: "Mission Control",
-    description: "Centrally manage all AI agent fleets from a single unified dashboard."
-  },
-  {
-    icon: <Cpu className="w-6 h-6 text-amber-500" />,
-    title: "Fleet Orchestration",
-    description: "Dynamic task allocation and load balancing across multi-agent environments."
-  },
-  {
-    icon: <BarChart3 className="w-6 h-6 text-amber-500" />,
-    title: "Real-time Metrics",
-    description: "Monitor execution efficiency, agent health, and performance in real-time."
-  },
-  {
-    icon: <Zap className="w-6 h-6 text-amber-500" />,
-    title: "Autonomous Scaling",
-    description: "Automatically scale your agent fleet based on demand and workload complexity."
-  },
-  {
-    icon: <Globe className="w-6 h-6 text-amber-500" />,
-    title: "Global Reach",
-    description: "Deploy and coordinate agents across diverse geographic and business domains."
-  },
-  {
-    icon: <Shield className="w-6 h-6 text-amber-500" />,
-    title: "Enterprise Security",
-    description: "Bank-grade encryption and access controls for secure agent operations."
-  }
-];
 
 export default function LandingPage() {
   const account = useActiveAccount();
@@ -184,52 +143,6 @@ export default function LandingPage() {
                   <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
                 </Button>
               </Link>
-            </div>
-          </div>
-        </section>
-
-        {/* Features Grid */}
-        <section className="py-24 bg-black/20">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl font-bold text-white mb-4">Core Capabilities</h2>
-              <p className="text-muted-foreground">Everything you need to manage complex AI agent workflows at scale.</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {features.map((feature, idx) => (
-                <div key={idx} className="glass-card p-8 rounded-2xl group">
-                  <div className="mb-4 inline-flex p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 group-hover:bg-amber-500/20 transition-colors">
-                    {feature.icon}
-                  </div>
-                  <h3 className="text-xl font-bold text-white mb-2">{feature.title}</h3>
-                  <p className="text-muted-foreground leading-relaxed">{feature.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Stats Section */}
-        <section className="py-24 relative overflow-hidden">
-          <div className="max-w-5xl mx-auto px-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-12 text-center">
-              <div className="space-y-2">
-                <div className="text-5xl font-black text-[#FFD700] text-glow">500+</div>
-                <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Active Agents</div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-5xl font-black text-[#FFD700] text-glow">99.9%</div>
-                <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Uptime SLA</div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-5xl font-black text-[#FFD700] text-glow">24/7</div>
-                <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Autonomous Ops</div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-5xl font-black text-[#FFD700] text-glow">10M+</div>
-                <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Tasks Solved</div>
-              </div>
             </div>
           </div>
         </section>
