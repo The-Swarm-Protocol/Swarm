@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { DynamicProvider } from "@/lib/dynamic";
+import { Web3Provider } from "@/lib/dynamic";
 import { TeamProvider } from "@/contexts/TeamContext";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -19,11 +19,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className} suppressHydrationWarning>
-        <DynamicProvider>
+        <Web3Provider>
           <TeamProvider>
             {children}
           </TeamProvider>
-        </DynamicProvider>
+        </Web3Provider>
       </body>
     </html>
   );

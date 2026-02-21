@@ -3,11 +3,11 @@
 import dynamic from 'next/dynamic';
 import { type ReactNode } from 'react';
 
-const DynamicProviderInner = dynamic(
-  () => import('./dynamic-inner').then(mod => ({ default: mod.DynamicProviderInner })),
+const Web3ProviderInner = dynamic(
+  () => import('./dynamic-inner').then(mod => ({ default: mod.Web3ProviderInner })),
   { ssr: false }
 );
 
-export function DynamicProvider({ children }: { children: ReactNode }) {
-  return <DynamicProviderInner>{children}</DynamicProviderInner>;
+export function Web3Provider({ children }: { children: ReactNode }) {
+  return <Web3ProviderInner>{children}</Web3ProviderInner>;
 }
