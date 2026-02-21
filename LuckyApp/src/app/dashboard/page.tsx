@@ -28,8 +28,8 @@ interface OrgStats {
 
 const statusColors: Record<string, string> = {
   todo: "bg-gray-100 text-gray-800",
-  in_progress: "bg-blue-100 text-blue-800", 
-  done: "bg-green-100 text-green-800",
+  in_progress: "bg-amber-100 text-amber-800",
+  done: "bg-emerald-100 text-emerald-800",
 };
 
 const statusLabels: Record<string, string> = {
@@ -186,13 +186,13 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-lg">📋 Recent Tasks</CardTitle>
-              <Link href="/missions" className="text-sm text-blue-600 hover:underline">View all →</Link>
+              <Link href="/missions" className="text-sm text-amber-600 hover:underline">View all →</Link>
             </CardHeader>
             <CardContent className="space-y-3">
               {recentTasks.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <p>No tasks yet</p>
-                  <Link href="/missions" className="text-blue-600 hover:underline text-sm">
+                  <Link href="/missions" className="text-amber-600 hover:underline text-sm">
                     Create your first task →
                   </Link>
                 </div>
