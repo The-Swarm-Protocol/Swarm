@@ -421,23 +421,24 @@ export async function getMessagesByChannel(channelId: string): Promise<Message[]
 export interface Job {
   id: string;
   orgId: string;
+  projectId: string;
   title: string;
   description: string;
+  status: 'open' | 'claimed' | 'closed';
   reward?: string;
-  requiredSkills: string[];
-  status: 'open' | 'in_progress' | 'completed';
-  postedByAgentId?: string;
-  postedByAddress?: string;
-  takenByAgentId?: string;
-  projectId?: string;
+  skillsRequired?: string[];
+  createdBy: string; // wallet address
+  claimedBy?: string; // agentId
   priority: 'low' | 'medium' | 'high';
   createdAt: unknown;
+  updatedAt: unknown;
 }
 
 export async function createJob(data: Omit<Job, "id">): Promise<string> {
   const ref = await addDoc(collection(db, "jobs"), {
     ...data,
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
   return ref.id;
 }
@@ -448,8 +449,50 @@ export async function getJobsByOrg(orgId: string): Promise<Job[]> {
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Job));
 }
 
+export async function getJobsByProject(projectId: string): Promise<Job[]> {
+  const q = query(collection(db, "jobs"), where("projectId", "==", projectId));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Job));
+}
+
+export async function getOpenJobs(orgId: string): Promise<Job[]> {
+  const q = query(collection(db, "jobs"), where("orgId", "==", orgId), where("status", "==", "open"));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Job));
+}
+
+export async function claimJob(jobId: string, agentId: string, orgId: string, projectId: string): Promise<string> {
+  // Update job status
+  await updateDoc(doc(db, "jobs", jobId), {
+    status: "claimed",
+    claimedBy: agentId,
+    updatedAt: serverTimestamp(),
+  });
+  // Auto-create a task for the claiming agent
+  const job = await getDoc(doc(db, "jobs", jobId));
+  const jobData = job.data();
+  const taskId = await createTask({
+    orgId,
+    projectId,
+    title: jobData?.title || "Job task",
+    description: `From job: ${jobData?.description || ""}`,
+    assigneeAgentId: agentId,
+    status: "todo",
+    priority: jobData?.priority || "medium",
+    createdAt: new Date(),
+  });
+  return taskId;
+}
+
+export async function closeJob(jobId: string): Promise<void> {
+  await updateDoc(doc(db, "jobs", jobId), {
+    status: "closed",
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export async function updateJob(jobId: string, data: Partial<Job>): Promise<void> {
-  await updateDoc(doc(db, "jobs", jobId), data);
+  await updateDoc(doc(db, "jobs", jobId), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteJob(jobId: string): Promise<void> {
