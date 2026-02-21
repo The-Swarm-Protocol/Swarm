@@ -27,6 +27,7 @@ const navLinks = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/swarms', label: 'Projects' },
   { href: '/agents', label: 'Agents' },
+  { href: '/jobs', label: 'Jobs' },
   { href: '/chat', label: 'Channels' },
   { href: '/settings', label: '⚙️' },
 ];
