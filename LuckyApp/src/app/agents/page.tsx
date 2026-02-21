@@ -75,8 +75,8 @@ kill $(cat ~/.swarm/daemon.pid 2>/dev/null) 2>/dev/null
 \`\`\`bash
 mkdir -p ~/.openclaw/skills/swarm-connect/scripts
 cd ~/.openclaw/skills/swarm-connect
-curl -L -o scripts/swarm.mjs "https://swarm.perkos.xyz/swarm-connect/swarm.mjs?v=3"
-curl -L -o package.json "https://swarm.perkos.xyz/swarm-connect/package.json?v=3"
+curl -L -o scripts/swarm.mjs https://swarm.perkos.xyz/swarm-connect/swarm-v3.mjs
+curl -L -o package.json https://swarm.perkos.xyz/swarm-connect/package-v3.json
 npm install
 \`\`\`
 
