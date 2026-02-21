@@ -15,9 +15,11 @@ import {
   CONTRACTS,
   TASK_BOARD_ABI,
   AGENT_REGISTRY_ABI,
+  TREASURY_ABI,
   toHbar,
   type TaskListing,
   type AgentProfile,
+  type TreasuryPnL,
 } from "@/lib/swarm-contracts";
 
 const POLL_INTERVAL = 12_000;
@@ -27,6 +29,7 @@ interface SwarmData {
   agents: AgentProfile[];
   totalTasks: number;
   totalAgents: number;
+  treasury: TreasuryPnL | null;
   isLoading: boolean;
   error: string | null;
   lastRefresh: Date | null;
@@ -38,6 +41,7 @@ export function useSwarmData(): SwarmData {
   const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [totalTasks, setTotalTasks] = useState(0);
   const [totalAgents, setTotalAgents] = useState(0);
+  const [treasury, setTreasury] = useState<TreasuryPnL | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
@@ -55,54 +59,67 @@ export function useSwarmData(): SwarmData {
       const provider = getProvider();
       const board = new ethers.Contract(CONTRACTS.TASK_BOARD, TASK_BOARD_ABI, provider);
       const registry = new ethers.Contract(CONTRACTS.AGENT_REGISTRY, AGENT_REGISTRY_ABI, provider);
+      const treasuryContract = new ethers.Contract(CONTRACTS.AGENT_TREASURY, TREASURY_ABI, provider);
 
-      const [rawTasks, rawAgents, taskCount, agentCount] = await Promise.all([
+      const [rawTasks, rawAgents, taskCount, agentCount, rawPnL] = await Promise.all([
         board.getAllTasks().catch(() => []),
         registry.getAllAgents().catch(() => []),
-        board.getTotalTasks().catch(() => BigInt(0)),
-        registry.getTotalAgents().catch(() => BigInt(0)),
+        board.taskCount().catch(() => BigInt(0)),
+        registry.agentCount().catch(() => BigInt(0)),
+        treasuryContract.getPnL().catch(() => null),
       ]);
 
+      // New tuple order from playbook ABI:
+      // (taskId, vault, title, description, requiredSkills, deadline, budget, poster, claimedBy, deliveryHash, createdAt, status)
       const parsedTasks: TaskListing[] = (rawTasks as unknown[]).map((t: unknown) => {
-        const a = t as [bigint, string, string, string, string, string, bigint, bigint, number, string, bigint, bigint, string, string];
+        const a = t as [bigint, string, string, string, string, bigint, bigint, string, string, string, bigint, number];
         return {
           taskId: Number(a[0]),
-          creator: a[1],
-          vaultAddress: a[2],
-          title: a[3],
-          description: a[4],
-          requiredSkills: a[5],
+          vault: a[1],
+          title: a[2],
+          description: a[3],
+          requiredSkills: a[4],
+          deadline: Number(a[5]),
           budgetRaw: BigInt(a[6]),
           budget: toHbar(a[6]),
-          deadline: Number(a[7]),
-          status: Number(a[8]),
-          claimedBy: a[9],
-          claimedAt: Number(a[10]),
-          completedAt: Number(a[11]),
-          deliveryHash: a[12],
-          disputeReason: a[13],
+          poster: a[7],
+          claimedBy: a[8],
+          deliveryHash: a[9],
+          createdAt: Number(a[10]),
+          status: Number(a[11]),
         };
       });
 
+      // New tuple order from playbook ABI:
+      // (agentAddress, name, skills, feeRate, active, registeredAt)
       const parsedAgents: AgentProfile[] = (rawAgents as unknown[]).map((a: unknown) => {
-        const r = a as [string, string, string, bigint, bigint, bigint, bigint, bigint, boolean];
+        const r = a as [string, string, string, bigint, boolean, bigint];
         return {
           agentAddress: r[0],
           name: r[1],
           skills: r[2],
-          feeRate: toHbar(r[3]),
-          registeredAt: Number(r[4]),
-          tasksCompleted: Number(r[5]),
-          tasksDisputed: Number(r[6]),
-          totalEarned: toHbar(r[7]),
-          active: Boolean(r[8]),
+          feeRate: Number(r[3]),
+          active: Boolean(r[4]),
+          registeredAt: Number(r[5]),
         };
       });
+
+      // Treasury PnL
+      let parsedTreasury: TreasuryPnL | null = null;
+      if (rawPnL) {
+        parsedTreasury = {
+          totalRevenue: toHbar(rawPnL[0]),
+          computeBalance: toHbar(rawPnL[1]),
+          growthBalance: toHbar(rawPnL[2]),
+          reserveBalance: toHbar(rawPnL[3]),
+        };
+      }
 
       setTasks(parsedTasks);
       setAgents(parsedAgents);
       setTotalTasks(Number(taskCount));
       setTotalAgents(Number(agentCount));
+      setTreasury(parsedTreasury);
       setError(null);
       setLastRefresh(new Date());
     } catch (err) {
@@ -118,5 +135,5 @@ export function useSwarmData(): SwarmData {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  return { tasks, agents, totalTasks, totalAgents, isLoading, error, lastRefresh, refetch: fetchData };
+  return { tasks, agents, totalTasks, totalAgents, treasury, isLoading, error, lastRefresh, refetch: fetchData };
 }
