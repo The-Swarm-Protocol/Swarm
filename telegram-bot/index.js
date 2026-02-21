@@ -48,6 +48,14 @@ const treasuryABI = [
   'function growthThreshold() view returns (uint256)',
 ];
 
+const SWARM_TASK_BOARD_ADDRESS = process.env.SWARM_TASK_BOARD_ADDRESS || '0xC02EcE9c48E20Fb5a3D59b2ff143a0691694b9a9';
+
+const taskBoardABI = [
+  'function postTask(address vaultAddress, string title, string description, string requiredSkills, uint256 deadline) payable returns (uint256)',
+  'function getOpenTasks() view returns (tuple(uint256 taskId, address vault, string title, string description, string requiredSkills, uint256 deadline, uint256 budget, address poster, address claimedBy, bytes32 deliveryHash, uint256 createdAt, uint8 status)[])',
+  'function taskCount() view returns (uint256)',
+];
+
 const vault = new ethers.Contract(BRAND_VAULT_ADDRESS, vaultABI, wallet);
 const registry = BRAND_REGISTRY_ADDRESS
   ? new ethers.Contract(BRAND_REGISTRY_ADDRESS, registryABI, provider)
@@ -55,6 +63,7 @@ const registry = BRAND_REGISTRY_ADDRESS
 const treasury = AGENT_TREASURY_ADDRESS
   ? new ethers.Contract(AGENT_TREASURY_ADDRESS, treasuryABI, provider)
   : null;
+const taskBoard = new ethers.Contract(SWARM_TASK_BOARD_ADDRESS, taskBoardABI, wallet);
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -98,6 +107,8 @@ bot.onText(/\/start/, (msg) => {
     '/launch <name> — Launch campaign + schedule remarketing (7 days)',
     '/status — View vault, treasury & registry stats',
     '/delegate <description> — Delegate a task to a worker agent',
+    '/postjob <budget> <title> | <description> | <skills> — Post a job to the TaskBoard',
+    '/jobs — List open jobs on the TaskBoard',
     '',
     'You can also type naturally — e.g. "read guidelines" or "launch Summer Sale".',
   ].join('\n'));
@@ -311,6 +322,88 @@ async function handleDelegate(chatId, description) {
 bot.onText(/\/delegate\s+(.+)/, (msg, match) => handleDelegate(msg.chat.id, match[1].trim()));
 bot.onText(/^\/delegate$/, (msg) => bot.sendMessage(msg.chat.id, 'Usage: /delegate <task description>'));
 
+// ── /postjob <budget> <title> | <description> | <skills> ────────────────────
+
+async function handlePostJob(chatId, args) {
+  try {
+    if (!args) {
+      bot.sendMessage(chatId, 'Usage: /postjob <budget_hbar> <title> | <description> | <skills>\nExample: /postjob 10 Write Twitter thread | Create a 5-tweet thread about FOID | social,twitter');
+      return;
+    }
+    bot.sendChatAction(chatId, 'typing');
+
+    // Parse: first token is budget, rest is "title | description | skills"
+    const budgetMatch = args.match(/^(\d+(?:\.\d+)?)\s+(.*)/);
+    if (!budgetMatch) {
+      bot.sendMessage(chatId, 'Could not parse budget. Usage: /postjob <budget_hbar> <title> | <description> | <skills>');
+      return;
+    }
+    const budgetHbar = budgetMatch[1];
+    const rest = budgetMatch[2];
+    const parts = rest.split('|').map(s => s.trim());
+    const title = parts[0] || 'Untitled Task';
+    const description = parts[1] || title;
+    const skills = parts[2] || 'general';
+    const deadline = Math.floor(Date.now() / 1000) + 7 * 86400; // 7 days
+    const budget = ethers.parseEther(budgetHbar);
+
+    const tx = await taskBoard.postTask(
+      BRAND_VAULT_ADDRESS, title, description, skills, deadline,
+      { value: budget, gasLimit: 3_000_000 }
+    );
+    const receipt = await tx.wait();
+
+    bot.sendMessage(chatId, [
+      `📋 Job posted to TaskBoard`,
+      '',
+      `<b>Title:</b> ${esc(title)}`,
+      `<b>Budget:</b> ${esc(budgetHbar)} HBAR`,
+      `<b>Skills:</b> ${esc(skills)}`,
+      `<b>Deadline:</b> 7 days`,
+      '',
+      `Tx: <code>${receipt.hash}</code>`,
+      `<a href="${hashscanTx(receipt.hash)}">View on HashScan</a>`,
+      `<a href="https://frontend-blue-one-76.vercel.app/jobs">View on Dashboard</a>`,
+    ].join('\n'), { parse_mode: 'HTML', disable_web_page_preview: true });
+  } catch (err) {
+    bot.sendMessage(chatId, `❌ Error posting job: ${err.message}`);
+  }
+}
+
+bot.onText(/\/postjob\s+(.+)/, (msg, match) => handlePostJob(msg.chat.id, match[1].trim()));
+bot.onText(/^\/postjob$/, (msg) => bot.sendMessage(msg.chat.id, 'Usage: /postjob <budget_hbar> <title> | <description> | <skills>\nExample: /postjob 10 Write Twitter thread | Create a 5-tweet thread about FOID | social,twitter'));
+
+// ── /jobs ──────────────────────────────────────────────────────────────────
+
+async function handleJobs(chatId) {
+  try {
+    bot.sendChatAction(chatId, 'typing');
+    const freshProvider = new ethers.JsonRpcProvider(HEDERA_RPC_URL, { chainId: 296, name: 'hedera-testnet' });
+    const readBoard = new ethers.Contract(SWARM_TASK_BOARD_ADDRESS, taskBoardABI, freshProvider);
+    const tasks = await readBoard.getOpenTasks();
+
+    if (tasks.length === 0) {
+      bot.sendMessage(chatId, '📋 No open jobs on the TaskBoard.\n\nPost one with /postjob');
+      return;
+    }
+
+    const lines = [`📋 <b>Open Jobs</b> (${tasks.length})`, ''];
+    for (const t of tasks) {
+      const budget = ethers.formatEther(t.budget);
+      lines.push(`<b>#${t.taskId}</b> — ${esc(t.title)}`);
+      lines.push(`  💰 ${budget} HBAR | 🏷 ${esc(t.requiredSkills)}`);
+      lines.push('');
+    }
+    lines.push(`<a href="https://frontend-blue-one-76.vercel.app/jobs">View on Dashboard</a>`);
+
+    bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'HTML', disable_web_page_preview: true });
+  } catch (err) {
+    bot.sendMessage(chatId, `❌ Error fetching jobs: ${err.message}`);
+  }
+}
+
+bot.onText(/\/jobs/, (msg) => handleJobs(msg.chat.id));
+
 // ── Natural Language Fallback ───────────────────────────────────────────────
 
 bot.on('message', (msg) => {
@@ -330,9 +423,13 @@ bot.on('message', (msg) => {
     handleCampaign(chatId, name || 'Untitled Campaign');
   } else if (/\b(status|balance|treasury|how much)\b/.test(text)) {
     handleStatus(chatId);
-  } else if (/\b(delegate|assign|task|worker)\b/.test(text)) {
-    const desc = extractName(text, /(?:delegate|assign|task|worker)\s+(.*)/i);
+  } else if (/\b(delegate|assign|worker)\b/.test(text)) {
+    const desc = extractName(text, /(?:delegate|assign|worker)\s+(.*)/i);
     handleDelegate(chatId, desc || 'General task');
+  } else if (/\b(jobs|open tasks|task ?board)\b/.test(text)) {
+    handleJobs(chatId);
+  } else if (/\b(post ?job|new ?job|create ?job|hire)\b/.test(text)) {
+    bot.sendMessage(chatId, 'To post a job:\n/postjob <budget_hbar> <title> | <description> | <skills>\n\nExample: /postjob 10 Write Twitter thread | Create a 5-tweet thread about FOID | social,twitter');
   } else {
     bot.sendMessage(chatId, [
       "I didn't catch that. Try one of these:",
@@ -342,8 +439,10 @@ bot.on('message', (msg) => {
       '/launch <name> — Launch with remarketing',
       '/status — View swarm stats',
       '/delegate <desc> — Delegate a task',
+      '/postjob <budget> <title> | <desc> | <skills> — Post a job',
+      '/jobs — List open jobs',
       '',
-      'Or type naturally: "read guidelines", "launch Summer Sale", "status"',
+      'Or type naturally: "read guidelines", "launch Summer Sale", "status", "jobs"',
     ].join('\n'));
   }
 });
