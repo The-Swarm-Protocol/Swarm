@@ -13,7 +13,6 @@ const sidebarLinks = [
   { href: "/analytics", label: "Analytics", icon: "📊" },
   { href: "/chat", label: "Channels", icon: "💬" },
   { href: "/logs", label: "Logs", icon: "📋" },
-  { href: "/profile", label: "Profile", icon: "👤" },
 ];
 
 export function Sidebar() {
