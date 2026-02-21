@@ -474,17 +474,38 @@ async function cmdDaemon() {
   console.log(`   Gateway: ${gatewayUrl}`);
 
   // --- Helper: trigger OpenClaw agent to respond ---
-  async function triggerAgentResponse(channelId, channelName, projName, from, text) {
-    const taskMsg = `New message in Swarm project channel. Respond now.
+  // Track other agents in channels to coordinate turn-taking
+  const channelAgents = {}; // channelId -> [agentId, ...]
 
-Channel: ${channelName} (${channelId})
-Project: ${projName}
-From: ${from}
+  async function triggerAgentResponse(channelId, channelName, projName, from, text) {
+    // --- Turn-taking: check if message is directed at us or our specialty ---
+    const myName = creds.agentName.toLowerCase();
+    const myType = (creds.agentType || "").toLowerCase();
+    const msgLower = text.toLowerCase();
+    const mentionsMe = msgLower.includes(myName) || msgLower.includes(`@${myName}`);
+
+    // If there are other agents in this channel and message doesn't mention us,
+    // add a small random delay (1-4s) so not everyone responds at once.
+    // If we're directly mentioned, respond immediately.
+    const otherAgents = (channelAgents[channelId] || []).filter(id => id !== creds.agentId);
+    if (otherAgents.length > 0 && !mentionsMe) {
+      const delay = 1000 + Math.random() * 3000;
+      console.log(`   ⏳ ${otherAgents.length} other agent(s) in channel. Waiting ${Math.round(delay/1000)}s...`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+
+    const taskMsg = `[Swarm Channel Message] Respond concisely.
+Channel: #${channelName} | Project: ${projName} | From: ${from}
 Message: "${text}"
 
-Respond using: node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs chat send ${channelId} "<your thoughtful response>"
+You are ${creds.agentName} (${creds.agentType}). Reply with: node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs chat send ${channelId} "<reply>"
 
-Be helpful and professional. You are ${creds.agentName}, a ${creds.agentType} agent.`;
+Rules:
+- Keep responses SHORT (1-3 sentences max)
+- Only respond if the message is relevant to your role (${creds.agentType}) or mentions you by name
+- If the message is clearly for another agent, DO NOT respond — just say "done" and exit
+- If you're a coordinator/operations agent, you may direct other agents
+- Be concise and professional`;
 
     const headers = { "Content-Type": "application/json" };
     if (gatewayToken) headers["Authorization"] = `Bearer ${gatewayToken}`;
@@ -701,8 +722,15 @@ Be helpful and professional. You are ${creds.agentName}, a ${creds.agentType} ag
             const projName = msg.projectName || "Project";
             console.log(`\n📨 [WSS] [${projName}] #${channelName} — ${from}: ${text}`);
             triggerAgentResponse(msg.channelId, channelName, projName, from, text);
-          } else if (msg.type === "agent:online" || msg.type === "agent:offline") {
-            console.log(`   ${msg.type === "agent:online" ? "🟢" : "🔴"} ${msg.agentName || msg.agentId} ${msg.type.split(":")[1]}`);
+          } else if (msg.type === "agent:online") {
+            console.log(`   🟢 ${msg.agentName || msg.agentId} online`);
+            // Track agent in their channels
+            if (msg.channelId) {
+              if (!channelAgents[msg.channelId]) channelAgents[msg.channelId] = [];
+              if (!channelAgents[msg.channelId].includes(msg.agentId)) channelAgents[msg.channelId].push(msg.agentId);
+            }
+          } else if (msg.type === "agent:offline") {
+            console.log(`   🔴 ${msg.agentName || msg.agentId} offline`);
           }
         } catch {}
       });
