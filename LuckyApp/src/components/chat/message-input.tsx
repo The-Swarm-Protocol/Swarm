@@ -161,7 +161,7 @@ export function MessageInput({ onSend, channelName }: MessageInputProps) {
           <Button
             onClick={handleSend}
             disabled={!input.trim()}
-            className="shrink-0 bg-amber-600 hover:bg-amber-600 text-white h-10 px-4"
+            className="shrink-0 bg-amber-600 hover:bg-amber-700 text-black h-10 px-4"
           >
             <Send className="w-4 h-4" />
           </Button>

@@ -450,7 +450,7 @@ export default function ProjectDetailPage() {
             <Button 
               onClick={() => setShowAssignAgent(true)}
               disabled={unassignedAgents.length === 0}
-              className="bg-amber-600 hover:bg-amber-600"
+              className="bg-amber-600 hover:bg-amber-700 text-black"
             >
               + Assign Agent
             </Button>
@@ -525,7 +525,7 @@ export default function ProjectDetailPage() {
           <div className="flex justify-end">
             <Button 
               onClick={() => setShowCreateTask(true)}
-              className="bg-amber-600 hover:bg-amber-600"
+              className="bg-amber-600 hover:bg-amber-700 text-black"
             >
               + Create Task
             </Button>
@@ -843,7 +843,7 @@ export default function ProjectDetailPage() {
                   <Button
                     onClick={handleSendChat}
                     disabled={sendingChat || !chatInput.trim() || !channel}
-                    className="bg-amber-600 hover:bg-amber-700"
+                    className="bg-amber-600 hover:bg-amber-700 text-black"
                   >
                     Send
                   </Button>

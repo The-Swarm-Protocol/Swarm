@@ -371,7 +371,7 @@ export default function AgentDetailPage() {
             </div>
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setShowEdit(false)} disabled={saving}>Cancel</Button>
-              <Button onClick={handleEditSave} disabled={saving || !editName.trim()} className="bg-amber-600 hover:bg-amber-700">
+              <Button onClick={handleEditSave} disabled={saving || !editName.trim()} className="bg-amber-600 hover:bg-amber-700 text-black">
                 {saving ? 'Saving...' : 'Save'}
               </Button>
             </div>

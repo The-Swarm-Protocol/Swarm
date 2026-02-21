@@ -140,7 +140,7 @@ export default function ProjectsPage() {
         </div>
         <Button
           onClick={() => setShowCreate(true)}
-          className="bg-amber-600 hover:bg-amber-700 text-white"
+          className="bg-amber-600 hover:bg-amber-700 text-black"
         >
           + Create Project
         </Button>
@@ -253,7 +253,7 @@ export default function ProjectsPage() {
               <Button
                 onClick={handleCreateProject}
                 disabled={creating || !name.trim()}
-                className="bg-amber-600 hover:bg-amber-700"
+                className="bg-amber-600 hover:bg-amber-700 text-black"
               >
                 {creating ? 'Creating...' : 'Create Project'}
               </Button>

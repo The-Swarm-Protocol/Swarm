@@ -25,9 +25,9 @@ import BlurText from "@/components/reactbits/BlurText";
 import SpotlightCard from "@/components/reactbits/SpotlightCard";
 
 const columns = [
-  { status: "todo" as const, label: "To Do", icon: "📋", bg: "bg-muted", border: "border-border" },
-  { status: "in_progress" as const, label: "In Progress", icon: "🔄", bg: "bg-amber-50 dark:bg-amber-950/30", border: "border-amber-200 dark:border-amber-800" },
-  { status: "done" as const, label: "Done", icon: "✅", bg: "bg-emerald-50 dark:bg-emerald-950/30", border: "border-green-200 dark:border-green-800" },
+  { status: "todo" as const, label: "To Do", icon: "📋", bg: "bg-muted", border: "border-border", text: "" },
+  { status: "in_progress" as const, label: "In Progress", icon: "🔄", bg: "bg-amber-50 dark:bg-amber-900/50", border: "border-amber-200 dark:border-amber-700", text: "dark:text-amber-200" },
+  { status: "done" as const, label: "Done", icon: "✅", bg: "bg-emerald-50 dark:bg-emerald-900/50", border: "border-green-200 dark:border-emerald-700", text: "dark:text-emerald-200" },
 ];
 
 const priorityColors = {
@@ -191,7 +191,7 @@ export default function TasksPage() {
         </div>
         <Button 
           onClick={() => setCreateOpen(true)} 
-          className="bg-amber-600 hover:bg-amber-700 text-white"
+          className="bg-amber-600 hover:bg-amber-700 text-black"
           disabled={projects.length === 0}
         >
           + New Task
@@ -220,7 +220,7 @@ export default function TasksPage() {
             const colTasks = getTasksByStatus(col.status);
             return (
               <div key={col.status} className="space-y-3">
-                <div className={`flex items-center justify-between rounded-lg px-4 py-2 ${col.bg} border ${col.border}`}>
+                <div className={`flex items-center justify-between rounded-lg px-4 py-2 ${col.bg} border ${col.border} ${col.text}`}>
                   <div className="flex items-center gap-2">
                     <span>{col.icon}</span>
                     <h2 className="font-semibold text-sm">{col.label}</h2>
@@ -415,7 +415,7 @@ export default function TasksPage() {
               <Button
                 onClick={handleCreateTask}
                 disabled={creating || !taskTitle.trim() || !taskProject}
-                className="bg-amber-600 hover:bg-amber-700"
+                className="bg-amber-600 hover:bg-amber-700 text-black"
               >
                 {creating ? 'Creating...' : 'Create Task'}
               </Button>

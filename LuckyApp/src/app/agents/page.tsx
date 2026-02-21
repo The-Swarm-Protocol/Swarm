@@ -410,7 +410,7 @@ export default function AgentsPage() {
           </Button>
           <Button
             onClick={() => setShowRegister(true)}
-            className="bg-amber-600 hover:bg-amber-700 text-white"
+            className="bg-amber-600 hover:bg-amber-700 text-black"
           >
             + Register Agent
           </Button>
@@ -587,7 +587,7 @@ export default function AgentsPage() {
               <Button
                 onClick={handleRegisterAgent}
                 disabled={creating || !agentName.trim()}
-                className="bg-amber-600 hover:bg-amber-700"
+                className="bg-amber-600 hover:bg-amber-700 text-black"
               >
                 {creating ? 'Registering...' : 'Register Agent'}
               </Button>
@@ -638,7 +638,7 @@ export default function AgentsPage() {
             </div>
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setShowEdit(false)} disabled={saving}>Cancel</Button>
-              <Button onClick={handleEditSave} disabled={saving || !editName.trim()} className="bg-amber-600 hover:bg-amber-700">
+              <Button onClick={handleEditSave} disabled={saving || !editName.trim()} className="bg-amber-600 hover:bg-amber-700 text-black">
                 {saving ? 'Saving...' : 'Save'}
               </Button>
             </div>
@@ -703,7 +703,7 @@ export default function AgentsPage() {
               </Button>
               <Button
                 onClick={handleCopyPrompt}
-                className="bg-amber-500 hover:bg-amber-600"
+                className="bg-amber-500 hover:bg-amber-600 text-black"
               >
                 {copied ? '✅ Copied!' : '📋 Copy Prompt'}
               </Button>

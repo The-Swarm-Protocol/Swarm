@@ -34,7 +34,7 @@ export function PriceSummary({ validation, agentCount, onExecute, executing }: P
       <Button
         onClick={onExecute}
         disabled={!validation.isValid || executing}
-        className="bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50"
+        className="bg-amber-600 hover:bg-amber-700 text-black disabled:opacity-50"
       >
         {executing ? 'Executing...' : `Execute Swarm (${formatCostCents(validation.totalCostCents)})`}
       </Button>
