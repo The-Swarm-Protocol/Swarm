@@ -4,7 +4,9 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 interface TabsProps {
-  defaultValue: string;
+  defaultValue?: string;
+  value?: string;
+  onValueChange?: (value: string) => void;
   children: React.ReactNode;
   className?: string;
 }
@@ -14,8 +16,13 @@ const TabsContext = React.createContext<{
   setValue: (v: string) => void;
 }>({ value: "", setValue: () => {} });
 
-function Tabs({ defaultValue, children, className }: TabsProps) {
-  const [value, setValue] = React.useState(defaultValue);
+function Tabs({ defaultValue, value: controlledValue, onValueChange, children, className }: TabsProps) {
+  const [internalValue, setInternalValue] = React.useState(defaultValue || "");
+  const value = controlledValue !== undefined ? controlledValue : internalValue;
+  const setValue = (v: string) => {
+    if (onValueChange) onValueChange(v);
+    else setInternalValue(v);
+  };
   return (
     <TabsContext.Provider value={{ value, setValue }}>
       <div className={className}>{children}</div>

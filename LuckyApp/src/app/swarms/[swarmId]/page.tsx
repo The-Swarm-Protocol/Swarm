@@ -32,6 +32,7 @@ import {
   createJob,
   claimJob,
   closeJob,
+  updateJob,
   type Project,
   type Agent,
   type Task,
@@ -85,6 +86,7 @@ export default function ProjectDetailPage() {
 
   // Form states
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
+  const [activeTab, setActiveTab] = useState('agents');
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
   const [taskPriority, setTaskPriority] = useState<'low' | 'medium' | 'high'>('medium');
@@ -470,7 +472,7 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
-      <Tabs defaultValue="agents">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="agents">🤖 Agents ({assignedAgents.length})</TabsTrigger>
           <TabsTrigger value="tasks">📋 Tasks ({tasks.length})</TabsTrigger>
@@ -685,6 +687,23 @@ export default function ProjectDetailPage() {
                     )}
                     {job.takenByAgentId && (
                       <div className="text-xs text-muted-foreground">🤖 {assignedAgents.find(a => a.id === job.takenByAgentId)?.name || job.takenByAgentId}</div>
+                    )}
+                    {(job.status === 'in_progress' || job.status === 'completed') && (
+                      <div className="pt-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-7"
+                          onClick={async () => {
+                            try {
+                              await updateJob(job.id, { status: 'open', takenByAgentId: '' } as Partial<Job>);
+                              await loadProjectData();
+                            } catch (e) { setError(e instanceof Error ? e.message : "Restart failed"); }
+                          }}
+                        >
+                          🔄 Restart Job
+                        </Button>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
