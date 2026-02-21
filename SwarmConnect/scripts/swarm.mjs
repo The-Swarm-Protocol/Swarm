@@ -597,9 +597,9 @@ Rules:
   }
 
   // --- Step 2: Connect via WebSocket ---
-  function connectWebSocket() {
+  async function connectWebSocket() {
+    const { default: WebSocket } = await import("ws");
     const wsUrl = hubUrl.replace(/^http/, "ws") + `?token=${jwt}`;
-    const WebSocket = (await import("ws")).default;
 
     ws = new WebSocket(wsUrl);
 
