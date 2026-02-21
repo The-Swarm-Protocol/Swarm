@@ -87,6 +87,8 @@ export default function ProjectDetailPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [sendingChat, setSendingChat] = useState(false);
+  const [agentThinking, setAgentThinking] = useState(false);
+  const lastMsgCountRef = useRef(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const loadProjectData = async () => {
@@ -148,9 +150,17 @@ export default function ProjectDetailPage() {
     return () => { unsub?.(); };
   }, [projectId, currentOrg, project]);
 
-  // Auto-scroll on new messages
+  // Auto-scroll on new messages + detect agent responses
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // If new messages arrived and any are from agents, stop thinking
+    if (messages.length > lastMsgCountRef.current) {
+      const newMsgs = messages.slice(lastMsgCountRef.current);
+      if (newMsgs.some(m => m.senderType === 'agent')) {
+        setAgentThinking(false);
+      }
+    }
+    lastMsgCountRef.current = messages.length;
   }, [messages]);
 
   const handleSendChat = async () => {
@@ -168,6 +178,12 @@ export default function ProjectDetailPage() {
         createdAt: new Date(),
       });
       setChatInput('');
+      // Show thinking indicator — agents will respond
+      if (assignedAgents.length > 0) {
+        setAgentThinking(true);
+        // Auto-timeout after 30s in case agent doesn't respond
+        setTimeout(() => setAgentThinking(false), 30000);
+      }
     } catch (err) {
       console.error('Failed to send message:', err);
     } finally {
@@ -571,6 +587,22 @@ export default function ProjectDetailPage() {
                       </div>
                     );
                   })}
+                  {/* Agent thinking indicator */}
+                  {agentThinking && (
+                    <div className="flex items-start gap-3 px-4 py-2">
+                      <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-sm">🤖</div>
+                      <div className="bg-muted/40 border border-amber-500/20 rounded-2xl rounded-tl-sm px-4 py-2">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground">Agent is thinking</span>
+                          <span className="flex gap-1 ml-1">
+                            <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce" style={{animationDelay: '0ms'}} />
+                            <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce" style={{animationDelay: '150ms'}} />
+                            <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce" style={{animationDelay: '300ms'}} />
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div ref={messagesEndRef} />
                 </div>
                 {/* Input */}
