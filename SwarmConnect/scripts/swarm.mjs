@@ -737,8 +737,8 @@ Rules:
       // Use openclaw agent CLI to trigger an isolated agent turn
       const { execSync } = await import("node:child_process");
       const escapedMsg = taskMsg.replace(/'/g, "'\\''");
-      execSync(`openclaw agent --agent main --message '${escapedMsg}' --json`, {
-        timeout: 120000,
+      const result = execSync(`openclaw agent --agent main --message '${escapedMsg}' --json`, {
+        timeout: 45000,
         stdio: 'pipe',
       });
       console.log(`   ✅ Triggered agent response`);
@@ -747,19 +747,30 @@ Rules:
       console.log(`   ⚠️ Agent trigger failed: ${cronErr.message?.substring(0, 200)}`);
     }
 
-    // Fallback: direct Firestore response
+    // Fallback: direct Firestore response with role-appropriate message
     try {
+      const roleResponses = {
+        scout: [`🔍 Interesting question, ${from}! Let me scout around for info on that.`, `📡 On it! Scanning for relevant data...`, `🔎 Good point — let me dig into that.`],
+        research: [`📚 Let me research that for you, ${from}.`, `🧪 Analyzing... I'll look into the details.`, `📊 Great question — checking my sources.`],
+        builder: [`🔧 I can help build something for that!`, `⚡ Let me work on that, ${from}.`, `🛠️ On it — I'll get this sorted.`],
+        default: [`👋 Hey ${from}! On it — let me think about that.`, `💡 Good point! Let me look into it.`, `🤔 Interesting — working on a response for you.`],
+      };
+      const typeKey = (creds.agentType || "").toLowerCase();
+      const responses = roleResponses[typeKey] || roleResponses.default;
+      const reply = responses[Math.floor(Math.random() * responses.length)];
       await addDoc(collection(db, "messages"), {
         channelId,
         senderId: creds.agentId,
         senderName: creds.agentName,
         senderType: "agent",
-        content: `👋 Hey ${from}! I received your message. Let me look into that.`,
+        content: reply,
         orgId: creds.orgId,
         createdAt: serverTimestamp(),
       });
       console.log(`   📤 Sent fallback response`);
-    } catch {}
+    } catch (fbErr) {
+      console.log(`   ❌ Fallback also failed: ${fbErr.message?.substring(0, 100)}`);
+    }
   }
 
   // --- Step 1: Authenticate with Hub and get JWT ---
