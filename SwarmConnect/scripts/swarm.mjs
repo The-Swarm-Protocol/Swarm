@@ -13,6 +13,7 @@
  *   node swarm.mjs chat send <channelId> <message>
  *   node swarm.mjs chat listen <channelId>
  *   node swarm.mjs chat poll              — check all project channels for new messages
+ *   node swarm.mjs daemon                — real-time listener, responds instantly via OpenClaw API
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
@@ -32,6 +33,7 @@ import {
   orderBy,
   serverTimestamp,
   Timestamp,
+  onSnapshot,
 } from "firebase/firestore";
 
 // ---------------------------------------------------------------------------
@@ -456,11 +458,201 @@ async function cmdChatListen() {
 // Router
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Daemon — real-time Firestore listener + OpenClaw API for instant responses
+// ---------------------------------------------------------------------------
+
+async function cmdDaemon() {
+  const creds = loadCreds();
+  const db = getDb();
+  const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL || "http://localhost:18789";
+  const gatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN || arg("--gateway-token") || "";
+
+  console.log(`🐝 Swarm Daemon starting for ${creds.agentName} (${creds.agentType})`);
+  console.log(`   Gateway: ${gatewayUrl}`);
+
+  // Update status to online
+  try {
+    await updateDoc(doc(db, "agents", creds.agentId), {
+      status: "online",
+      lastSeen: serverTimestamp(),
+    });
+  } catch {}
+
+  // 1. Get agent's projects
+  const agentSnap = await getDoc(doc(db, "agents", creds.agentId));
+  if (!agentSnap.exists()) {
+    console.error("❌ Agent not found in Firestore.");
+    process.exit(1);
+  }
+  const projectIds = agentSnap.data().projectIds || [];
+  if (projectIds.length === 0) {
+    console.log("📭 No projects assigned. Waiting...");
+  }
+
+  // 2. Find all channels and set up listeners
+  const activeListeners = [];
+  const processedMessages = new Set();
+
+  async function setupChannelListener(channelId, channelName, projName) {
+    const messagesQ = query(
+      collection(db, "messages"),
+      where("channelId", "==", channelId)
+    );
+
+    // Get existing message IDs so we don't respond to old messages
+    const existing = await getDocs(messagesQ);
+    existing.forEach((d) => processedMessages.add(d.id));
+    console.log(`   👂 Listening: [${projName}] #${channelName} (${existing.size} existing msgs)`);
+
+    // Real-time listener
+    const unsub = onSnapshot(messagesQ, (snapshot) => {
+      snapshot.docChanges().forEach(async (change) => {
+        if (change.type !== "added") return;
+        if (processedMessages.has(change.doc.id)) return;
+        processedMessages.add(change.doc.id);
+
+        const msg = change.doc.data();
+        // Skip own messages
+        if (msg.senderId === creds.agentId) return;
+        // Skip agent messages
+        if (msg.senderType === "agent") return;
+
+        const from = msg.senderName || msg.senderId || "unknown";
+        const text = msg.content || msg.text || "";
+        console.log(`\n📨 [${projName}] #${channelName} — ${from}: ${text}`);
+
+        // Trigger OpenClaw agent to respond
+        try {
+          const taskMsg = `New message in Swarm project channel. Respond now.
+
+Channel: ${channelName} (${channelId})
+Project: ${projName}
+From: ${from}
+Message: "${text}"
+
+Respond using: node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs chat send ${channelId} "<your thoughtful response>"
+
+Be helpful and professional. You are ${creds.agentName}, a ${creds.agentType} agent.`;
+
+          const headers = { "Content-Type": "application/json" };
+          if (gatewayToken) headers["Authorization"] = `Bearer ${gatewayToken}`;
+
+          const resp = await fetch(`${gatewayUrl}/api/v1/sessions/main/message`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ message: taskMsg }),
+          });
+
+          if (resp.ok) {
+            console.log(`   ✅ Triggered agent response`);
+          } else {
+            // Fallback: try spawning an isolated session
+            const resp2 = await fetch(`${gatewayUrl}/api/v1/sessions`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                message: taskMsg,
+                sessionTarget: "isolated",
+              }),
+            });
+            if (resp2.ok) {
+              console.log(`   ✅ Triggered agent response (isolated)`);
+            } else {
+              console.log(`   ⚠️ Could not trigger agent (${resp2.status})`);
+            }
+          }
+        } catch (err) {
+          console.log(`   ⚠️ Gateway error: ${err.message}`);
+          // Fallback: respond directly with a generic acknowledgment
+          try {
+            await addDoc(collection(db, "messages"), {
+              channelId,
+              senderId: creds.agentId,
+              senderName: creds.agentName,
+              senderType: "agent",
+              content: `👋 Hey ${from}! I received your message. Let me look into that.`,
+              orgId: creds.orgId,
+              createdAt: serverTimestamp(),
+            });
+            console.log(`   📤 Sent fallback response`);
+          } catch {}
+        }
+      });
+    });
+
+    activeListeners.push(unsub);
+  }
+
+  for (const projectId of projectIds) {
+    const projSnap = await getDoc(doc(db, "projects", projectId));
+    const projName = projSnap.exists() ? projSnap.data().name : projectId;
+
+    const channelsQ = query(
+      collection(db, "channels"),
+      where("projectId", "==", projectId)
+    );
+    const channelsSnap = await getDocs(channelsQ);
+
+    for (const chDoc of channelsSnap.docs) {
+      const chData = chDoc.data();
+      await setupChannelListener(chDoc.id, chData.name || "Channel", projName);
+    }
+  }
+
+  // 3. Heartbeat every 60s
+  setInterval(async () => {
+    try {
+      await updateDoc(doc(db, "agents", creds.agentId), {
+        lastSeen: serverTimestamp(),
+        status: "online",
+      });
+    } catch {}
+  }, 60000);
+
+  // 4. Re-check for new project assignments every 5 min
+  setInterval(async () => {
+    try {
+      const snap = await getDoc(doc(db, "agents", creds.agentId));
+      if (!snap.exists()) return;
+      const newProjectIds = snap.data().projectIds || [];
+      for (const pid of newProjectIds) {
+        if (!projectIds.includes(pid)) {
+          projectIds.push(pid);
+          const projSnap = await getDoc(doc(db, "projects", pid));
+          const projName = projSnap.exists() ? projSnap.data().name : pid;
+          const channelsQ = query(collection(db, "channels"), where("projectId", "==", pid));
+          const channelsSnap = await getDocs(channelsQ);
+          for (const chDoc of channelsSnap.docs) {
+            await setupChannelListener(chDoc.id, chDoc.data().name || "Channel", projName);
+          }
+          console.log(`\n🆕 New project detected: ${projName}`);
+        }
+      }
+    } catch {}
+  }, 300000);
+
+  console.log(`\n🟢 Daemon running. Listening for messages in real-time. Ctrl+C to stop.`);
+
+  // Keep process alive
+  process.on("SIGINT", () => {
+    console.log("\n🔴 Daemon stopping...");
+    activeListeners.forEach((unsub) => unsub());
+    updateDoc(doc(db, "agents", creds.agentId), { status: "offline" }).catch(() => {});
+    setTimeout(() => process.exit(0), 1000);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Router
+// ---------------------------------------------------------------------------
+
 const cmd = process.argv[2];
 const sub = process.argv[3];
 
 try {
   if (cmd === "register") await cmdRegister();
+  else if (cmd === "daemon") await cmdDaemon();
   else if (cmd === "heartbeat") await cmdHeartbeat();
   else if (cmd === "log") await cmdLog(process.argv[3] || "info", process.argv.slice(4).join(" "));
   else if (cmd === "status") await cmdStatus();
@@ -485,7 +677,8 @@ Commands:
   inbox count
   chat send <channelId> <message>
   chat poll
-  chat listen <channelId>`);
+  chat listen <channelId>
+  daemon                  — real-time listener (instant responses)`);
   }
 } catch (err) {
   console.error("Error:", err.message || err);
