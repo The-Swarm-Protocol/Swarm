@@ -336,13 +336,13 @@ export default function AgentsPage() {
                         <CardTitle className="text-lg">{agent.name}</CardTitle>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge className={TYPE_COLORS[agent.type] || ""}>{agent.type}</Badge>
-                          <span className={`text-xs flex items-center gap-1 ${
-                            agent.status === "online" ? "text-emerald-600" : 
-                            agent.status === "busy" ? "text-orange-600" : "text-muted-foreground"
+                          <span className={`text-xs font-medium flex items-center gap-1.5 ${
+                            agent.status === "online" ? "text-emerald-400" : 
+                            agent.status === "busy" ? "text-amber-400" : "text-red-400"
                           }`}>
-                            <span className={`w-2 h-2 rounded-full ${
-                              agent.status === "online" ? "bg-emerald-500" : 
-                              agent.status === "busy" ? "bg-orange-500" : "bg-muted"
+                            <span className={`w-3 h-3 rounded-full border-2 ${
+                              agent.status === "online" ? "bg-emerald-500 border-emerald-300 shadow-[0_0_6px_rgba(16,185,129,0.6)]" : 
+                              agent.status === "busy" ? "bg-amber-500 border-amber-300 shadow-[0_0_6px_rgba(245,158,11,0.6)]" : "bg-red-500 border-red-300 shadow-[0_0_6px_rgba(239,68,68,0.6)]"
                             }`} />
                             {agent.status}
                           </span>
