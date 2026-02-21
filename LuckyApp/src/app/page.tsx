@@ -87,7 +87,7 @@ export default function LandingPage() {
 
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="relative pt-24 pb-32 overflow-hidden min-h-[90vh] flex items-center justify-center">
+        <section className="relative pt-24 pb-32 overflow-hidden min-h-[95vh] flex items-center justify-center">
           {/* Spline Background Container */}
           <div className="absolute inset-0 z-0">
             <Suspense fallback={
@@ -97,11 +97,11 @@ export default function LandingPage() {
             }>
               <Spline
                 scene="https://prod.spline.design/G9Uv2yhuZyhmrxRG/scene.splinecode"
-                className="w-full h-full pointer-events-none opacity-60"
+                className="w-full h-full pointer-events-none opacity-80"
               />
             </Suspense>
-            {/* Gradient Overlay to fade Spline into background */}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/20 to-black pointer-events-none" />
+            {/* Gradient Overlay to fade Spline into background - adjusted for visibility */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black pointer-events-none" />
           </div>
 
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-amber-500/5 rounded-full blur-[120px] pointer-events-none" />
