@@ -34,12 +34,12 @@ export function PredictionsFeed() {
           <div key={p.id} className={`flex items-center justify-between rounded-lg px-3 py-2 ${style.bg}`}>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{p.market}</p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 🤖 {p.agentName} · {p.position} · {formatTime(p.timestamp)}
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0 ml-3">
-              <span className="text-xs font-medium text-gray-600">{p.confidence}%</span>
+              <span className="text-xs font-medium text-muted-foreground">{p.confidence}%</span>
               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${style.text} ${style.bg}`}>
                 {style.label}
               </span>

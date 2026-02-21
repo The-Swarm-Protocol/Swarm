@@ -56,24 +56,24 @@ export function MissionDetailDialog({ mission, open, onOpenChange }: MissionDeta
       </DialogHeader>
 
       <DialogContent>
-        <p className="text-sm text-gray-600">{mission.description}</p>
+        <p className="text-sm text-muted-foreground">{mission.description}</p>
 
         {/* Details grid */}
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
-            <span className="text-xs text-gray-400">Swarm</span>
+            <span className="text-xs text-muted-foreground">Swarm</span>
             <p className="font-medium">📁 {swarm?.name || "Unknown"}</p>
           </div>
           <div>
-            <span className="text-xs text-gray-400">Agent</span>
+            <span className="text-xs text-muted-foreground">Agent</span>
             <p className="font-medium">🤖 {agent?.name || "Unassigned"}</p>
           </div>
           <div>
-            <span className="text-xs text-gray-400">Created</span>
+            <span className="text-xs text-muted-foreground">Created</span>
             <p className="font-medium">{formatDate(mission.createdAt)}</p>
           </div>
           <div>
-            <span className="text-xs text-gray-400">Target Date</span>
+            <span className="text-xs text-muted-foreground">Target Date</span>
             <p className="font-medium">{formatDate(mission.targetDate)}</p>
           </div>
         </div>
@@ -84,17 +84,17 @@ export function MissionDetailDialog({ mission, open, onOpenChange }: MissionDeta
             <h4 className="text-sm font-semibold">📊 Prediction</h4>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
-                <span className="text-xs text-gray-400">Market</span>
+                <span className="text-xs text-muted-foreground">Market</span>
                 <p className="font-medium">{mission.prediction.market}</p>
               </div>
               <div>
-                <span className="text-xs text-gray-400">Position</span>
+                <span className="text-xs text-muted-foreground">Position</span>
                 <p className="font-medium">{mission.prediction.position}</p>
               </div>
               <div>
-                <span className="text-xs text-gray-400">Confidence</span>
+                <span className="text-xs text-muted-foreground">Confidence</span>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                     <div
                       className="h-full bg-amber-600 rounded-full"
                       style={{ width: `${mission.prediction.confidence}%` }}
@@ -104,7 +104,7 @@ export function MissionDetailDialog({ mission, open, onOpenChange }: MissionDeta
                 </div>
               </div>
               <div>
-                <span className="text-xs text-gray-400">Stake</span>
+                <span className="text-xs text-muted-foreground">Stake</span>
                 <p className="font-medium">${mission.prediction.stake} @ {mission.prediction.odds}x</p>
               </div>
             </div>
@@ -120,7 +120,7 @@ export function MissionDetailDialog({ mission, open, onOpenChange }: MissionDeta
             <p className={`text-lg font-bold ${mission.outcome.pnl >= 0 ? "text-amber-700" : "text-red-700"}`}>
               {mission.outcome.pnl >= 0 ? "+" : ""}{mission.outcome.pnl.toLocaleString()} USDC
             </p>
-            <p className="text-xs text-gray-500 mt-1">Resolved {formatDate(mission.outcome.resolvedAt)}</p>
+            <p className="text-xs text-muted-foreground mt-1">Resolved {formatDate(mission.outcome.resolvedAt)}</p>
           </div>
         )}
 
@@ -133,7 +133,7 @@ export function MissionDetailDialog({ mission, open, onOpenChange }: MissionDeta
                 <span className="text-sm mt-0.5">{eventIcons[event.type] || "📌"}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm">{event.description}</p>
-                  <p className="text-xs text-gray-400">{formatDate(event.timestamp)}</p>
+                  <p className="text-xs text-muted-foreground">{formatDate(event.timestamp)}</p>
                 </div>
               </div>
             ))}

@@ -13,14 +13,14 @@ interface PriceSummaryProps {
 
 export function PriceSummary({ validation, agentCount, onExecute, executing }: PriceSummaryProps) {
   return (
-    <div className="border-t border-gray-200 bg-white px-4 py-3 flex items-center justify-between gap-4">
+    <div className="border-t border-border bg-card px-4 py-3 flex items-center justify-between gap-4">
       <div className="flex items-center gap-4">
         <div className="text-sm">
-          <span className="text-gray-500">Agents: </span>
+          <span className="text-muted-foreground">Agents: </span>
           <span className="font-semibold">{agentCount}</span>
         </div>
         <div className="text-sm">
-          <span className="text-gray-500">Est. Total: </span>
+          <span className="text-muted-foreground">Est. Total: </span>
           <span className="font-bold text-amber-700 text-base">
             {formatCostCents(validation.totalCostCents)}
           </span>

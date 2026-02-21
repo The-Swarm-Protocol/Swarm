@@ -10,7 +10,7 @@ const buttonVariants = cva(
       variant: {
         default: "bg-[hsl(var(--primary))] text-white hover:bg-[hsl(var(--primary))]/90",
         destructive: "bg-[hsl(var(--destructive))] text-white hover:bg-[hsl(var(--destructive))]/90",
-        outline: "border border-[hsl(var(--input))] bg-white hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
+        outline: "border border-[hsl(var(--input))] bg-card hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
         secondary: "bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary))]/80",
         ghost: "hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
         link: "text-[hsl(var(--primary))] underline-offset-4 hover:underline",

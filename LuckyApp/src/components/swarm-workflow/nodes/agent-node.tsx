@@ -20,8 +20,8 @@ export function AgentNode({ data, selected }: NodeProps) {
 
   return (
     <div className={cn(
-      'rounded-lg border-2 bg-white shadow-sm min-w-[220px]',
-      selected ? 'border-amber-500 ring-2 ring-amber-200' : 'border-gray-200'
+      'rounded-lg border-2 bg-card shadow-sm min-w-[220px]',
+      selected ? 'border-amber-500 ring-2 ring-amber-200' : 'border-border'
     )}>
       <Handle
         type="target"
@@ -29,7 +29,7 @@ export function AgentNode({ data, selected }: NodeProps) {
         className="!w-3 !h-3 !bg-amber-500 !border-2 !border-white"
       />
 
-      <div className="px-4 py-3 border-b border-gray-100">
+      <div className="px-4 py-3 border-b border-border">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-sm font-bold text-amber-700">
             {(data.agentName as string).charAt(0)}
@@ -42,15 +42,15 @@ export function AgentNode({ data, selected }: NodeProps) {
               </Badge>
               <span className={cn('w-1.5 h-1.5 rounded-full',
                 agentStatus === 'online' ? 'bg-emerald-500' :
-                agentStatus === 'busy' ? 'bg-orange-500' : 'bg-gray-300'
+                agentStatus === 'busy' ? 'bg-orange-500' : 'bg-muted'
               )} />
             </div>
           </div>
         </div>
       </div>
 
-      <div className="px-4 py-2 bg-gray-50 rounded-b-lg flex items-center justify-between">
-        <span className="text-xs text-gray-500">Est. Cost</span>
+      <div className="px-4 py-2 bg-muted rounded-b-lg flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">Est. Cost</span>
         <span className="text-sm font-bold text-amber-700">
           {formatCostCents(data.estimatedCost as number)}
         </span>

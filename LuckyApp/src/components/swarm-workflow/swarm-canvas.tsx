@@ -98,7 +98,7 @@ function SwarmCanvasInner({ agents }: SwarmCanvasProps) {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-16rem)] rounded-lg border border-gray-200 overflow-hidden bg-white">
+    <div className="flex flex-col h-[calc(100vh-16rem)] rounded-lg border border-border overflow-hidden bg-card">
       <div className="flex flex-1 min-h-0">
         <div className="flex-1" ref={reactFlowWrapper}>
           <ReactFlow
@@ -116,7 +116,7 @@ function SwarmCanvasInner({ agents }: SwarmCanvasProps) {
               style: { stroke: '#d97706', strokeWidth: 2 },
             }}
             fitView
-            className="bg-gray-50"
+            className="bg-muted"
           >
             <Background color="#d4d4d4" gap={20} />
             <Controls />
@@ -129,11 +129,11 @@ function SwarmCanvasInner({ agents }: SwarmCanvasProps) {
             />
             {nodes.length === 0 && (
               <Panel position="top-center">
-                <div className="bg-white/90 border border-gray-200 rounded-lg px-6 py-4 text-center shadow-sm mt-20">
-                  <p className="text-gray-600 font-medium">
+                <div className="bg-card/90 border border-border rounded-lg px-6 py-4 text-center shadow-sm mt-20">
+                  <p className="text-muted-foreground font-medium">
                     Drag nodes from the palette to build your swarm workflow
                   </p>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     Start with a Trigger, add Agents, and end with an Output
                   </p>
                 </div>

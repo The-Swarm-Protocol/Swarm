@@ -178,7 +178,7 @@ export default function AgentsPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">🤖 Agent Fleet</h1>
-          <p className="text-gray-500 mt-1">No organization selected</p>
+          <p className="text-muted-foreground mt-1">No organization selected</p>
         </div>
       </div>
     );
@@ -189,7 +189,7 @@ export default function AgentsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">🤖 Agent Fleet</h1>
-          <p className="text-gray-500 mt-1">
+          <p className="text-muted-foreground mt-1">
             Monitor and manage your enterprise AI agents
           </p>
         </div>
@@ -208,11 +208,11 @@ export default function AgentsPage() {
       )}
 
       {loading ? (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-muted-foreground">
           <p>Loading agents...</p>
         </div>
       ) : agents.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-muted-foreground">
           <div className="text-4xl mb-4">🤖</div>
           <p className="text-lg">No agents yet</p>
           <p className="text-sm mt-1">Register your first agent to get started</p>
@@ -240,11 +240,11 @@ export default function AgentsPage() {
                           <Badge className={TYPE_COLORS[agent.type] || ""}>{agent.type}</Badge>
                           <span className={`text-xs flex items-center gap-1 ${
                             agent.status === "online" ? "text-emerald-600" : 
-                            agent.status === "busy" ? "text-orange-600" : "text-gray-400"
+                            agent.status === "busy" ? "text-orange-600" : "text-muted-foreground"
                           }`}>
                             <span className={`w-2 h-2 rounded-full ${
                               agent.status === "online" ? "bg-emerald-500" : 
-                              agent.status === "busy" ? "bg-orange-500" : "bg-gray-300"
+                              agent.status === "busy" ? "bg-orange-500" : "bg-muted"
                             }`} />
                             {agent.status}
                           </span>
@@ -255,16 +255,16 @@ export default function AgentsPage() {
                 </CardHeader>
                 <CardContent>
                   <CardDescription className="mb-3 line-clamp-2">{agent.description}</CardDescription>
-                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-100">
+                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-border">
                     <div>
-                      <div className="text-xs text-gray-500">Projects</div>
+                      <div className="text-xs text-muted-foreground">Projects</div>
                       <div className="text-lg font-bold text-amber-600">
                         {agent.projectIds.length}
                       </div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-500">Capabilities</div>
-                      <div className="text-lg font-bold text-gray-900">{agent.capabilities.length}</div>
+                      <div className="text-xs text-muted-foreground">Capabilities</div>
+                      <div className="text-lg font-bold text-foreground">{agent.capabilities.length}</div>
                     </div>
                   </div>
                 </CardContent>
@@ -302,7 +302,7 @@ export default function AgentsPage() {
                     <SelectItem key={type} value={type}>
                       <div className="flex flex-col items-start">
                         <span className="font-medium">{type}</span>
-                        <span className="text-xs text-gray-500">{TYPE_DESCRIPTIONS[type]}</span>
+                        <span className="text-xs text-muted-foreground">{TYPE_DESCRIPTIONS[type]}</span>
                       </div>
                     </SelectItem>
                   ))}
@@ -349,15 +349,15 @@ export default function AgentsPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
-                <span className="text-gray-500">Agent ID</span>
+                <span className="text-muted-foreground">Agent ID</span>
                 <p className="font-mono text-xs break-all">{setupAgentId}</p>
               </div>
               <div>
-                <span className="text-gray-500">Organization</span>
+                <span className="text-muted-foreground">Organization</span>
                 <p className="font-mono text-xs break-all">{currentOrg?.id}</p>
               </div>
               <div className="col-span-2">
-                <span className="text-gray-500">API Key</span>
+                <span className="text-muted-foreground">API Key</span>
                 <p className="font-mono text-xs break-all">{setupApiKey}</p>
               </div>
             </div>
@@ -366,7 +366,7 @@ export default function AgentsPage() {
               <label className="text-sm font-medium mb-1 block">
                 Setup Prompt — paste this into your OpenClaw agent
               </label>
-              <pre className="bg-gray-50 border rounded-md p-3 text-xs whitespace-pre-wrap max-h-64 overflow-y-auto font-mono">
+              <pre className="bg-muted border rounded-md p-3 text-xs whitespace-pre-wrap max-h-64 overflow-y-auto font-mono">
                 {setupPrompt}
               </pre>
             </div>

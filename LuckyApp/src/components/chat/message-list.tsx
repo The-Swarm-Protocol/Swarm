@@ -44,7 +44,7 @@ export function MessageList({ messages }: MessageListProps) {
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-gray-400">
+      <div className="flex-1 flex items-center justify-center text-muted-foreground">
         <div className="text-center">
           <p className="text-4xl mb-3">💬</p>
           <p className="text-sm">No messages yet. Start the conversation!</p>
@@ -58,11 +58,11 @@ export function MessageList({ messages }: MessageListProps) {
       {groups.map((group) => (
         <div key={group.date}>
           <div className="flex items-center gap-3 my-3">
-            <div className="flex-1 border-t border-gray-200" />
-            <span className="text-[11px] text-gray-400 font-medium px-2">
+            <div className="flex-1 border-t border-border" />
+            <span className="text-[11px] text-muted-foreground font-medium px-2">
               {group.date}
             </span>
-            <div className="flex-1 border-t border-gray-200" />
+            <div className="flex-1 border-t border-border" />
           </div>
           {group.messages.map((msg) => (
             <MessageBubble key={msg.id} message={msg} />

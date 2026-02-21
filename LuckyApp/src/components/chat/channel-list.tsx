@@ -18,10 +18,10 @@ export function ChannelList({
   onSelectChannel,
 }: ChannelListProps) {
   return (
-    <div className="w-64 border-r border-gray-200 bg-gray-50 flex flex-col h-full">
+    <div className="w-64 border-r border-border bg-muted flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
-        <h2 className="font-semibold text-sm text-gray-900 flex items-center gap-2">
+      <div className="p-4 border-b border-border">
+        <h2 className="font-semibold text-sm text-foreground flex items-center gap-2">
           <MessageSquare className="w-4 h-4 text-amber-600" />
           Channels
         </h2>
@@ -30,7 +30,7 @@ export function ChannelList({
       <div className="flex-1 overflow-y-auto">
         {/* Channels Section */}
         <div className="p-3">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2 px-2">
+          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2">
             Channels
           </p>
           {mockChannels.map((channel) => (
@@ -45,7 +45,7 @@ export function ChannelList({
 
         {/* Direct Messages Section */}
         <div className="p-3 pt-1">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2 px-2">
+          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2">
             Direct Messages
           </p>
           {mockDirectMessages.map((dm) => (
@@ -77,10 +77,10 @@ function ChannelItem({
       className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors ${
         isActive
           ? "bg-amber-50 text-amber-700 font-medium"
-          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground"
       }`}
     >
-      <Hash className="w-4 h-4 shrink-0 text-gray-400" />
+      <Hash className="w-4 h-4 shrink-0 text-muted-foreground" />
       <span className="truncate flex-1 text-left">{channel.name}</span>
       {channel.unreadCount > 0 && (
         <span className="bg-amber-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0">
@@ -106,7 +106,7 @@ function DMItem({
       className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors ${
         isActive
           ? "bg-amber-50 text-amber-700 font-medium"
-          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground"
       }`}
     >
       <div

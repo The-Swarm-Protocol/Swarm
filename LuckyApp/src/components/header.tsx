@@ -47,8 +47,8 @@ export function Header() {
                   key={link.href}
                   href={link.href}
                   className={`text-sm font-medium transition-colors ${pathname === link.href
-                      ? 'text-gray-900'
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? 'text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
                     }`}
                 >
                   {link.label}
@@ -60,7 +60,7 @@ export function Header() {
         <div className="flex items-center gap-3">
           {isConnected && currentOrg && organizations.length > 0 && (
             <select
-              className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-700 max-w-[160px]"
+              className="rounded-md border border-border bg-card px-2 py-1 text-sm text-muted-foreground max-w-[160px]"
               value={currentOrg.id}
               onChange={(e) => selectOrg(e.target.value)}
               title="Switch Organization"

@@ -50,13 +50,13 @@ export function PerformanceTable<T>({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-gray-200">
+          <tr className="border-b border-border">
             {columns.map((col) => (
               <th
                 key={col.key}
                 className={cn(
-                  "text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider",
-                  col.sortable && "cursor-pointer hover:text-gray-700 select-none"
+                  "text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider",
+                  col.sortable && "cursor-pointer hover:text-muted-foreground select-none"
                 )}
                 onClick={() => col.sortable && handleSort(col.key)}
               >
@@ -76,7 +76,7 @@ export function PerformanceTable<T>({
           {sortedData.map((item, i) => (
             <tr
               key={i}
-              className="border-b border-gray-50 hover:bg-gray-50/80 transition-colors"
+              className="border-b border-border hover:bg-muted/80 transition-colors"
             >
               {columns.map((col) => (
                 <td key={col.key} className="py-3 px-4">
@@ -103,7 +103,7 @@ export function PnlDisplay({ value }: { value: number }) {
 export function WinRateBar({ rate }: { rate: number }) {
   return (
     <div className="flex items-center gap-2">
-      <div className="w-16 h-2 bg-gray-100 rounded-full overflow-hidden">
+      <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
         <div
           className="h-full bg-amber-600 rounded-full"
           style={{ width: `${Math.min(rate, 100)}%` }}

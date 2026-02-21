@@ -15,14 +15,14 @@ export function NodePalette({ agents }: NodePaletteProps) {
   };
 
   return (
-    <div className="w-64 border-l border-gray-200 bg-gray-50/50 overflow-y-auto p-4 space-y-4">
-      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+    <div className="w-64 border-l border-border bg-muted/50 overflow-y-auto p-4 space-y-4">
+      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
         Node Palette
       </h3>
 
       {/* Control Nodes */}
       <div>
-        <p className="text-xs font-medium text-gray-500 mb-2">Control</p>
+        <p className="text-xs font-medium text-muted-foreground mb-2">Control</p>
         <div className="space-y-2">
           <div
             draggable
@@ -33,7 +33,7 @@ export function NodePalette({ agents }: NodePaletteProps) {
               <span>⚡</span>
               <span className="text-sm font-medium">Trigger</span>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Start the workflow</p>
+            <p className="text-xs text-muted-foreground mt-1">Start the workflow</p>
           </div>
 
           <div
@@ -45,18 +45,18 @@ export function NodePalette({ agents }: NodePaletteProps) {
               <span>🎯</span>
               <span className="text-sm font-medium">Output</span>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Workflow result</p>
+            <p className="text-xs text-muted-foreground mt-1">Workflow result</p>
           </div>
         </div>
       </div>
 
       {/* Agent Nodes */}
       <div>
-        <p className="text-xs font-medium text-gray-500 mb-2">
+        <p className="text-xs font-medium text-muted-foreground mb-2">
           Agents ({agents.length})
         </p>
         {agents.length === 0 ? (
-          <p className="text-xs text-gray-400 text-center py-4">
+          <p className="text-xs text-muted-foreground text-center py-4">
             No agents registered yet.
           </p>
         ) : (
@@ -73,7 +73,7 @@ export function NodePalette({ agents }: NodePaletteProps) {
                   capabilities: agent.capabilities,
                   estimatedCost: AGENT_TYPE_COSTS[agent.type],
                 }))}
-                className="p-3 rounded-lg border border-gray-200 bg-white cursor-grab active:cursor-grabbing hover:border-amber-300 hover:shadow-sm transition-all"
+                className="p-3 rounded-lg border border-border bg-card cursor-grab active:cursor-grabbing hover:border-amber-300 hover:shadow-sm transition-all"
               >
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-700">
@@ -82,7 +82,7 @@ export function NodePalette({ agents }: NodePaletteProps) {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{agent.name}</p>
                     <div className="flex items-center gap-1">
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-muted-foreground">
                         {AGENT_TYPE_ICONS[agent.type]} {agent.type}
                       </span>
                       <span className="text-xs text-amber-600 font-medium ml-auto">

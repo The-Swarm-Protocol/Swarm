@@ -18,7 +18,7 @@ function Dialog({ open, onOpenChange, children }: DialogProps) {
       onClick={() => onOpenChange(false)}
     >
       <div
-        className="bg-white rounded-xl border shadow-lg w-full max-w-lg max-h-[85vh] overflow-y-auto"
+        className="bg-card rounded-xl border shadow-lg w-full max-w-lg max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {children}
@@ -36,7 +36,7 @@ function DialogTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingEl
 }
 
 function DialogDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn("text-sm text-gray-500", className)} {...props} />;
+  return <p className={cn("text-sm text-muted-foreground", className)} {...props} />;
 }
 
 function DialogContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

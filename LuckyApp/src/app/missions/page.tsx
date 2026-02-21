@@ -21,13 +21,13 @@ import {
 } from "@/lib/firestore";
 
 const columns = [
-  { status: "todo" as const, label: "To Do", icon: "📋", bg: "bg-gray-50", border: "border-gray-200" },
+  { status: "todo" as const, label: "To Do", icon: "📋", bg: "bg-muted", border: "border-border" },
   { status: "in_progress" as const, label: "In Progress", icon: "🔄", bg: "bg-amber-50", border: "border-amber-200" },
   { status: "done" as const, label: "Done", icon: "✅", bg: "bg-emerald-50", border: "border-green-200" },
 ];
 
 const priorityColors = {
-  low: "bg-gray-100 text-gray-700",
+  low: "bg-muted text-muted-foreground",
   medium: "bg-amber-100 text-amber-700", 
   high: "bg-orange-100 text-orange-700",
 };
@@ -170,7 +170,7 @@ export default function TasksPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">📋 Tasks</h1>
-          <p className="text-gray-500 mt-1">No organization selected</p>
+          <p className="text-muted-foreground mt-1">No organization selected</p>
         </div>
       </div>
     );
@@ -181,7 +181,7 @@ export default function TasksPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">📋 Tasks</h1>
-          <p className="text-gray-500 mt-1">Track agent tasks and deliverables</p>
+          <p className="text-muted-foreground mt-1">Track agent tasks and deliverables</p>
         </div>
         <Button 
           onClick={() => setCreateOpen(true)} 
@@ -199,11 +199,11 @@ export default function TasksPage() {
       )}
 
       {loading ? (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-muted-foreground">
           <p>Loading tasks...</p>
         </div>
       ) : projects.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-muted-foreground">
           <div className="text-4xl mb-4">📁</div>
           <p className="text-lg">No projects yet</p>
           <p className="text-sm mt-1">Create a project first to add tasks</p>
@@ -226,7 +226,7 @@ export default function TasksPage() {
                   {colTasks.map((task) => (
                     <Card
                       key={task.id}
-                      className="cursor-pointer hover:shadow-md transition-shadow border-gray-200"
+                      className="cursor-pointer hover:shadow-md transition-shadow border-border"
                       onClick={() => { setSelectedTask(task); setDetailOpen(true); }}
                     >
                       <CardContent className="p-4 space-y-3">
@@ -241,16 +241,16 @@ export default function TasksPage() {
                         </div>
 
                         {task.description && (
-                          <p className="text-xs text-gray-600 line-clamp-2">{task.description}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-2">{task.description}</p>
                         )}
 
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span>📁 {getProjectName(task.projectId)}</span>
                           <span>·</span>
                           <span>🤖 {getAgentName(task.assigneeAgentId)}</span>
                         </div>
 
-                        <div className="text-xs text-gray-400">
+                        <div className="text-xs text-muted-foreground">
                           Created {formatTime(task.createdAt)}
                         </div>
                       </CardContent>
@@ -258,7 +258,7 @@ export default function TasksPage() {
                   ))}
 
                   {colTasks.length === 0 && (
-                    <div className="text-center py-8 text-sm text-gray-400">No tasks</div>
+                    <div className="text-center py-8 text-sm text-muted-foreground">No tasks</div>
                   )}
                 </div>
               </div>
@@ -281,30 +281,30 @@ export default function TasksPage() {
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <p className="text-sm text-gray-600">{selectedTask.description || 'No description provided'}</p>
+                <p className="text-sm text-muted-foreground">{selectedTask.description || 'No description provided'}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-500">Project:</span>
+                  <span className="text-muted-foreground">Project:</span>
                   <p className="font-medium">{getProjectName(selectedTask.projectId)}</p>
                 </div>
                 <div>
-                  <span className="text-gray-500">Assignee:</span>
+                  <span className="text-muted-foreground">Assignee:</span>
                   <p className="font-medium">{getAgentName(selectedTask.assigneeAgentId)}</p>
                 </div>
                 <div>
-                  <span className="text-gray-500">Status:</span>
+                  <span className="text-muted-foreground">Status:</span>
                   <p className="font-medium capitalize">{selectedTask.status.replace('_', ' ')}</p>
                 </div>
                 <div>
-                  <span className="text-gray-500">Created:</span>
+                  <span className="text-muted-foreground">Created:</span>
                   <p className="font-medium">{formatTime(selectedTask.createdAt)}</p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2 pt-4 border-t">
-                <span className="text-sm text-gray-500">Update status:</span>
+                <span className="text-sm text-muted-foreground">Update status:</span>
                 <div className="flex gap-2">
                   {(['todo', 'in_progress', 'done'] as const).map((status) => (
                     <Button

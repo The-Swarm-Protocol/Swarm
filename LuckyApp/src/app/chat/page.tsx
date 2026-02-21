@@ -132,7 +132,7 @@ export default function ChatPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">💬 Chat</h1>
-          <p className="text-gray-500 mt-1">No organization selected</p>
+          <p className="text-muted-foreground mt-1">No organization selected</p>
         </div>
       </div>
     );
@@ -143,7 +143,7 @@ export default function ChatPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">💬 Chat</h1>
-          <p className="text-gray-500 mt-1">Connect your wallet to start chatting</p>
+          <p className="text-muted-foreground mt-1">Connect your wallet to start chatting</p>
         </div>
       </div>
     );
@@ -153,7 +153,7 @@ export default function ChatPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">💬 Chat</h1>
-        <p className="text-gray-500 mt-1">Real-time communication channels</p>
+        <p className="text-muted-foreground mt-1">Real-time communication channels</p>
       </div>
 
       {error && (
@@ -162,25 +162,25 @@ export default function ChatPage() {
         </div>
       )}
 
-      <div className="flex h-[calc(100vh-12rem)] bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="flex h-[calc(100vh-12rem)] bg-card rounded-lg border border-border overflow-hidden">
         {/* Channel Sidebar */}
-        <div className="w-64 border-r border-gray-200 flex flex-col bg-gray-50">
-          <div className="p-4 border-b border-gray-200">
-            <h2 className="font-semibold text-gray-900">Channels</h2>
+        <div className="w-64 border-r border-border flex flex-col bg-muted">
+          <div className="p-4 border-b border-border">
+            <h2 className="font-semibold text-foreground">Channels</h2>
           </div>
           <div className="flex-1 overflow-y-auto">
             {loading ? (
-              <div className="p-4 text-sm text-gray-500">Loading channels...</div>
+              <div className="p-4 text-sm text-muted-foreground">Loading channels...</div>
             ) : channels.length === 0 ? (
-              <div className="p-4 text-sm text-gray-500">No channels yet</div>
+              <div className="p-4 text-sm text-muted-foreground">No channels yet</div>
             ) : (
               <div className="py-2">
                 {channels.map((channel) => (
                   <button
                     key={channel.id}
                     onClick={() => handleSelectChannel(channel)}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-white transition-colors ${
-                      activeChannel?.id === channel.id ? 'bg-white border-r-2 border-amber-500 text-amber-600' : 'text-gray-600'
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-card transition-colors ${
+                      activeChannel?.id === channel.id ? 'bg-card border-r-2 border-amber-500 text-amber-600' : 'text-muted-foreground'
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -204,9 +204,9 @@ export default function ChatPage() {
           {activeChannel ? (
             <>
               {/* Chat Header */}
-              <div className="border-b border-gray-200 px-6 py-3 bg-white">
+              <div className="border-b border-border px-6 py-3 bg-card">
                 <div className="flex items-center gap-2">
-                  <h2 className="font-semibold text-gray-900">
+                  <h2 className="font-semibold text-foreground">
                     # {activeChannel.name}
                   </h2>
                   <Badge variant="secondary" className="text-xs">
@@ -218,11 +218,11 @@ export default function ChatPage() {
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-gray-400">
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
                     <div className="text-center">
                       <div className="text-4xl mb-3">💬</div>
                       <p className="text-sm">No messages yet</p>
-                      <p className="text-xs text-gray-500 mt-1">Start the conversation!</p>
+                      <p className="text-xs text-muted-foreground mt-1">Start the conversation!</p>
                     </div>
                   </div>
                 ) : (
@@ -238,15 +238,15 @@ export default function ChatPage() {
                         <div className="flex-1 min-w-0">
                           {showSender && (
                             <div className="flex items-baseline gap-2 mb-1">
-                              <span className="text-sm font-semibold text-gray-900">
+                              <span className="text-sm font-semibold text-foreground">
                                 {message.senderName}
                               </span>
-                              <span className="text-xs text-gray-500">
+                              <span className="text-xs text-muted-foreground">
                                 {formatTime(message.createdAt)}
                               </span>
                             </div>
                           )}
-                          <p className="text-sm text-gray-700 break-words">
+                          <p className="text-sm text-muted-foreground break-words">
                             {message.content}
                           </p>
                         </div>
@@ -257,7 +257,7 @@ export default function ChatPage() {
               </div>
 
               {/* Message Input */}
-              <div className="border-t border-gray-200 p-4">
+              <div className="border-t border-border p-4">
                 <div className="flex gap-3">
                   <Input
                     value={messageInput}
@@ -283,7 +283,7 @@ export default function ChatPage() {
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-400">
+            <div className="flex-1 flex items-center justify-center text-muted-foreground">
               <div className="text-center">
                 <div className="text-4xl mb-3">💬</div>
                 <p>Select a channel to start chatting</p>
