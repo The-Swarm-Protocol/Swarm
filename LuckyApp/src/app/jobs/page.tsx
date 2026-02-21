@@ -381,16 +381,16 @@ export default function JobBoardPage() {
                                 💰 {job.reward}
                               </div>
                             )}
-                            {job.requiredSkills.length > 0 && (
+                            {(job.requiredSkills ?? []).length > 0 && (
                               <div className="flex flex-wrap gap-1">
-                                {job.requiredSkills.slice(0, 3).map((skill) => (
+                                {(job.requiredSkills ?? []).slice(0, 3).map((skill) => (
                                   <Badge key={skill} variant="outline" className="text-[10px] bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800">
                                     {skill}
                                   </Badge>
                                 ))}
-                                {job.requiredSkills.length > 3 && (
+                                {(job.requiredSkills ?? []).length > 3 && (
                                   <Badge variant="outline" className="text-[10px]">
-                                    +{job.requiredSkills.length - 3}
+                                    +{(job.requiredSkills ?? []).length - 3}
                                   </Badge>
                                 )}
                               </div>
@@ -567,11 +567,11 @@ export default function JobBoardPage() {
                   <span className="text-sm font-medium text-amber-700 dark:text-amber-400">💰 Reward: {selectedJob.reward}</span>
                 </div>
               )}
-              {selectedJob.requiredSkills.length > 0 && (
+              {(selectedJob.requiredSkills ?? []).length > 0 && (
                 <div>
                   <span className="text-xs text-muted-foreground block mb-1.5">Required Skills</span>
                   <div className="flex flex-wrap gap-1">
-                    {selectedJob.requiredSkills.map((skill) => (
+                    {(selectedJob.requiredSkills ?? []).map((skill) => (
                       <Badge key={skill} variant="outline" className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800 text-xs">{skill}</Badge>
                     ))}
                   </div>
@@ -906,7 +906,7 @@ export default function JobBoardPage() {
 
 function OnchainTaskCard({ task, onClick }: { task: TaskListing; onClick: () => void }) {
   const status = STATUS_CONFIG[task.status] ?? STATUS_CONFIG[TaskStatus.Open];
-  const skills = task.requiredSkills.split(",").map((s) => s.trim()).filter(Boolean);
+  const skills = (task.requiredSkills || "").split(",").map((s) => s.trim()).filter(Boolean);
   const isOpen = task.status === TaskStatus.Open;
   const now = Math.floor(Date.now() / 1000);
   const isExpired = task.deadline < now;
@@ -974,7 +974,7 @@ function OnchainTaskCard({ task, onClick }: { task: TaskListing; onClick: () => 
 }
 
 function OnchainAgentCard({ agent }: { agent: AgentProfile }) {
-  const skills = agent.skills.split(",").map((s) => s.trim()).filter(Boolean);
+  const skills = (agent.skills || "").split(",").map((s) => s.trim()).filter(Boolean);
 
   return (
     <Card>
