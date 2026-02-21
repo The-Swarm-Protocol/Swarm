@@ -11,7 +11,6 @@ import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 
 const Spline = lazy(() => import('@splinetool/react-spline'));
-const FoidMommy = lazy(() => import('@/components/FoidMommy'));
 
 const client = createThirdwebClient({
   clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || 'cbd8abcfa13db759ca2f5fa7d8a5a5e5',
@@ -19,31 +18,28 @@ const client = createThirdwebClient({
 
 const hedera = defineChain({ id: 295, name: 'Hedera', rpc: 'https://mainnet.hashio.io/api' });
 
+// 5 robots in a horizontal row, centered
+const ROBOT_COUNT = 5;
 
 export default function LandingPage() {
   const account = useActiveAccount();
   const router = useRouter();
-  const kittyCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const robotCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
 
   useEffect(() => {
     if (account) router.push('/dashboard');
   }, [account, router]);
 
-  // Capture canvas elements from Spline Application on load
-  const handleKittyLoad = (spline: any) => {
-    kittyCanvasRef.current = spline.canvas ?? spline._canvas ?? null;
-  };
-  const handleRobotLoad = (spline: any) => {
-    robotCanvasRef.current = spline.canvas ?? spline._canvas ?? null;
+  const handleRobotLoad = (index: number) => (spline: any) => {
+    canvasRefs.current[index] = spline.canvas ?? spline._canvas ?? null;
   };
 
-  // Global Mouse Tracking Forwarder — Spline uses pointermove, not mousemove
+  // Forward mouse to all 10 robot canvases
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      [kittyCanvasRef, robotCanvasRef].forEach(ref => {
-        if (ref.current) {
-          ref.current.dispatchEvent(new PointerEvent('pointermove', {
+      canvasRefs.current.forEach(canvas => {
+        if (canvas) {
+          canvas.dispatchEvent(new PointerEvent('pointermove', {
             clientX: e.clientX,
             clientY: e.clientY,
             screenX: e.screenX,
@@ -80,43 +76,40 @@ export default function LandingPage() {
 
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="relative pt-24 pb-32 overflow-hidden min-h-[95vh] flex items-center justify-center">
-          {/* Dual Spline Background Container */}
+        <section className="relative pt-24 pb-32 min-h-[95vh] flex items-center justify-center">
+          {/* 5 Spline Robots — each gets a huge container, positioned via left offset */}
           <div className="absolute inset-0 z-0 pointer-events-none">
-            {/* Left Asset: Kitty Robot */}
-            <div className="absolute inset-0 z-0 opacity-40 md:opacity-50">
-              <Suspense fallback={null}>
-                <Spline
-                  onLoad={handleKittyLoad}
-                  scene="https://prod.spline.design/G9Uv2yhuZyhmrxRG/scene.splinecode"
-                  className="w-full h-full scale-[0.6] md:scale-[0.7] translate-x-[-30%] md:translate-x-[-40%]"
-                />
-              </Suspense>
-            </div>
+            {Array.from({ length: ROBOT_COUNT }, (_, i) => {
+              // V-formation: center front, flanks behind & outward
+              const configs = [
+                { x: -38, y: 8,  scale: 0.75, opacity: 0.4, z: 0 },  // far left, back
+                { x: -18, y: 4,  scale: 0.85, opacity: 0.6, z: 1 },  // mid left
+                { x: 0,   y: 0,  scale: 1,    opacity: 0.9, z: 2 },  // center, front
+                { x: 18,  y: 4,  scale: 0.85, opacity: 0.6, z: 1 },  // mid right
+                { x: 38,  y: 8,  scale: 0.75, opacity: 0.4, z: 0 },  // far right, back
+              ];
+              const c = configs[i];
 
-            {/* Center Asset: New Robot - Perfectly centered */}
-            <div className="absolute inset-0 z-[1] opacity-70 md:opacity-80">
-              <Suspense fallback={
-                <div className="w-full h-full flex items-center justify-center bg-black/20">
-                  <div className="w-12 h-12 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin" />
+              return (
+                <div
+                  key={i}
+                  className="absolute inset-0"
+                  style={{
+                    transform: `translateX(${c.x}%) translateY(${c.y}%) scale(${c.scale})`,
+                    opacity: c.opacity,
+                    zIndex: c.z,
+                  }}
+                >
+                  <Suspense fallback={null}>
+                    <Spline
+                      onLoad={handleRobotLoad(i)}
+                      scene="https://prod.spline.design/Apa6K76Zg3Ki-VRj/scene.splinecode"
+                      className="w-full h-full"
+                    />
+                  </Suspense>
                 </div>
-              }>
-                <Spline
-                  onLoad={handleRobotLoad}
-                  scene="https://prod.spline.design/Apa6K76Zg3Ki-VRj/scene.splinecode"
-                  className="w-full h-full scale-[0.9] md:scale-[1.1] origin-center"
-                />
-              </Suspense>
-            </div>
-
-            {/* Right Asset: FoidMommy */}
-            <div className="absolute inset-0 z-[2] opacity-50 md:opacity-60">
-              <Suspense fallback={null}>
-                <div className="w-full h-full translate-x-[30%] md:translate-x-[35%] translate-y-[50%] md:translate-y-[55%] scale-[0.7] md:scale-[0.8]">
-                  <FoidMommy />
-                </div>
-              </Suspense>
-            </div>
+              );
+            })}
 
             {/* Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black pointer-events-none z-[10]" />
