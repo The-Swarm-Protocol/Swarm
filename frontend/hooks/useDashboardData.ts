@@ -51,7 +51,11 @@ export function useDashboardData(): UseDashboardDataReturn {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const getProvider = useCallback(() => {
     // Create a fresh provider each fetch to avoid stale RPC cache
-    return new ethers.JsonRpcProvider(HEDERA_RPC_URL);
+    // CRITICAL: always pass chainId — Hedera RPC returns 0x without it
+    return new ethers.JsonRpcProvider(HEDERA_RPC_URL, {
+      chainId: 296,
+      name: "hedera-testnet",
+    });
   }, []);
 
   const fetchData = useCallback(async () => {

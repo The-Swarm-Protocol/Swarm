@@ -122,7 +122,11 @@ export default function JobsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const provider = new ethers.JsonRpcProvider(HEDERA_RPC_URL);
+      // CRITICAL: always pass chainId — Hedera RPC returns 0x without it
+      const provider = new ethers.JsonRpcProvider(HEDERA_RPC_URL, {
+        chainId: 296,
+        name: "hedera-testnet",
+      });
 
       // Check if the contract is actually deployed
       const code = await provider.getCode(SWARM_TASK_BOARD_ADDRESS);
@@ -137,7 +141,16 @@ export default function JobsPage() {
         SWARM_TASK_BOARD_ABI,
         provider
       );
-      const raw = await board.getOpenTasks();
+
+      // Try getAllTasks first (more reliable than getOpenTasks for large sets),
+      // fall back to getOpenTasks if it fails
+      let raw;
+      try {
+        raw = await board.getAllTasks();
+      } catch {
+        raw = await board.getOpenTasks();
+      }
+
       const parsed: Task[] = raw.map((t: Record<string, unknown>) => ({
         taskId: Number(t.taskId),
         vault: t.vault as string,
