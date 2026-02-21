@@ -189,7 +189,7 @@ export default function TasksPage() {
         </div>
         <Button 
           onClick={() => setCreateOpen(true)} 
-          className="bg-amber-600 hover:bg-amber-600 text-white"
+          className="bg-amber-600 hover:bg-amber-700 text-white"
           disabled={projects.length === 0}
         >
           + New Task
@@ -235,7 +235,7 @@ export default function TasksPage() {
                     >
                       <CardContent className="p-4 space-y-3">
                         <div className="flex items-start justify-between">
-                          <h3 className="text-sm font-semibold leading-tight">{task.title}</h3>
+                          <h3 className="text-sm font-semibold leading-tight line-clamp-2">{task.title}</h3>
                           <Badge 
                             variant="outline" 
                             className={`text-[10px] shrink-0 ml-2 ${priorityColors[task.priority]}`}
@@ -248,10 +248,10 @@ export default function TasksPage() {
                           <p className="text-xs text-muted-foreground line-clamp-2">{task.description}</p>
                         )}
 
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>📁 {getProjectName(task.projectId)}</span>
-                          <span>·</span>
-                          <span>🤖 {getAgentName(task.assigneeAgentId)}</span>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground min-w-0">
+                          <span className="truncate">📁 {getProjectName(task.projectId)}</span>
+                          <span className="shrink-0">·</span>
+                          <span className="truncate">🤖 {getAgentName(task.assigneeAgentId)}</span>
                         </div>
 
                         <div className="text-xs text-muted-foreground">
@@ -412,7 +412,7 @@ export default function TasksPage() {
               <Button
                 onClick={handleCreateTask}
                 disabled={creating || !taskTitle.trim() || !taskProject}
-                className="bg-amber-600 hover:bg-amber-600"
+                className="bg-amber-600 hover:bg-amber-700"
               >
                 {creating ? 'Creating...' : 'Create Task'}
               </Button>

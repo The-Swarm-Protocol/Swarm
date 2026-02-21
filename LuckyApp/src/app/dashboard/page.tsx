@@ -152,12 +152,12 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">{currentOrg.name} operations overview</p>
+          <p className="text-muted-foreground mt-1 truncate">{currentOrg.name} operations overview</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <Button asChild variant="outline">
             <Link href="/swarms">Create Project</Link>
           </Button>
@@ -227,7 +227,7 @@ export default function DashboardPage() {
                         <div key={task.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium truncate">{task.title}</p>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-muted-foreground truncate">
                               📁 {task.projectName} · 🤖 {task.agentName}
                             </p>
                           </div>
@@ -297,10 +297,10 @@ export default function DashboardPage() {
                         ) : (
                           <span className="text-lg">🏢</span>
                         )}
-                        <p className="font-medium">{currentOrg.name}</p>
+                        <p className="font-medium truncate">{currentOrg.name}</p>
                       </div>
                       {currentOrg.description && (
-                        <p className="text-sm text-muted-foreground">{currentOrg.description}</p>
+                        <p className="text-sm text-muted-foreground line-clamp-2">{currentOrg.description}</p>
                       )}
                       <div className="text-xs text-muted-foreground pt-2 border-t">
                         <p>Members: {currentOrg.members.length}</p>

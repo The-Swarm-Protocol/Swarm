@@ -138,7 +138,7 @@ export default function ProjectsPage() {
         </div>
         <Button
           onClick={() => setShowCreate(true)}
-          className="bg-amber-600 hover:bg-amber-600 text-white"
+          className="bg-amber-600 hover:bg-amber-700 text-white"
         >
           + Create Project
         </Button>
@@ -167,8 +167,8 @@ export default function ProjectsPage() {
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
-                      <CardTitle className="text-lg">{project.name}</CardTitle>
-                      <CardDescription>{project.description || 'No description'}</CardDescription>
+                      <CardTitle className="text-lg truncate">{project.name}</CardTitle>
+                      <CardDescription className="line-clamp-2">{project.description || 'No description'}</CardDescription>
                     </div>
                     <Badge
                       className={
@@ -251,7 +251,7 @@ export default function ProjectsPage() {
               <Button
                 onClick={handleCreateProject}
                 disabled={creating || !name.trim()}
-                className="bg-amber-600 hover:bg-amber-600"
+                className="bg-amber-600 hover:bg-amber-700"
               >
                 {creating ? 'Creating...' : 'Create Project'}
               </Button>
