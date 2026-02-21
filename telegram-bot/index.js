@@ -397,7 +397,7 @@ async function handleJobs(chatId) {
 
     const lines = [`📋 <b>Open Jobs</b> (${tasks.length})`, ''];
     for (const t of tasks) {
-      const budget = ethers.formatEther(t.budget);
+      const budget = (Number(t.budget) / 1e8).toFixed(2);
       lines.push(`<b>#${t.taskId}</b> — ${esc(t.title)}`);
       lines.push(`  💰 ${budget} HBAR | 🏷 ${esc(t.requiredSkills)}`);
       lines.push('');
@@ -478,23 +478,23 @@ bot.on('message', (msg) => {
 
   if (/\b(read|guidelines|vault|brand info)\b/.test(text)) {
     handleRead(chatId);
+  } else if (/\b(post ?job|new ?job|create ?(a )?job|hire|create ?(a )?task)\b/.test(text)) {
+    bot.sendMessage(chatId, 'To post a job:\n/postjob <budget_hbar> <title> | <description> | <skills>\n\nExample: /postjob 10 Write Twitter thread | Create a 5-tweet thread about FOID | social,twitter');
+  } else if (/\b(jobs|open tasks|task ?board|list jobs|show jobs|show tasks)\b/.test(text)) {
+    handleJobs(chatId);
+  } else if (/\b(approve)\b/.test(text)) {
+    bot.sendMessage(chatId, 'To approve a delivery: /approve <taskId>');
   } else if (/\b(launch|full campaign)\b/.test(text)) {
     const name = extractName(text, /(?:launch|full campaign)\s+(.*)/i);
     handleLaunch(chatId, name || 'Untitled Campaign');
-  } else if (/\b(campaign|create)\b/.test(text)) {
-    const name = extractName(text, /(?:campaign|create)\s+(.*)/i);
+  } else if (/\b(campaign)\b/.test(text)) {
+    const name = extractName(text, /(?:campaign)\s+(.*)/i);
     handleCampaign(chatId, name || 'Untitled Campaign');
   } else if (/\b(status|balance|treasury|how much)\b/.test(text)) {
     handleStatus(chatId);
   } else if (/\b(delegate|assign|worker)\b/.test(text)) {
     const desc = extractName(text, /(?:delegate|assign|worker)\s+(.*)/i);
     handleDelegate(chatId, desc || 'General task');
-  } else if (/\b(jobs|open tasks|task ?board)\b/.test(text)) {
-    handleJobs(chatId);
-  } else if (/\b(post ?job|new ?job|create ?job|hire)\b/.test(text)) {
-    bot.sendMessage(chatId, 'To post a job:\n/postjob <budget_hbar> <title> | <description> | <skills>\n\nExample: /postjob 10 Write Twitter thread | Create a 5-tweet thread about FOID | social,twitter');
-  } else if (/\b(approve)\b/.test(text)) {
-    bot.sendMessage(chatId, 'To approve a delivery: /approve <taskId>');
   } else {
     bot.sendMessage(chatId, [
       "I didn't catch that. Try one of these:",
