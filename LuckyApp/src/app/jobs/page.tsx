@@ -76,7 +76,7 @@ export default function JobBoardPage() {
   const [jobDescription, setJobDescription] = useState("");
   const [jobReward, setJobReward] = useState("");
   const [jobSkills, setJobSkills] = useState<string[]>([]);
-  const [jobProject, setJobProject] = useState("");
+  const [jobProject, setJobProject] = useState("__none__");
   const [jobPriority, setJobPriority] = useState<Job["priority"]>("medium");
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -148,7 +148,7 @@ export default function JobBoardPage() {
         createdAt: new Date(),
       });
       setJobTitle(""); setJobDescription(""); setJobReward("");
-      setJobSkills([]); setJobProject(""); setJobPriority("medium");
+      setJobSkills([]); setJobProject("__none__"); setJobPriority("medium");
       setCreateOpen(false);
       await loadData();
     } catch (err) {
@@ -754,7 +754,7 @@ await board.claimTask(${selectedOnchainTask.taskId});`}
                 <Select value={jobProject} onValueChange={setJobProject}>
                   <SelectTrigger><SelectValue placeholder="No project" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="__none__">None</SelectItem>
                     {projects.map((project) => (
                       <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>
                     ))}
