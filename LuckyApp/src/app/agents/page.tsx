@@ -65,7 +65,7 @@ export default function AgentsPage() {
         </div>
         <Button
           onClick={() => setShowRegister(true)}
-          className="bg-green-500 hover:bg-green-600 text-white"
+          className="bg-amber-500 hover:bg-amber-600 text-white"
         >
           + Register Agent
         </Button>
@@ -81,19 +81,19 @@ export default function AgentsPage() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {displayAgents.map((agent) => (
           <Link key={agent.id} href={`/agents/${agent.id}`}>
-            <Card className="hover:border-green-300 transition-colors cursor-pointer h-full">
+            <Card className="hover:border-amber-300 transition-colors cursor-pointer h-full">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-lg font-bold text-green-700">
+                    <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-lg font-bold text-amber-700">
                       {agent.name.charAt(0)}
                     </div>
                     <div>
                       <CardTitle className="text-lg">{agent.name}</CardTitle>
                       <div className="flex items-center gap-2 mt-1">
                         <Badge className={TYPE_COLORS[agent.type] || ""}>{agent.type}</Badge>
-                        <span className={`text-xs flex items-center gap-1 ${agent.status === "online" ? "text-green-600" : "text-gray-400"}`}>
-                          <span className={`w-2 h-2 rounded-full ${agent.status === "online" ? "bg-green-500" : "bg-gray-300"}`} />
+                        <span className={`text-xs flex items-center gap-1 ${agent.status === "online" ? "text-amber-600" : "text-gray-400"}`}>
+                          <span className={`w-2 h-2 rounded-full ${agent.status === "online" ? "bg-amber-500" : "bg-gray-300"}`} />
                           {agent.status}
                         </span>
                       </div>
@@ -106,7 +106,7 @@ export default function AgentsPage() {
                 <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-100">
                   <div>
                     <div className="text-xs text-gray-500">Win Rate</div>
-                    <div className={`text-lg font-bold ${agent.winRate >= 65 ? "text-green-600" : agent.winRate >= 55 ? "text-yellow-600" : "text-red-500"}`}>
+                    <div className={`text-lg font-bold ${agent.winRate >= 65 ? "text-amber-600" : agent.winRate >= 55 ? "text-yellow-600" : "text-red-500"}`}>
                       {agent.winRate}%
                     </div>
                   </div>

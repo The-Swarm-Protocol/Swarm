@@ -21,7 +21,7 @@ import { CreateMissionDialog } from "@/components/create-mission-dialog";
 const columns = [
   { status: "pending" as const, label: "Pending", icon: "🎯", bg: "bg-yellow-50", border: "border-yellow-200" },
   { status: "active" as const, label: "Active", icon: "🔄", bg: "bg-blue-50", border: "border-blue-200" },
-  { status: "resolved" as const, label: "Resolved", icon: "✅", bg: "bg-green-50", border: "border-green-200" },
+  { status: "resolved" as const, label: "Resolved", icon: "✅", bg: "bg-amber-50", border: "border-amber-200" },
 ];
 
 export default function MissionsPage() {
@@ -131,7 +131,7 @@ export default function MissionsPage() {
           <h1 className="text-3xl font-bold tracking-tight">🎯 Missions</h1>
           <p className="text-gray-500 mt-1">Track predictions and agent analysis</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="bg-green-600 hover:bg-green-700 text-white">
+        <Button onClick={() => setCreateOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white">
           + New Mission
         </Button>
       </div>
@@ -174,7 +174,7 @@ export default function MissionsPage() {
                           <div className="flex items-center gap-1.5 ml-2">
                             <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                               <div
-                                className="h-full bg-green-500 rounded-full"
+                                className="h-full bg-amber-500 rounded-full"
                                 style={{ width: `${mission.prediction.confidence}%` }}
                               />
                             </div>
@@ -184,7 +184,7 @@ export default function MissionsPage() {
                       )}
 
                       {mission.outcome && (
-                        <div className={`text-xs font-semibold ${mission.outcome.pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        <div className={`text-xs font-semibold ${mission.outcome.pnl >= 0 ? "text-amber-600" : "text-red-600"}`}>
                           {mission.outcome.pnl >= 0 ? "+" : ""}{mission.outcome.pnl.toLocaleString()} USDC
                         </div>
                       )}

@@ -128,14 +128,14 @@ export function MessageInput({ onSend, channelName }: MessageInputProps) {
               <button
                 key={m.id}
                 className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors ${
-                  idx === selectedIndex ? "bg-green-50" : "hover:bg-gray-50"
+                  idx === selectedIndex ? "bg-amber-50" : "hover:bg-gray-50"
                 }`}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   insertMention(m.name);
                 }}
               >
-                <span className="w-5 h-5 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-[10px]">
+                <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-[10px]">
                   🤖
                 </span>
                 <span className="text-gray-900">{m.name}</span>
@@ -155,13 +155,13 @@ export function MessageInput({ onSend, channelName }: MessageInputProps) {
             onKeyDown={handleKeyDown}
             placeholder={`Message #${channelName}... (@ to mention)`}
             rows={1}
-            className="flex-1 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent placeholder:text-gray-400"
+            className="flex-1 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent placeholder:text-gray-400"
             style={{ overflow: "hidden" }}
           />
           <Button
             onClick={handleSend}
             disabled={!input.trim()}
-            className="shrink-0 bg-green-500 hover:bg-green-600 text-white h-10 px-4"
+            className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white h-10 px-4"
           >
             <Send className="w-4 h-4" />
           </Button>

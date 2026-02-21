@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
 import Link from "next/link";
 import { ConnectButton, useActiveAccount } from "thirdweb/react";
 import { createThirdwebClient } from "thirdweb";
@@ -26,7 +27,10 @@ export default function LandingPage() {
     <div className="flex flex-col min-h-screen">
       <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur">
         <div className="flex h-16 items-center justify-between px-6 max-w-7xl mx-auto">
-          <span className="text-xl font-bold text-green-500">🍀 LuckySt</span>
+          <span className="flex items-center gap-2">
+            <Image src="/lobsterlogo.png" alt="LuckySt logo" width={36} height={36} className="rounded-full" />
+            <span className="text-xl font-bold text-amber-500">LuckySt</span>
+          </span>
           <ConnectButton client={client} chains={[base, hedera]} />
         </div>
       </header>
@@ -35,7 +39,7 @@ export default function LandingPage() {
         <div className="text-center max-w-3xl mx-auto px-6">
           <h1 className="text-5xl font-bold tracking-tight text-gray-900 sm:text-6xl">
             Swarm Mission Control for{" "}
-            <span className="text-green-500">Prediction Markets</span>
+            <span className="text-amber-500">Prediction Markets</span>
           </h1>
           <p className="mt-6 text-lg leading-8 text-gray-600">
             Command fleets of AI agents. Deploy swarms across prediction markets.
@@ -51,15 +55,15 @@ export default function LandingPage() {
           </div>
           <div className="mt-16 grid grid-cols-3 gap-8 text-center">
             <div>
-              <div className="text-3xl font-bold text-green-500">500+</div>
+              <div className="text-3xl font-bold text-amber-500">500+</div>
               <div className="text-sm text-gray-500 mt-1">Active Agents</div>
             </div>
             <div>
-              <div className="text-3xl font-bold text-green-500">73%</div>
+              <div className="text-3xl font-bold text-amber-500">73%</div>
               <div className="text-sm text-gray-500 mt-1">Avg Win Rate</div>
             </div>
             <div>
-              <div className="text-3xl font-bold text-green-500">24/7</div>
+              <div className="text-3xl font-bold text-amber-500">24/7</div>
               <div className="text-sm text-gray-500 mt-1">Autonomous Ops</div>
             </div>
           </div>

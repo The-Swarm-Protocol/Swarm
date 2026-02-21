@@ -12,7 +12,7 @@ import { getSwarmById, getSwarmAgents, getSwarmMissions, mockMessages, getAgentB
 const MISSION_STATUS_COLORS: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-700",
   active: "bg-blue-100 text-blue-700",
-  resolved: "bg-green-100 text-green-700",
+  resolved: "bg-amber-100 text-amber-700",
 };
 
 const PRIORITY_LABELS: Record<string, { label: string; color: string }> = {
@@ -61,7 +61,7 @@ export default function SwarmDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/swarms" className="text-gray-400 hover:text-green-600 transition-colors text-lg">
+          <Link href="/swarms" className="text-gray-400 hover:text-amber-600 transition-colors text-lg">
             ←
           </Link>
           <div>
@@ -70,7 +70,7 @@ export default function SwarmDetailPage() {
               <Badge
                 className={
                   swarm.status === "active"
-                    ? "bg-green-100 text-green-700 border-green-200"
+                    ? "bg-amber-100 text-amber-700 border-amber-200"
                     : "bg-gray-100 text-gray-600 border-gray-200"
                 }
               >
@@ -94,17 +94,17 @@ export default function SwarmDetailPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {agents.map((agent) => (
               <Link key={agent.id} href={`/agents/${agent.id}`}>
-                <Card className="hover:border-green-300 transition-colors cursor-pointer">
+                <Card className="hover:border-amber-300 transition-colors cursor-pointer">
                   <CardHeader className="pb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-lg font-bold text-green-700">
+                      <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-lg font-bold text-amber-700">
                         {agent.name.charAt(0)}
                       </div>
                       <div>
                         <CardTitle className="text-base">{agent.name}</CardTitle>
                         <div className="flex items-center gap-2 mt-0.5">
                           <Badge variant="secondary" className="text-xs">{agent.type}</Badge>
-                          <span className={`text-xs ${agent.status === "online" ? "text-green-600" : "text-gray-400"}`}>
+                          <span className={`text-xs ${agent.status === "online" ? "text-amber-600" : "text-gray-400"}`}>
                             {agent.status === "online" ? "● Online" : "○ Offline"}
                           </span>
                         </div>
@@ -113,7 +113,7 @@ export default function SwarmDetailPage() {
                   </CardHeader>
                   <CardContent className="pt-0">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Win Rate: <strong className="text-green-600">{agent.winRate}%</strong></span>
+                      <span className="text-gray-500">Win Rate: <strong className="text-amber-600">{agent.winRate}%</strong></span>
                       <span className="text-gray-500">{agent.totalPredictions} predictions</span>
                     </div>
                   </CardContent>
@@ -184,7 +184,7 @@ export default function SwarmDetailPage() {
                       <div
                         className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 ${
                           msg.senderType === "agent"
-                            ? "bg-green-100 text-green-700"
+                            ? "bg-amber-100 text-amber-700"
                             : "bg-blue-100 text-blue-700"
                         }`}
                       >
@@ -192,7 +192,7 @@ export default function SwarmDetailPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline gap-2">
-                          <span className={`text-sm font-semibold ${msg.senderType === "agent" ? "text-green-700" : "text-gray-900"}`}>
+                          <span className={`text-sm font-semibold ${msg.senderType === "agent" ? "text-amber-700" : "text-gray-900"}`}>
                             {msg.senderName}
                           </span>
                           <span className="text-xs text-gray-400">{formatTime(msg.timestamp)}</span>
@@ -210,7 +210,7 @@ export default function SwarmDetailPage() {
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder="Send a command..."
-                  className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && chatInput.trim()) {
                       setChatInput("");
@@ -218,7 +218,7 @@ export default function SwarmDetailPage() {
                   }}
                 />
                 <Button
-                  className="bg-green-500 hover:bg-green-600 text-white"
+                  className="bg-amber-500 hover:bg-amber-600 text-white"
                   disabled={!chatInput.trim()}
                   onClick={() => setChatInput("")}
                 >

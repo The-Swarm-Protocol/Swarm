@@ -74,7 +74,7 @@ export default function SettingsPage() {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                   required
                 />
               </div>
@@ -86,14 +86,14 @@ export default function SettingsPage() {
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
                   placeholder="What does your team do?"
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
                 />
               </div>
 
               {message && (
                 <div className={`text-sm rounded-md p-3 ${
                   message.type === 'success'
-                    ? 'bg-green-50 text-green-600 border border-green-200'
+                    ? 'bg-amber-50 text-amber-600 border border-amber-200'
                     : 'bg-red-50 text-red-600 border border-red-200'
                 }`}>
                   {message.text}
@@ -104,7 +104,7 @@ export default function SettingsPage() {
                 <Button
                   type="submit"
                   disabled={saving || !name.trim()}
-                  className="bg-green-500 hover:bg-green-600 text-white"
+                  className="bg-amber-500 hover:bg-amber-600 text-white"
                 >
                   {saving ? 'Saving...' : 'Save Changes'}
                 </Button>
@@ -129,7 +129,7 @@ export default function SettingsPage() {
                   </p>
                   <p className="text-xs text-gray-500">Owner</p>
                 </div>
-                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
                   Admin
                 </span>
               </div>

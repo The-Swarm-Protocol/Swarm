@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { ConnectButton, useActiveAccount } from 'thirdweb/react';
 import { createThirdwebClient } from 'thirdweb';
@@ -36,7 +37,8 @@ export function Header() {
       <div className="flex h-16 items-center justify-between px-6">
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2">
-            <span className="text-xl font-bold text-green-500">🍀 LuckySt</span>
+            <Image src="/lobsterlogo.png" alt="LuckySt logo" width={36} height={36} className="rounded-full" />
+            <span className="text-xl font-bold text-amber-500">LuckySt</span>
           </Link>
           {isConnected && (
             <nav className="hidden md:flex items-center gap-6">
@@ -46,7 +48,7 @@ export function Header() {
                   href={link.href}
                   className={`text-sm font-medium transition-colors ${
                     pathname === link.href
-                      ? 'text-gray-900'
+                      ? 'text-amber-600'
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >

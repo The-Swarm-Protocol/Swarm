@@ -75,7 +75,7 @@ export default function SwarmsPage() {
         </div>
         <Button
           onClick={() => setShowCreate(true)}
-          className="bg-green-500 hover:bg-green-600 text-white"
+          className="bg-amber-500 hover:bg-amber-600 text-white"
         >
           + Create Swarm
         </Button>
@@ -100,7 +100,7 @@ export default function SwarmsPage() {
 
           return (
             <Link key={swarm.id} href={`/swarms/${swarm.id}`}>
-              <Card className="hover:border-green-300 transition-colors cursor-pointer h-full">
+              <Card className="hover:border-amber-300 transition-colors cursor-pointer h-full">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
@@ -110,7 +110,7 @@ export default function SwarmsPage() {
                     <Badge
                       className={
                         swarm.status === "active"
-                          ? "bg-green-100 text-green-700 border-green-200"
+                          ? "bg-amber-100 text-amber-700 border-amber-200"
                           : "bg-gray-100 text-gray-600 border-gray-200"
                       }
                     >
@@ -127,7 +127,7 @@ export default function SwarmsPage() {
                     {swarmAgents.slice(0, 4).map((agent) => (
                       <div
                         key={agent.id}
-                        className="w-8 h-8 rounded-full bg-green-100 border-2 border-white flex items-center justify-center text-xs font-bold text-green-700"
+                        className="w-8 h-8 rounded-full bg-amber-100 border-2 border-white flex items-center justify-center text-xs font-bold text-amber-700"
                         title={agent.name}
                       >
                         {agent.name.charAt(0)}

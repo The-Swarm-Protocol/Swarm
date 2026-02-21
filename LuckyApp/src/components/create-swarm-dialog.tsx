@@ -101,11 +101,11 @@ export function CreateSwarmDialog({ open, onOpenChange, onCreated }: CreateSwarm
                 onClick={() => toggleAgent(agent.id)}
                 className={`flex items-center gap-2 p-2 rounded-lg border text-left text-sm transition-colors ${
                   selectedAgents.includes(agent.id)
-                    ? "border-green-500 bg-green-50 text-green-700"
+                    ? "border-amber-500 bg-amber-50 text-amber-700"
                     : "border-gray-200 hover:border-gray-300"
                 }`}
               >
-                <span className={`w-2 h-2 rounded-full ${agent.status === "online" ? "bg-green-500" : "bg-gray-300"}`} />
+                <span className={`w-2 h-2 rounded-full ${agent.status === "online" ? "bg-amber-500" : "bg-gray-300"}`} />
                 <div>
                   <div className="font-medium">{agent.name}</div>
                   <div className="text-xs text-gray-500">{agent.type}</div>
@@ -122,7 +122,7 @@ export function CreateSwarmDialog({ open, onOpenChange, onCreated }: CreateSwarm
         <Button
           onClick={handleCreate}
           disabled={!name.trim() || saving}
-          className="bg-green-500 hover:bg-green-600 text-white"
+          className="bg-amber-500 hover:bg-amber-600 text-white"
         >
           {saving ? "Creating..." : "Create Swarm"}
         </Button>

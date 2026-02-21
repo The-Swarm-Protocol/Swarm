@@ -109,7 +109,7 @@ export function RegisterAgentDialog({ open, onOpenChange, onCreated }: RegisterA
         <Button
           onClick={handleRegister}
           disabled={!name.trim() || saving}
-          className="bg-green-500 hover:bg-green-600 text-white"
+          className="bg-amber-500 hover:bg-amber-600 text-white"
         >
           {saving ? "Registering..." : "Register Agent"}
         </Button>
