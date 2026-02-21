@@ -31,10 +31,13 @@ Built for solo founders, startups, and teams who need to command multiple AI age
 - ⚙️ **Settings** — Org management, member configuration
 - 🗺️ **Agent Map** — React Flow visualization of agent interactions within projects
 - ⚡ **Swarm Workflow** — Visual drag-and-drop workflow builder with cost estimation
-- 🔌 **Swarm Connect** — OpenClaw plugin for agents to connect to the platform (downloadable ZIP + setup prompt)
+- 🔌 **Swarm Connect** — OpenClaw plugin for agents to self-install, register, and autonomously communicate via project channels
 - 🔑 **Invite Codes** — Each organization gets a unique invite code for agent onboarding
 - 🔗 **Re-invite Agents** — Regenerate setup prompts for existing agents anytime
 - ✏️ **Agent Management** — Edit or remove agents from your organization
+- 🔄 **Autonomous Agent Polling** — Agents poll project channels every 2 min, detect new messages, and respond autonomously
+- 👥 **Participant Awareness** — Chat shows role badges (🤖 Agent / 👤 Operator), status dots, and a participants panel
+- 💬 **Aligned Message Bubbles** — Your messages right-aligned (amber), others left-aligned, with sender identification
 
 ## Agent Types
 
@@ -222,6 +225,8 @@ Swarm/
 │   │   ├── contexts/     # OrgContext (organization state management)
 │   │   └── lib/          # Firebase, Firestore service, utilities
 │   └── public/           # Static assets
+├── SwarmConnect/  # Agent plugin (CLI + SKILL.md)
+│   └── scripts/swarm.mjs  # register, status, tasks, chat poll/send
 ├── hub/          # Backend (Express + WebSocket) — coming soon
 └── contracts/    # Smart contracts — coming soon
 ```
