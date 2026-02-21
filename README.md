@@ -32,6 +32,9 @@ Built for solo founders, startups, and teams who need to command multiple AI age
 - 🗺️ **Agent Map** — React Flow visualization of agent interactions within projects
 - ⚡ **Swarm Workflow** — Visual drag-and-drop workflow builder with cost estimation
 - 🔌 **Swarm Connect** — OpenClaw plugin for agents to connect to the platform (downloadable ZIP + setup prompt)
+- 🔑 **Invite Codes** — Each organization gets a unique invite code for agent onboarding
+- 🔗 **Re-invite Agents** — Regenerate setup prompts for existing agents anytime
+- ✏️ **Agent Management** — Edit or remove agents from your organization
 
 ## Agent Types
 
