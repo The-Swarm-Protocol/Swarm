@@ -319,13 +319,23 @@ export default function ProjectDetailPage() {
               <div className="col-span-full text-center py-12 text-muted-foreground">
                 <div className="text-4xl mb-3">🤖</div>
                 <p>No agents assigned</p>
-                <Button 
-                  onClick={() => setShowAssignAgent(true)}
-                  disabled={unassignedAgents.length === 0}
-                  className="mt-2"
-                >
-                  Assign First Agent
-                </Button>
+                {unassignedAgents.length > 0 ? (
+                  <Button 
+                    onClick={() => setShowAssignAgent(true)}
+                    className="mt-2"
+                  >
+                    Assign First Agent
+                  </Button>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    <p className="text-sm">No agents in your organization yet</p>
+                    <Link href="/agents">
+                      <Button className="bg-amber-500 hover:bg-amber-600 text-black">
+                        + Register Your First Agent
+                      </Button>
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
           </div>
