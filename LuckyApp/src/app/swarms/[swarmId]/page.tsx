@@ -28,9 +28,14 @@ import {
   getOrCreateProjectChannel,
   sendMessage,
   onMessagesByChannel,
+  getJobsByProject,
+  createJob,
+  claimJob,
+  closeJob,
   type Project,
   type Agent,
   type Task,
+  type Job,
   type Message,
   type Channel,
   type Profile,
@@ -62,12 +67,19 @@ export default function ProjectDetailPage() {
   const [assignedAgents, setAssignedAgents] = useState<Agent[]>([]);
   const [unassignedAgents, setUnassignedAgents] = useState<Agent[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Dialog states
   const [showAssignAgent, setShowAssignAgent] = useState(false);
   const [showCreateTask, setShowCreateTask] = useState(false);
+  const [showCreateJob, setShowCreateJob] = useState(false);
+  const [newJobTitle, setNewJobTitle] = useState('');
+  const [newJobDesc, setNewJobDesc] = useState('');
+  const [newJobReward, setNewJobReward] = useState('');
+  const [newJobPriority, setNewJobPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  const [creatingJob, setCreatingJob] = useState(false);
   const [showTaskDetail, setShowTaskDetail] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
@@ -112,10 +124,11 @@ export default function ProjectDetailPage() {
       setLoading(true);
       setError(null);
 
-      const [projectData, allAgents, projectTasks] = await Promise.all([
+      const [projectData, allAgents, projectTasks, projectJobs] = await Promise.all([
         getProject(projectId),
         getAgentsByOrg(currentOrg.id),
         getTasksByProject(projectId),
+        getJobsByProject(projectId),
       ]);
 
       if (!projectData) {
@@ -132,6 +145,7 @@ export default function ProjectDetailPage() {
       setAssignedAgents(assigned);
       setUnassignedAgents(unassigned);
       setTasks(projectTasks);
+      setJobs(projectJobs);
     } catch (err) {
       console.error('Failed to load project data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load project data');
@@ -425,6 +439,7 @@ export default function ProjectDetailPage() {
         <TabsList>
           <TabsTrigger value="agents">🤖 Agents ({assignedAgents.length})</TabsTrigger>
           <TabsTrigger value="tasks">📋 Tasks ({tasks.length})</TabsTrigger>
+          <TabsTrigger value="jobs">💼 Jobs ({jobs.length})</TabsTrigger>
           <TabsTrigger value="map">🗺️ Agent Map</TabsTrigger>
           <TabsTrigger value="channel">📡 Project Channel</TabsTrigger>
         </TabsList>
@@ -559,6 +574,107 @@ export default function ProjectDetailPage() {
             )}
           </div>
         </TabsContent>
+
+        {/* Jobs Tab */}
+        <TabsContent value="jobs" className="space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={() => setShowCreateJob(true)} className="bg-amber-500 hover:bg-amber-600 text-black font-semibold">
+              + Post Job
+            </Button>
+          </div>
+          {jobs.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">No jobs posted for this project yet.</div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {jobs.map((job) => (
+                <Card key={job.id} className="border-border">
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <h3 className="font-semibold text-sm">{job.title}</h3>
+                      <Badge variant="outline" className="text-[10px] capitalize">{job.status}</Badge>
+                    </div>
+                    {job.description && <p className="text-xs text-muted-foreground line-clamp-2">{job.description}</p>}
+                    {job.reward && <div className="text-xs font-medium text-amber-600">💰 {job.reward}</div>}
+                    {job.skillsRequired && job.skillsRequired.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {job.skillsRequired.map((s) => <Badge key={s} variant="outline" className="text-[10px]">{s}</Badge>)}
+                      </div>
+                    )}
+                    {job.status === "open" && assignedAgents.length > 0 && (
+                      <div className="pt-2">
+                        <Select onValueChange={async (agentId) => {
+                          try {
+                            await claimJob(job.id, agentId, job.orgId, job.projectId);
+                            await loadProjectData();
+                          } catch (e) { setError(e instanceof Error ? e.message : "Claim failed"); }
+                        }}>
+                          <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Claim for agent..." /></SelectTrigger>
+                          <SelectContent>
+                            {assignedAgents.map((a) => <SelectItem key={a.id} value={a.id}>🤖 {a.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    {job.claimedBy && (
+                      <div className="text-xs text-muted-foreground">🤖 {assignedAgents.find(a => a.id === job.claimedBy)?.name || job.claimedBy}</div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Create Job Dialog */}
+        <Dialog open={showCreateJob} onOpenChange={setShowCreateJob}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Post a Job for this Project</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <Input placeholder="Job title" value={newJobTitle} onChange={(e) => setNewJobTitle(e.target.value)} />
+              <Textarea placeholder="Description" value={newJobDesc} onChange={(e) => setNewJobDesc(e.target.value)} rows={3} />
+              <Input placeholder="Reward (optional)" value={newJobReward} onChange={(e) => setNewJobReward(e.target.value)} />
+              <Select value={newJobPriority} onValueChange={(v: 'low'|'medium'|'high') => setNewJobPriority(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setShowCreateJob(false)}>Cancel</Button>
+                <Button
+                  disabled={creatingJob || !newJobTitle.trim()}
+                  className="bg-amber-500 hover:bg-amber-600 text-black font-semibold"
+                  onClick={async () => {
+                    if (!currentOrg || !newJobTitle.trim()) return;
+                    setCreatingJob(true);
+                    try {
+                      await createJob({
+                        orgId: currentOrg.id,
+                        projectId,
+                        title: newJobTitle.trim(),
+                        description: newJobDesc.trim(),
+                        status: 'open',
+                        reward: newJobReward.trim() || undefined,
+                        createdBy: account?.address || 'unknown',
+                        priority: newJobPriority,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                      });
+                      setNewJobTitle(''); setNewJobDesc(''); setNewJobReward(''); setNewJobPriority('medium');
+                      setShowCreateJob(false);
+                      await loadProjectData();
+                    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to create job'); }
+                    finally { setCreatingJob(false); }
+                  }}
+                >
+                  {creatingJob ? 'Posting...' : 'Post Job'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Agent Map Tab */}
         <TabsContent value="map">
