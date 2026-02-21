@@ -83,20 +83,126 @@ Open [http://localhost:3000](http://localhost:3000) to launch Swarm.
 
 ## Architecture
 
+### System Overview
+
+```mermaid
+graph TB
+    subgraph Client["🖥️ Frontend"]
+        UI[Next.js 16 + React 19]
+        TW[Thirdweb Wallet Auth]
+    end
+
+    subgraph Backend["⚙️ Backend"]
+        HUB[Express + WebSocket Hub]
+        OC[OpenClaw Agent Orchestrator]
+    end
+
+    subgraph Storage["💾 Storage"]
+        FS[Firebase Firestore]
+    end
+
+    subgraph Chains["⛓️ Blockchain"]
+        BASE[Base Chain]
+        HEDERA[Hedera Chain]
+    end
+
+    subgraph Fleet["🤖 Agent Fleet"]
+        RA[Research Agent]
+        TA[Trading Agent]
+        OA[Operations Agent]
+        SA[Support Agent]
+        AA[Analytics Agent]
+    end
+
+    UI -->|REST + WebSocket| HUB
+    UI -->|Auth| TW
+    TW -->|Sign| BASE
+    TW -->|Sign| HEDERA
+    HUB -->|Orchestrate| OC
+    OC -->|Manage| Fleet
+    HUB -->|Read/Write| FS
+    Fleet -->|State| FS
+    Fleet -->|Transactions| BASE
+    Fleet -->|Transactions| HEDERA
 ```
-┌─────────────────────────────────┐
-│       Swarm Dashboard UI        │
-│   (Next.js 16 + React 19)      │
-├─────────────────────────────────┤
-│      Agent Fleet Orchestration  │
-│         (OpenClaw)              │
-├──────────┬──────────────────────┤
-│  Base    │      Hedera          │
-│  Chain   │      Chain           │
-├──────────┴──────────────────────┤
-│     Firebase Firestore          │
-│  (Real-time Agent & Task State) │
-└─────────────────────────────────┘
+
+### Agent Task Flow
+
+```mermaid
+sequenceDiagram
+    actor Operator as 👤 Operator
+    participant UI as 🖥️ Dashboard
+    participant Hub as ⚙️ Hub
+    participant DB as 💾 Firestore
+    participant Agent as 🤖 Agent
+
+    Operator->>UI: Create Task
+    UI->>Hub: POST /tasks
+    Hub->>DB: Store Task
+    Hub->>Agent: Assign Task via WebSocket
+    Agent->>DB: Update status → in_progress
+    Agent->>Agent: Execute Task
+    Agent->>DB: Store results
+    Agent->>Hub: Task complete
+    Hub->>UI: Real-time update
+    UI->>Operator: Notify completion
+```
+
+### Organization & Project Structure
+
+```mermaid
+graph TD
+    subgraph Org["🏢 Organization"]
+        subgraph P1["📋 Project Alpha"]
+            A1[🤖 Research Agent]
+            A2[🤖 Trading Agent]
+            T1[📝 Task: Market Analysis]
+            T2[📝 Task: Execute Trades]
+            C1[💬 Channel: Strategy]
+        end
+        subgraph P2["📋 Project Beta"]
+            A3[🤖 Operations Agent]
+            A4[🤖 Support Agent]
+            T3[📝 Task: Monitor Systems]
+            C2[💬 Channel: Ops]
+        end
+        M1[👤 Member: Admin]
+        M2[👤 Member: Operator]
+    end
+
+    M1 -->|Manages| P1
+    M1 -->|Manages| P2
+    M2 -->|Operates| P1
+    A1 -->|Works on| T1
+    A2 -->|Works on| T2
+    A3 -->|Works on| T3
+    A1 ---|Collaborates| C1
+    A2 ---|Collaborates| C1
+    A3 ---|Collaborates| C2
+    A4 ---|Collaborates| C2
+```
+
+### Real-time Communication Flow
+
+```mermaid
+sequenceDiagram
+    actor Op as 👤 Operator
+    participant UI as 🖥️ Dashboard
+    participant WS as 🔌 WebSocket Hub
+    participant DB as 💾 Firestore
+    participant A1 as 🤖 Agent 1
+    participant A2 as 🤖 Agent 2
+
+    Op->>UI: Send command in Channel
+    UI->>WS: Message via WebSocket
+    WS->>DB: Persist message
+    WS->>A1: Broadcast to Agent 1
+    WS->>A2: Broadcast to Agent 2
+    A1->>WS: Response + status update
+    A2->>WS: Response + analysis
+    WS->>DB: Persist responses
+    WS->>UI: Real-time updates
+    UI->>Op: Display responses
 ```
 
 ## Repo Structure
