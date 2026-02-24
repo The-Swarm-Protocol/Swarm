@@ -2,10 +2,10 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { useActiveAccount } from 'thirdweb/react';
-import { 
-  createOrganization, 
-  getOrganizationsByWallet, 
-  type Organization 
+import {
+  createOrganization,
+  getOrganizationsByWallet,
+  type Organization
 } from '@/lib/firestore';
 
 interface OrgContextValue {
@@ -32,9 +32,9 @@ const OrgContext = createContext<OrgContextValue>({
   organizations: [],
   loading: true,
   error: null,
-  selectOrg: () => {},
-  refreshOrgs: async () => {},
-  createOrg: async () => {},
+  selectOrg: () => { },
+  refreshOrgs: async () => { },
+  createOrg: async () => { },
   getToken: async () => null,
 });
 
@@ -47,7 +47,7 @@ const ORG_STORAGE_KEY = 'swarm_selected_org_id';
 export function OrgProvider({ children }: { children: ReactNode }) {
   const account = useActiveAccount();
   const address = account?.address;
-  
+
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [currentOrg, setCurrentOrg] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
@@ -95,7 +95,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
-    
+
     setLoading(true);
     await fetchOrgs(address);
     setLoading(false);
@@ -128,9 +128,9 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       await refreshOrgs();
 
       // Auto-select the new org
-      const newOrg = organizations.find(o => o.id === orgId) || 
-                    (await getOrganizationsByWallet(address)).find(o => o.id === orgId);
-      
+      const newOrg = organizations.find(o => o.id === orgId) ||
+        (await getOrganizationsByWallet(address)).find(o => o.id === orgId);
+
       if (newOrg) {
         setCurrentOrg(newOrg);
         localStorage.setItem(ORG_STORAGE_KEY, orgId);
@@ -148,11 +148,11 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     if (address) {
       refreshOrgs();
     } else {
-      // No wallet connected - clear state
+      // No wallet connected - clear in-memory state only
+      // Keep localStorage so org selection persists across reconnects
       setOrganizations([]);
       setCurrentOrg(null);
       setLoading(false);
-      localStorage.removeItem(ORG_STORAGE_KEY);
     }
   }, [address, refreshOrgs]);
 
