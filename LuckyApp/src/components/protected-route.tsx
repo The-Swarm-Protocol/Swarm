@@ -2,8 +2,13 @@
 
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useActiveAccount } from 'thirdweb/react';
+import { useActiveAccount, useAutoConnect } from 'thirdweb/react';
+import { createThirdwebClient } from 'thirdweb';
 import { useOrg } from '@/contexts/OrgContext';
+
+const client = createThirdwebClient({
+  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || 'cbd8abcfa13db759ca2f5fa7d8a5a5e5',
+});
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const account = useActiveAccount();
@@ -11,8 +16,15 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { organizations, loading } = useOrg();
   const router = useRouter();
   const pathname = usePathname();
+  const { isLoading: isAutoConnecting } = useAutoConnect({
+    client,
+    timeout: 15000,
+  });
 
   useEffect(() => {
+    // Don't redirect while auto-reconnect is still in progress
+    if (isAutoConnecting) return;
+
     // First check: wallet connection
     if (!isConnected) {
       router.push('/');
@@ -30,10 +42,10 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         router.push('/dashboard');
       }
     }
-  }, [isConnected, organizations.length, loading, router, pathname]);
+  }, [isConnected, organizations.length, loading, router, pathname, isAutoConnecting]);
 
-  // Show nothing while loading or if not connected
-  if (!isConnected || loading) {
+  // Show nothing while auto-reconnecting, loading, or not connected
+  if (isAutoConnecting || !isConnected || loading) {
     return null;
   }
 
