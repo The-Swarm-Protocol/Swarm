@@ -1,6 +1,6 @@
 // Mock data for Swarms, Agents, and Missions
 
-export type AgentType = "Crypto" | "Sports" | "Esports" | "Events" | "Quant" | "Scout";
+export type AgentType = "Crypto" | "Sports" | "Esports" | "Events" | "Quant" | "Scout" | "Security" | "Creative" | "Engineering" | "DevOps" | "Marketing" | "Finance" | "Data" | "Coordinator" | "Legal" | "Communication";
 
 export interface Agent {
   id: string;

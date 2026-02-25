@@ -50,7 +50,7 @@ export interface Agent {
   id: string;
   orgId: string;
   name: string;
-  type: 'Research' | 'Trading' | 'Operations' | 'Support' | 'Analytics' | 'Scout';
+  type: 'Research' | 'Trading' | 'Operations' | 'Support' | 'Analytics' | 'Scout' | 'Security' | 'Creative' | 'Engineering' | 'DevOps' | 'Marketing' | 'Finance' | 'Data' | 'Coordinator' | 'Legal' | 'Communication';
   description: string;
   capabilities: string[];
   status: 'online' | 'offline' | 'busy';
@@ -161,26 +161,26 @@ export async function getOrganizationsByWallet(walletAddress: string): Promise<O
   // Get orgs where user is owner OR in members array
   const ownerQuery = query(collection(db, "organizations"), where("ownerAddress", "==", walletAddress));
   const memberQuery = query(collection(db, "organizations"), where("members", "array-contains", walletAddress));
-  
+
   const [ownerSnap, memberSnap] = await Promise.all([
     getDocs(ownerQuery),
     getDocs(memberQuery)
   ]);
-  
+
   const orgMap = new Map<string, Organization>();
-  
+
   // Add orgs where user is owner
   ownerSnap.docs.forEach(d => {
     orgMap.set(d.id, { id: d.id, ...d.data() } as Organization);
   });
-  
+
   // Add orgs where user is member (avoid duplicates)
   memberSnap.docs.forEach(d => {
     if (!orgMap.has(d.id)) {
       orgMap.set(d.id, { id: d.id, ...d.data() } as Organization);
     }
   });
-  
+
   return Array.from(orgMap.values());
 }
 
@@ -341,11 +341,11 @@ export async function getChannelsByOrg(orgId: string): Promise<Channel[]> {
 export async function ensureGeneralChannel(orgId: string): Promise<string> {
   const channels = await getChannelsByOrg(orgId);
   const generalChannel = channels.find(c => c.name.toLowerCase() === 'general');
-  
+
   if (generalChannel) {
     return generalChannel.id;
   }
-  
+
   // Create General channel
   return await createChannel({
     orgId,

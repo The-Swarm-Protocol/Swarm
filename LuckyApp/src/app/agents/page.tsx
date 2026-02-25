@@ -27,9 +27,19 @@ const TYPE_COLORS: Record<string, string> = {
   Support: "bg-yellow-100 text-yellow-700 border-yellow-200",
   Analytics: "bg-cyan-100 text-cyan-700 border-cyan-200",
   Scout: "bg-amber-100 text-amber-700 border-amber-200",
+  Security: "bg-red-100 text-red-700 border-red-200",
+  Creative: "bg-pink-100 text-pink-700 border-pink-200",
+  Engineering: "bg-blue-100 text-blue-700 border-blue-200",
+  DevOps: "bg-orange-100 text-orange-700 border-orange-200",
+  Marketing: "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200",
+  Finance: "bg-lime-100 text-lime-700 border-lime-200",
+  Data: "bg-indigo-100 text-indigo-700 border-indigo-200",
+  Coordinator: "bg-teal-100 text-teal-700 border-teal-200",
+  Legal: "bg-slate-100 text-slate-700 border-slate-200",
+  Communication: "bg-sky-100 text-sky-700 border-sky-200",
 };
 
-const AGENT_TYPES: Agent['type'][] = ['Research', 'Trading', 'Operations', 'Support', 'Analytics', 'Scout'];
+const AGENT_TYPES: Agent['type'][] = ['Research', 'Trading', 'Operations', 'Support', 'Analytics', 'Scout', 'Security', 'Creative', 'Engineering', 'DevOps', 'Marketing', 'Finance', 'Data', 'Coordinator', 'Legal', 'Communication'];
 
 const TYPE_DESCRIPTIONS: Record<Agent['type'], string> = {
   Research: "Information gathering and analysis",
@@ -38,6 +48,16 @@ const TYPE_DESCRIPTIONS: Record<Agent['type'], string> = {
   Support: "Customer service and assistance",
   Analytics: "Data analysis and insights",
   Scout: "Reconnaissance and monitoring",
+  Security: "Cybersecurity monitoring and threat detection",
+  Creative: "Content generation and creative design",
+  Engineering: "Code generation and software development",
+  DevOps: "Infrastructure and CI/CD automation",
+  Marketing: "Growth strategy and campaign management",
+  Finance: "Financial modeling and reporting",
+  Data: "Data pipelines and ETL processing",
+  Coordinator: "Multi-agent orchestration and routing",
+  Legal: "Compliance and document review",
+  Communication: "Outreach, messaging, and notifications",
 };
 
 // ---------------------------------------------------------------------------
@@ -261,7 +281,7 @@ export default function AgentsPage() {
       }
       await updateAgent(editAgent.id, updates);
       setShowEdit(false);
-      
+
     } catch (err) {
       console.error('Failed to update agent:', err);
       setError(err instanceof Error ? err.message : 'Failed to update agent');
@@ -282,7 +302,7 @@ export default function AgentsPage() {
       await deleteAgent(deleteTarget.id);
       setShowDelete(false);
       setDeleteTarget(null);
-      
+
     } catch (err) {
       console.error('Failed to delete agent:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete agent');
@@ -373,7 +393,7 @@ export default function AgentsPage() {
       setCopied(false);
 
       // Reload agents
-      
+
     } catch (err) {
       console.error('Failed to register agent:', err);
       setError(err instanceof Error ? err.message : 'Failed to register agent');
@@ -466,7 +486,7 @@ export default function AgentsPage() {
           <div className="text-4xl mb-4">🤖</div>
           <p className="text-lg">No agents yet</p>
           <p className="text-sm mt-1">Register your first agent to get started</p>
-          <Button 
+          <Button
             onClick={() => setShowRegister(true)}
             className="mt-4"
           >
@@ -492,14 +512,12 @@ export default function AgentsPage() {
                         <CardTitle className="text-lg truncate">{agent.name}</CardTitle>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge className={TYPE_COLORS[agent.type] || ""}>{agent.type}</Badge>
-                          <span className={`text-xs font-medium flex items-center gap-1.5 ${
-                            agent.status === "online" ? "text-emerald-400" : 
-                            agent.status === "busy" ? "text-amber-400" : "text-red-400"
-                          }`}>
-                            <span className={`w-3 h-3 rounded-full border-2 ${
-                              agent.status === "online" ? "bg-emerald-500 border-emerald-300 shadow-[0_0_6px_rgba(16,185,129,0.6)]" : 
-                              agent.status === "busy" ? "bg-amber-500 border-amber-300 shadow-[0_0_6px_rgba(245,158,11,0.6)]" : "bg-red-500 border-red-300 shadow-[0_0_6px_rgba(239,68,68,0.6)]"
-                            }`} />
+                          <span className={`text-xs font-medium flex items-center gap-1.5 ${agent.status === "online" ? "text-emerald-400" :
+                              agent.status === "busy" ? "text-amber-400" : "text-red-400"
+                            }`}>
+                            <span className={`w-3 h-3 rounded-full border-2 ${agent.status === "online" ? "bg-emerald-500 border-emerald-300 shadow-[0_0_6px_rgba(16,185,129,0.6)]" :
+                                agent.status === "busy" ? "bg-amber-500 border-amber-300 shadow-[0_0_6px_rgba(245,158,11,0.6)]" : "bg-red-500 border-red-300 shadow-[0_0_6px_rgba(239,68,68,0.6)]"
+                              }`} />
                             {agent.status}
                           </span>
                         </div>
@@ -570,7 +588,7 @@ export default function AgentsPage() {
                 onKeyDown={e => e.key === 'Enter' && handleRegisterAgent()}
               />
             </div>
-            
+
             <div>
               <label className="text-sm font-medium mb-1 block">Agent Type *</label>
               <Select value={agentType} onValueChange={(value: Agent['type']) => setAgentType(value)}>

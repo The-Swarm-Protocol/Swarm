@@ -24,12 +24,22 @@ export interface OutputNodeData {
 // ─── Price Configuration ────────────────────────────────
 
 export const AGENT_TYPE_COSTS: Record<Agent['type'], number> = {
-  Research: 150,     // $1.50
-  Trading: 300,      // $3.00
-  Operations: 100,   // $1.00
-  Support: 75,       // $0.75
-  Analytics: 200,    // $2.00
-  Scout: 125,        // $1.25
+  Research: 150,       // $1.50
+  Trading: 300,        // $3.00
+  Operations: 100,     // $1.00
+  Support: 75,         // $0.75
+  Analytics: 200,      // $2.00
+  Scout: 125,          // $1.25
+  Security: 250,       // $2.50
+  Creative: 175,       // $1.75
+  Engineering: 350,    // $3.50
+  DevOps: 225,         // $2.25
+  Marketing: 150,      // $1.50
+  Finance: 275,        // $2.75
+  Data: 200,           // $2.00
+  Coordinator: 100,    // $1.00
+  Legal: 300,          // $3.00
+  Communication: 125,  // $1.25
 };
 
 export const AGENT_TYPE_ICONS: Record<Agent['type'], string> = {
@@ -39,6 +49,16 @@ export const AGENT_TYPE_ICONS: Record<Agent['type'], string> = {
   Support: '🛟',
   Analytics: '📊',
   Scout: '🔭',
+  Security: '🛡️',
+  Creative: '🎨',
+  Engineering: '💻',
+  DevOps: '🚀',
+  Marketing: '📣',
+  Finance: '💰',
+  Data: '🗄️',
+  Coordinator: '🎯',
+  Legal: '⚖️',
+  Communication: '📡',
 };
 
 // ─── Workflow Validation ────────────────────────────────
