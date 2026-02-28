@@ -158,7 +158,7 @@ async function cmdRegister() {
     }
   } else {
     console.log(`✅ Registered as "${name}" (${type})`);
-    try { await cmdLog("info", `Agent "${name}" registered (no Firestore ID)`); } catch {}
+    try { await cmdLog("info", `Agent "${name}" registered (no Firestore ID)`); } catch { }
   }
 
   console.log(`   Org:      ${orgId}`);
@@ -278,7 +278,7 @@ async function cmdTaskAssign() {
       return a.organizationId === creds.orgId && (d.id === assignee || (a.name || "").toLowerCase() === assignee.toLowerCase());
     });
     if (match) agentId = match.id;
-  } catch {}
+  } catch { }
 
   await updateDoc(doc(db, "tasks", taskId), { assignedTo: agentId, updatedAt: serverTimestamp() });
   console.log(`✅ Task ${taskId} assigned to ${agentId}`);
@@ -365,7 +365,7 @@ async function cmdChatPoll() {
   // Load poll state (tracks last seen timestamp per channel)
   let pollState = {};
   if (existsSync(STATE_PATH)) {
-    try { pollState = JSON.parse(readFileSync(STATE_PATH, "utf-8")); } catch {}
+    try { pollState = JSON.parse(readFileSync(STATE_PATH, "utf-8")); } catch { }
   }
 
   // 1. Get agent doc to find projectIds
@@ -478,7 +478,7 @@ async function cmdChatPoll() {
     if (totalNew > 0) {
       await cmdLog("info", `Poll found ${totalNew} new message(s)`);
     }
-  } catch {}
+  } catch { }
 }
 
 async function cmdChatListen() {
@@ -549,7 +549,7 @@ function loadAllAgentCreds() {
   for (const f of files) {
     try {
       agents.push(JSON.parse(readFileSync(join(AGENTS_DIR, f), "utf-8")));
-    } catch {}
+    } catch { }
   }
   return agents;
 }
@@ -557,7 +557,7 @@ function loadAllAgentCreds() {
 // ---------------------------------------------------------------------------
 // Single-agent daemon runner (used by both single and --all modes)
 // ---------------------------------------------------------------------------
-async function runAgentDaemon(creds, { agentIndex = 0, allLocalAgents = [], hubUrl, gatewayUrl, gatewayToken }) {
+async function runAgentDaemon(creds, { agentIndex = 0, allLocalAgents = [], hubUrl, gatewayUrl, gatewayToken, openclawApiUrl }) {
   const db = getDb();
   const logPrefix = `[${creds.agentName}]`;
   const log = (msg) => console.log(`${logPrefix} ${msg}`);
@@ -702,6 +702,75 @@ async function runAgentDaemon(creds, { agentIndex = 0, allLocalAgents = [], hubU
     }
   }
 
+  // --- OpenClaw Native Sessions API ---
+  // Uses sessions_spawn / sessions_send instead of execSync('openclaw agent ...')
+  let sessionId = null;
+
+  async function getOrCreateSession() {
+    if (sessionId) return sessionId;
+    try {
+      const resp = await fetch(`${openclawApiUrl}/api/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agent: "main",
+          metadata: {
+            source: "swarm-connect",
+            agentName: creds.agentName,
+            agentType: creds.agentType,
+          },
+        }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        sessionId = data.id || data.sessionId;
+        log(`   🔗 OpenClaw session created: ${sessionId}`);
+        return sessionId;
+      }
+      log(`   ⚠️ Session create failed (${resp.status})`);
+      return null;
+    } catch (err) {
+      log(`   ⚠️ OpenClaw API unreachable: ${err.message}`);
+      return null;
+    }
+  }
+
+  async function sendViaSessionsApi(message) {
+    const sid = await getOrCreateSession();
+    if (!sid) return false;
+    try {
+      const resp = await fetch(`${openclawApiUrl}/api/sessions/${sid}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: message, role: "user" }),
+      });
+      if (resp.ok) {
+        log(`   ✅ Sent via OpenClaw sessions API`);
+        return true;
+      }
+      // Session may have expired — try once with a new session
+      if (resp.status === 404 || resp.status === 410) {
+        sessionId = null;
+        const newSid = await getOrCreateSession();
+        if (!newSid) return false;
+        const retry = await fetch(`${openclawApiUrl}/api/sessions/${newSid}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: message, role: "user" }),
+        });
+        if (retry.ok) {
+          log(`   ✅ Sent via OpenClaw sessions API (new session)`);
+          return true;
+        }
+      }
+      log(`   ⚠️ Sessions API send failed (${resp.status})`);
+      return false;
+    } catch (err) {
+      log(`   ⚠️ Sessions API error: ${err.message}`);
+      return false;
+    }
+  }
+
   async function triggerAgentResponse(channelId, channelName, projName, from, senderType, text, projId) {
     // --- Turn-taking for multi-agent on same machine ---
     const myName = creds.agentName.toLowerCase();
@@ -713,7 +782,7 @@ async function runAgentDaemon(creds, { agentIndex = 0, allLocalAgents = [], hubU
       const minDelay = agentIndex * 3000;
       const maxDelay = agentIndex * 5000;
       const delay = minDelay + Math.random() * (maxDelay - minDelay);
-      log(`   ⏳ Turn-taking: waiting ${Math.round(delay/1000)}s (agent #${agentIndex})`);
+      log(`   ⏳ Turn-taking: waiting ${Math.round(delay / 1000)}s (agent #${agentIndex})`);
       await new Promise(r => setTimeout(r, delay));
 
       // Re-check cooldown after waiting (another agent may have responded)
@@ -774,17 +843,11 @@ Rules:
 - If tasks were just created, confirm what was created and offer to start working on them.
 - Be friendly, use emoji occasionally, feel like a real teammate.`;
 
-    try {
-      const { execSync } = await import("node:child_process");
-      const escapedMsg = taskMsg.replace(/'/g, "'\\''");
-      execSync(`openclaw agent --agent main --message '${escapedMsg}' --json`, { timeout: 45000, stdio: 'pipe' });
-      log(`   ✅ Triggered agent response`);
-      return;
-    } catch (cronErr) {
-      log(`   ⚠️ Agent trigger failed: ${cronErr.message?.substring(0, 200)}`);
-    }
+    // --- Option 2: Use OpenClaw's native sessions API (safe, no execSync) ---
+    const sent = await sendViaSessionsApi(taskMsg);
+    if (sent) return;
 
-    // Fallback
+    // Fallback: write a generic response directly to Firestore
     try {
       const roleResponses = {
         scout: [`🔍 Interesting question, ${from}! Let me scout around for info on that.`, `📡 On it! Scanning for relevant data...`, `🔎 Good point — let me dig into that.`],
@@ -937,13 +1000,13 @@ Rules:
           for (const d of snap.docs) {
             handleNewMessage(channelId, d.data(), d.id);
           }
-        } catch {}
+        } catch { }
       }
     }, 5000);
   }
 
   // --- Start ---
-  try { await updateDoc(doc(db, "agents", creds.agentId), { status: "online", lastSeen: serverTimestamp() }); } catch {}
+  try { await updateDoc(doc(db, "agents", creds.agentId), { status: "online", lastSeen: serverTimestamp() }); } catch { }
 
   await startFirestorePolling();
 
@@ -973,7 +1036,7 @@ Rules:
           } else if (msg.type === "agent:offline") {
             log(`   🔴 ${msg.agentName || msg.agentId} offline`);
           }
-        } catch {}
+        } catch { }
       });
       ws.on("close", (code) => {
         log(`   🔌 WebSocket closed (${code}). Reconnecting in 5s...`);
@@ -992,7 +1055,7 @@ Rules:
   } else { log(`   📡 Hub unavailable. Firestore active.`); }
 
   // Heartbeat every 60s
-  setInterval(async () => { try { await updateDoc(doc(db, "agents", creds.agentId), { lastSeen: serverTimestamp(), status: "online" }); } catch {} }, 60000);
+  setInterval(async () => { try { await updateDoc(doc(db, "agents", creds.agentId), { lastSeen: serverTimestamp(), status: "online" }); } catch { } }, 60000);
   setInterval(() => refreshJwt(), 720000);
 
   log(`🟢 Daemon running.`);
@@ -1000,7 +1063,7 @@ Rules:
   // Return cleanup function
   return () => {
     if (ws) ws.close();
-    updateDoc(doc(db, "agents", creds.agentId), { status: "offline" }).catch(() => {});
+    updateDoc(doc(db, "agents", creds.agentId), { status: "offline" }).catch(() => { });
   };
 }
 
@@ -1009,9 +1072,11 @@ async function cmdDaemon() {
   const hubUrl = arg("--hub") || process.env.SWARM_HUB_URL || "https://hub.perkos.xyz";
   const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL || "http://localhost:18789";
   const gatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN || arg("--gateway-token") || "";
+  const openclawApiUrl = arg("--openclaw-api") || process.env.OPENCLAW_API_URL || "http://localhost:3080";
 
   console.log(`   Hub: ${hubUrl}`);
   console.log(`   Gateway: ${gatewayUrl}`);
+  console.log(`   OpenClaw API: ${openclawApiUrl}`);
 
   const cleanups = [];
 
@@ -1032,13 +1097,13 @@ async function cmdDaemon() {
     console.log();
 
     for (let i = 0; i < allAgents.length; i++) {
-      const cleanup = await runAgentDaemon(allAgents[i], { agentIndex: i, allLocalAgents: allAgents, hubUrl, gatewayUrl, gatewayToken });
+      const cleanup = await runAgentDaemon(allAgents[i], { agentIndex: i, allLocalAgents: allAgents, hubUrl, gatewayUrl, gatewayToken, openclawApiUrl });
       cleanups.push(cleanup);
     }
   } else {
     // --- Single agent mode (backward compat) ---
     const creds = loadCreds();
-    const cleanup = await runAgentDaemon(creds, { agentIndex: 0, allLocalAgents: [creds], hubUrl, gatewayUrl, gatewayToken });
+    const cleanup = await runAgentDaemon(creds, { agentIndex: 0, allLocalAgents: [creds], hubUrl, gatewayUrl, gatewayToken, openclawApiUrl });
     cleanups.push(cleanup);
   }
 

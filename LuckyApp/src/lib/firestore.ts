@@ -539,11 +539,21 @@ export function onAgentCommsByOrg(
 ): Unsubscribe {
   const q = query(
     collection(db, "agentComms"),
-    where("orgId", "==", orgId),
-    orderBy("createdAt", "desc")
+    where("orgId", "==", orgId)
   );
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as AgentComm)));
+    const comms = snap.docs
+      .map(d => ({ id: d.id, ...d.data() } as AgentComm))
+      .sort((a, b) => {
+        const aTime = a.createdAt && typeof a.createdAt === 'object' && 'seconds' in a.createdAt
+          ? (a.createdAt as { seconds: number }).seconds
+          : 0;
+        const bTime = b.createdAt && typeof b.createdAt === 'object' && 'seconds' in b.createdAt
+          ? (b.createdAt as { seconds: number }).seconds
+          : 0;
+        return bTime - aTime;
+      });
+    callback(comms);
   });
 }
 

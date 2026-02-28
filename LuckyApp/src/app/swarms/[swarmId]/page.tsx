@@ -33,6 +33,7 @@ import {
   claimJob,
   closeJob,
   updateJob,
+  onAgentCommsByOrg,
   type Project,
   type Agent,
   type Task,
@@ -40,6 +41,7 @@ import {
   type Message,
   type Channel,
   type Profile,
+  type AgentComm,
   updateProject,
   deleteProject,
   getProfile,
@@ -69,6 +71,9 @@ export default function ProjectDetailPage() {
   const [unassignedAgents, setUnassignedAgents] = useState<Agent[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [agentComms, setAgentComms] = useState<AgentComm[]>([]);
+  const [commsFilterType, setCommsFilterType] = useState<string>('all');
+  const [commsSearch, setCommsSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -160,6 +165,15 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     loadProjectData();
   }, [projectId, currentOrg]);
+
+  // Subscribe to agent comms for this org
+  useEffect(() => {
+    if (!currentOrg) return;
+    const unsub = onAgentCommsByOrg(currentOrg.id, (comms) => {
+      setAgentComms(comms);
+    });
+    return () => unsub();
+  }, [currentOrg]);
 
   // Auto-create project channel & subscribe to messages
   useEffect(() => {
@@ -400,19 +414,19 @@ export default function ProjectDetailPage() {
 
   const formatTime = (timestamp: unknown) => {
     if (!timestamp) return 'Unknown time';
-    
+
     let date: Date;
     if (timestamp && typeof timestamp === 'object' && 'seconds' in timestamp) {
       date = new Date((timestamp as any).seconds * 1000);
     } else {
       date = new Date(timestamp as any);
     }
-    
+
     const diff = Date.now() - date.getTime();
     const mins = Math.floor(diff / 60000);
     const hrs = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
-    
+
     if (days > 0) return `${days}d ago`;
     if (hrs > 0) return `${hrs}h ago`;
     if (mins > 0) return `${mins}m ago`;
@@ -460,12 +474,12 @@ export default function ProjectDetailPage() {
                   project.status === "active"
                     ? "bg-amber-100 text-amber-700 border-amber-200"
                     : project.status === "paused"
-                    ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-                    : "bg-muted text-muted-foreground border-border"
+                      ? "bg-yellow-100 text-yellow-700 border-yellow-200"
+                      : "bg-muted text-muted-foreground border-border"
                 }
               >
-                {project.status === "active" ? "● Active" : 
-                 project.status === "paused" ? "⏸ Paused" : "✓ Done"}
+                {project.status === "active" ? "● Active" :
+                  project.status === "paused" ? "⏸ Paused" : "✓ Done"}
               </Badge>
             </div>
             <p className="text-muted-foreground mt-1">{project.description || 'No description'}</p>
@@ -520,13 +534,14 @@ export default function ProjectDetailPage() {
             )}
           </TabsTrigger>
           <TabsTrigger value="map">🗺️ Agent Map</TabsTrigger>
-          <TabsTrigger value="channel">📡 Project Channel</TabsTrigger>
+          <TabsTrigger value="comms">📡 Agent Comms</TabsTrigger>
+          <TabsTrigger value="channel">💬 Project Channel</TabsTrigger>
         </TabsList>
 
         {/* Agents Tab */}
         <TabsContent value="agents" className="space-y-4">
           <div className="flex justify-end">
-            <Button 
+            <Button
               onClick={() => setShowAssignAgent(true)}
               disabled={unassignedAgents.length === 0}
               className="bg-amber-600 hover:bg-amber-700 text-black"
@@ -548,8 +563,8 @@ export default function ProjectDetailPage() {
                       <div className="flex items-center gap-2 mt-0.5">
                         <Badge variant="secondary" className="text-xs">{agent.type}</Badge>
                         <span className={`text-xs ${agent.status === "online" ? "text-emerald-600" : agent.status === "busy" ? "text-orange-600" : "text-muted-foreground"}`}>
-                          {agent.status === "online" ? "● Online" : 
-                           agent.status === "busy" ? "● Busy" : "○ Offline"}
+                          {agent.status === "online" ? "● Online" :
+                            agent.status === "busy" ? "● Busy" : "○ Offline"}
                         </span>
                       </div>
                     </div>
@@ -562,7 +577,7 @@ export default function ProjectDetailPage() {
                       {(agent.capabilities ?? []).length} capabilities
                     </span>
                     <Button
-                      variant="outline" 
+                      variant="outline"
                       size="sm"
                       onClick={() => handleUnassignAgent(agent.id)}
                       className="text-red-600 hover:bg-red-50"
@@ -578,7 +593,7 @@ export default function ProjectDetailPage() {
                 <div className="text-4xl mb-3">🤖</div>
                 <p>No agents assigned</p>
                 {unassignedAgents.length > 0 ? (
-                  <Button 
+                  <Button
                     onClick={() => setShowAssignAgent(true)}
                     className="mt-2"
                   >
@@ -602,7 +617,7 @@ export default function ProjectDetailPage() {
         {/* Tasks Tab */}
         <TabsContent value="tasks" className="space-y-4">
           <div className="flex justify-end">
-            <Button 
+            <Button
               onClick={() => setShowCreateTask(true)}
               className="bg-amber-600 hover:bg-amber-700 text-black"
             >
@@ -615,16 +630,16 @@ export default function ProjectDetailPage() {
               const assignee = task.assigneeAgentId ? assignedAgents.find(a => a.id === task.assigneeAgentId) : null;
               const priority = PRIORITY_LABELS[task.priority] || PRIORITY_LABELS.medium;
               return (
-                <Card key={task.id} className="cursor-pointer hover:border-amber-300" 
-                      onClick={() => { setSelectedTask(task); setShowTaskDetail(true); }}>
+                <Card key={task.id} className="cursor-pointer hover:border-amber-300"
+                  onClick={() => { setSelectedTask(task); setShowTaskDetail(true); }}>
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="font-medium">{task.title}</h3>
                           <Badge className={TASK_STATUS_COLORS[task.status] || ""}>
-                            {task.status === 'in_progress' ? 'In Progress' : 
-                             task.status === 'todo' ? 'To Do' : 'Done'}
+                            {task.status === 'in_progress' ? 'In Progress' :
+                              task.status === 'todo' ? 'To Do' : 'Done'}
                           </Badge>
                         </div>
                         <CardDescription>{task.description}</CardDescription>
@@ -643,7 +658,7 @@ export default function ProjectDetailPage() {
               <div className="text-center py-12 text-muted-foreground">
                 <div className="text-4xl mb-3">🎯</div>
                 <p>No tasks yet</p>
-                <Button 
+                <Button
                   onClick={() => setShowCreateTask(true)}
                   className="mt-2"
                 >
@@ -755,7 +770,7 @@ export default function ProjectDetailPage() {
               <Input placeholder="Job title" value={newJobTitle} onChange={(e) => setNewJobTitle(e.target.value)} />
               <Textarea placeholder="Description" value={newJobDesc} onChange={(e) => setNewJobDesc(e.target.value)} rows={3} />
               <Input placeholder="Reward (optional)" value={newJobReward} onChange={(e) => setNewJobReward(e.target.value)} />
-              <Select value={newJobPriority} onValueChange={(v: 'low'|'medium'|'high') => setNewJobPriority(v)}>
+              <Select value={newJobPriority} onValueChange={(v: 'low' | 'medium' | 'high') => setNewJobPriority(v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="low">Low</SelectItem>
@@ -845,6 +860,128 @@ export default function ProjectDetailPage() {
           </div>
         </TabsContent>
 
+        {/* Agent Comms Tab */}
+        <TabsContent value="comms">
+          <div className="space-y-4">
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Input
+                placeholder="Search communications..."
+                value={commsSearch}
+                onChange={(e) => setCommsSearch(e.target.value)}
+                className="max-w-xs"
+              />
+              <Select value={commsFilterType} onValueChange={setCommsFilterType}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="message">💬 Message</SelectItem>
+                  <SelectItem value="status">📊 Status</SelectItem>
+                  <SelectItem value="handoff">🤝 Handoff</SelectItem>
+                  <SelectItem value="error">❌ Error</SelectItem>
+                </SelectContent>
+              </Select>
+              {(commsFilterType !== 'all' || commsSearch) && (
+                <Button variant="outline" size="sm" onClick={() => { setCommsFilterType('all'); setCommsSearch(''); }}>Clear</Button>
+              )}
+            </div>
+
+            {/* Stats chips */}
+            <div className="flex gap-3 flex-wrap">
+              {[
+                { type: 'message', icon: '💬', label: 'Messages' },
+                { type: 'status', icon: '📊', label: 'Status' },
+                { type: 'handoff', icon: '🤝', label: 'Handoffs' },
+                { type: 'error', icon: '❌', label: 'Errors' },
+              ].map(({ type, icon, label }) => {
+                const count = agentComms.filter(c => c.type === type).length;
+                return (
+                  <button
+                    key={type}
+                    onClick={() => setCommsFilterType(commsFilterType === type ? 'all' : type)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-all ${commsFilterType === type ? 'ring-2 ring-amber-500/50 border-amber-500/40' : 'border-border/50 hover:border-amber-500/20'
+                      }`}
+                  >
+                    <span>{icon}</span>
+                    <span>{label}</span>
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{count}</Badge>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Feed */}
+            {(() => {
+              const filtered = agentComms.filter((comm) => {
+                if (commsFilterType !== 'all' && comm.type !== commsFilterType) return false;
+                if (commsSearch) {
+                  const q = commsSearch.toLowerCase();
+                  return (
+                    comm.content?.toLowerCase().includes(q) ||
+                    comm.fromAgentName?.toLowerCase().includes(q) ||
+                    comm.toAgentName?.toLowerCase().includes(q)
+                  );
+                }
+                return true;
+              });
+
+              if (filtered.length === 0) {
+                return (
+                  <div className="text-center py-16 text-muted-foreground">
+                    <div className="text-5xl mb-4">📡</div>
+                    <p className="text-lg font-medium">No agent communications yet</p>
+                    <p className="text-sm mt-2 max-w-md mx-auto">
+                      Communications will appear here as your agents coordinate, exchange status updates, and perform handoffs.
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+                  {filtered.map((comm) => {
+                    const typeStyles: Record<string, { badge: string; icon: string }> = {
+                      message: { badge: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400', icon: '💬' },
+                      status: { badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400', icon: '📊' },
+                      handoff: { badge: 'bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-400', icon: '🤝' },
+                      error: { badge: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400', icon: '❌' },
+                    };
+                    const style = typeStyles[comm.type] || typeStyles.message;
+                    return (
+                      <Card key={comm.id} className="border-border hover:border-amber-500/20 transition-colors">
+                        <CardContent className="p-3">
+                          <div className="flex items-start gap-3">
+                            <span className="text-lg mt-0.5 shrink-0">{style.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <Badge variant="outline" className={`text-[10px] ${style.badge}`}>
+                                  {comm.type.charAt(0).toUpperCase() + comm.type.slice(1)}
+                                </Badge>
+                                <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">🤖 {comm.fromAgentName}</span>
+                                <span className="text-muted-foreground text-xs">→</span>
+                                <span className="text-xs font-semibold text-cyan-600 dark:text-cyan-400">🤖 {comm.toAgentName}</span>
+                              </div>
+                              <p className="text-sm leading-relaxed">{comm.content}</p>
+                              {comm.metadata && Object.keys(comm.metadata).length > 0 && (
+                                <div className="mt-1.5 px-2 py-1 rounded bg-muted/50 text-[11px] text-muted-foreground font-mono truncate">
+                                  {JSON.stringify(comm.metadata).slice(0, 100)}{JSON.stringify(comm.metadata).length > 100 && '…'}
+                                </div>
+                              )}
+                            </div>
+                            <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">{formatTime(comm.createdAt)}</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        </TabsContent>
+
         {/* Channel Tab */}
         <TabsContent value="channel">
           <div className="grid grid-cols-[1fr_220px] gap-4">
@@ -888,11 +1025,10 @@ export default function ProjectDetailPage() {
                       <div key={msg.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
                         {/* Avatar */}
                         <div
-                          className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                            isAgent
+                          className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${isAgent
                               ? 'bg-amber-500/20 text-amber-400'
                               : 'bg-blue-500/20 text-blue-400'
-                          }`}
+                            }`}
                         >
                           {isAgent ? '🤖' : '👤'}
                         </div>
@@ -902,11 +1038,10 @@ export default function ProjectDetailPage() {
                             <span className="font-medium text-sm">{displayName}</span>
                             <Badge
                               variant="secondary"
-                              className={`text-[10px] px-1.5 py-0 ${
-                                isAgent
+                              className={`text-[10px] px-1.5 py-0 ${isAgent
                                   ? 'bg-amber-500/15 text-amber-500 border-amber-500/30'
                                   : 'bg-blue-500/15 text-blue-400 border-blue-500/30'
-                              }`}
+                                }`}
                             >
                               {badgeLabel}
                             </Badge>
@@ -917,13 +1052,12 @@ export default function ProjectDetailPage() {
                             )}
                           </div>
                           <div
-                            className={`inline-block rounded-lg px-3 py-1.5 text-sm break-words ${
-                              isMe
+                            className={`inline-block rounded-lg px-3 py-1.5 text-sm break-words ${isMe
                                 ? 'bg-amber-500/15 text-foreground'
                                 : isAgent
-                                ? 'bg-muted/60 text-foreground border border-amber-500/10'
-                                : 'bg-muted/60 text-foreground'
-                            }`}
+                                  ? 'bg-muted/60 text-foreground border border-amber-500/10'
+                                  : 'bg-muted/60 text-foreground'
+                              }`}
                           >
                             {msg.content}
                           </div>
@@ -939,9 +1073,9 @@ export default function ProjectDetailPage() {
                         <div className="flex items-center gap-1">
                           <span className="text-xs text-muted-foreground">Agent is thinking</span>
                           <span className="flex gap-1 ml-1">
-                            <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce" style={{animationDelay: '0ms'}} />
-                            <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce" style={{animationDelay: '150ms'}} />
-                            <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce" style={{animationDelay: '300ms'}} />
+                            <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                           </span>
                         </div>
                       </div>
@@ -960,9 +1094,8 @@ export default function ProjectDetailPage() {
                       {mentionAgents.map((agent, i) => (
                         <button
                           key={agent.id}
-                          className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm transition-colors ${
-                            i === mentionIndex ? 'bg-amber-500/15 text-amber-400' : 'text-amber-200/80 hover:bg-amber-500/10'
-                          }`}
+                          className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm transition-colors ${i === mentionIndex ? 'bg-amber-500/15 text-amber-400' : 'text-amber-200/80 hover:bg-amber-500/10'
+                            }`}
                           onMouseDown={(e) => { e.preventDefault(); insertMention(agent.name); }}
                           onMouseEnter={() => setMentionIndex(i)}
                         >
@@ -973,30 +1106,30 @@ export default function ProjectDetailPage() {
                     </div>
                   )}
                   <div className="flex gap-2">
-                  <Input
-                    ref={chatInputRef}
-                    placeholder="Type a message... (@ to mention)"
-                    value={chatInput}
-                    onChange={handleChatInputChange}
-                    onKeyDown={(e) => {
-                      if (mentionQuery !== null && mentionAgents.length > 0) {
-                        if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIndex(i => Math.min(i + 1, mentionAgents.length - 1)); return; }
-                        if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIndex(i => Math.max(i - 1, 0)); return; }
-                        if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionAgents[mentionIndex].name); return; }
-                        if (e.key === 'Escape') { e.preventDefault(); setMentionQuery(null); return; }
-                      }
-                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendChat(); }
-                    }}
-                    disabled={sendingChat || !channel}
-                    className="flex-1"
-                  />
-                  <Button
-                    onClick={handleSendChat}
-                    disabled={sendingChat || !chatInput.trim() || !channel}
-                    className="bg-amber-600 hover:bg-amber-700 text-black"
-                  >
-                    Send
-                  </Button>
+                    <Input
+                      ref={chatInputRef}
+                      placeholder="Type a message... (@ to mention)"
+                      value={chatInput}
+                      onChange={handleChatInputChange}
+                      onKeyDown={(e) => {
+                        if (mentionQuery !== null && mentionAgents.length > 0) {
+                          if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIndex(i => Math.min(i + 1, mentionAgents.length - 1)); return; }
+                          if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIndex(i => Math.max(i - 1, 0)); return; }
+                          if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionAgents[mentionIndex].name); return; }
+                          if (e.key === 'Escape') { e.preventDefault(); setMentionQuery(null); return; }
+                        }
+                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendChat(); }
+                      }}
+                      disabled={sendingChat || !channel}
+                      className="flex-1"
+                    />
+                    <Button
+                      onClick={handleSendChat}
+                      disabled={sendingChat || !chatInput.trim() || !channel}
+                      className="bg-amber-600 hover:bg-amber-700 text-black"
+                    >
+                      Send
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -1029,9 +1162,8 @@ export default function ProjectDetailPage() {
                       <p className="text-[10px] text-amber-500">{agent.type}</p>
                     </div>
                     <span
-                      className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                        agent.status === 'online' ? 'bg-emerald-500' : agent.status === 'busy' ? 'bg-orange-500' : 'bg-red-500'
-                      }`}
+                      className={`w-2 h-2 rounded-full flex-shrink-0 ${agent.status === 'online' ? 'bg-emerald-500' : agent.status === 'busy' ? 'bg-orange-500' : 'bg-red-500'
+                        }`}
                     />
                   </div>
                 ))}
@@ -1155,14 +1287,14 @@ export default function ProjectDetailPage() {
             </DialogHeader>
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">{selectedTask.description}</p>
-              
+
               <div className="flex items-center gap-4 text-sm">
                 <span className="text-muted-foreground">Priority:</span>
                 <Badge className={PRIORITY_LABELS[selectedTask.priority]?.color}>
                   {PRIORITY_LABELS[selectedTask.priority]?.label}
                 </Badge>
               </div>
-              
+
               <div className="flex items-center gap-4 text-sm">
                 <span className="text-muted-foreground">Status:</span>
                 <div className="flex gap-2">
@@ -1174,8 +1306,8 @@ export default function ProjectDetailPage() {
                       onClick={() => handleUpdateTaskStatus(selectedTask, status)}
                       disabled={updating}
                     >
-                      {status === 'in_progress' ? 'In Progress' : 
-                       status === 'todo' ? 'To Do' : 'Done'}
+                      {status === 'in_progress' ? 'In Progress' :
+                        status === 'todo' ? 'To Do' : 'Done'}
                     </Button>
                   ))}
                 </div>

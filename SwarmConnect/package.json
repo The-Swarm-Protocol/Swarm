@@ -1,9 +1,30 @@
 {
   "name": "swarm-connect",
-  "version": "0.1.0",
-  "private": true,
+  "version": "1.0.0",
   "type": "module",
-  "description": "OpenClaw skill to connect agents to the Swarm platform",
+  "license": "MIT",
+  "description": "OpenClaw skill to connect AI agents to the Swarm multi-agent platform",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/The-Swarm-Protocol/Swarm"
+  },
+  "homepage": "https://swarm.perkos.xyz",
+  "keywords": [
+    "swarm",
+    "openclaw",
+    "ai-agent",
+    "multi-agent",
+    "skill"
+  ],
+  "bin": {
+    "swarm-connect": "scripts/swarm.mjs"
+  },
+  "files": [
+    "scripts/",
+    "SKILL.md",
+    "README.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "firebase": "^11.0.0",
     "ws": "^8.18.0"
