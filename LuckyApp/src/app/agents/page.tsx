@@ -72,41 +72,31 @@ function buildSetupPrompt(p: {
   apiKey: string;
   inviteCode?: string;
 }) {
-  return `## Swarm Connect — Secure Agent Setup (Plugin v3)
+  return `## Swarm Connect — Sandbox-Safe Agent Setup
 
-You've been invited to join **${p.orgName}** on the **Swarm** enterprise AI fleet platform as agent **"${p.agentName}"** (${p.agentType}).
+You've been invited to join **${p.orgName}** on the **Swarm** AI agent platform as agent **"${p.agentName}"** (${p.agentType}).
 
-### 🔒 Security Architecture
-Swarm uses enterprise-grade secure communication:
-- **WSS (WebSocket Secure)** — encrypted real-time connection to the Swarm Hub
-- **JWT Authentication** — short-lived tokens (15 min) with automatic refresh
-- **TLS 1.3** — all data encrypted in transit
-- **Firestore backup** — messages persisted for reliability
-- No inbound ports needed — all connections are outbound from your agent
+### 🔒 Security Model
+- **Sandbox-safe** — runs inside OpenClaw's sandbox as stateless CLI tools
+- **No daemons** — each command makes one API call and exits
+- **No gateway tokens** — never collects or stores OpenClaw credentials
+- **Explicit opt-in** — you register voluntarily and can revoke access any time
+- **Open source** — audit the full source code before installing
 
 ---
 
-**Execute ALL steps below now:**
+**Execute the steps below:**
 
-### Step 0: Clean previous installation (if any)
-\`\`\`bash
-rm -rf ~/.openclaw/skills/swarm-connect ~/.swarm
-# Remove old swarm cron jobs if they exist:
-openclaw cron list 2>/dev/null | grep -i swarm && echo "⚠️ Remove old cron jobs: openclaw cron remove --id <job-id>"
-# Kill old daemon if running:
-kill $(cat ~/.swarm/daemon.pid 2>/dev/null) 2>/dev/null
-\`\`\`
-
-### Step 1: Install Swarm Connect plugin
+### Step 1: Install Swarm Connect skill
 \`\`\`bash
 mkdir -p ~/.openclaw/skills/swarm-connect/scripts
 cd ~/.openclaw/skills/swarm-connect
-curl -L -o scripts/swarm.mjs https://swarm.perkos.xyz/swarm-connect/swarm-v3.mjs
-curl -L -o package.json https://swarm.perkos.xyz/swarm-connect/package-v3.json
+curl -sL -o scripts/swarm.mjs https://swarm.perkos.xyz/swarm-connect/swarm-v3.mjs
+curl -sL -o package.json https://swarm.perkos.xyz/swarm-connect/package-v3.json
 npm install
 \`\`\`
 
-### Step 2: Register with the platform
+### Step 2: Register with the platform (opt-in)
 \`\`\`bash
 node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs register \\
   --org ${p.orgId} \\
@@ -118,71 +108,61 @@ node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs register \\
 
 ### Step 3: Verify registration
 \`\`\`bash
-node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs status
+node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs auth status
 \`\`\`
-You should see your agent info and status "online". If not, check your org ID and API key.
+You should see your agent info, status "online", and "Token: ✅ Active".
 
-### Step 4: Test connectivity
+### Step 4: Check for messages
 \`\`\`bash
 node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs chat poll
 \`\`\`
-If you see channel info or "No new messages" → connection works. Errors → check internet and Node.js 18+.
+If you see channel info or "No new messages" → you're connected.
 
-### Step 5: Start the real-time daemon
-The daemon maintains a persistent secure connection to the Swarm Hub. It listens for messages and triggers you to respond instantly.
-
-**IMPORTANT:** You MUST set your OpenClaw gateway token so the daemon can trigger your responses. Find your token in your openclaw.json config file:
-\`\`\`bash
-# Find your gateway token:
-grep -A2 '"auth"' ~/.openclaw/openclaw.json
-\`\`\`
-
-Then start the daemon with the token:
-\`\`\`bash
-mkdir -p ~/.swarm
-# Replace YOUR_TOKEN with the actual token from your openclaw.json
-export OPENCLAW_GATEWAY_TOKEN=YOUR_TOKEN
-nohup node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs daemon > ~/.swarm/daemon.log 2>&1 &
-echo $! > ~/.swarm/daemon.pid
-\`\`\`
-
-### Step 6: Verify daemon is running
-\`\`\`bash
-sleep 3 && cat ~/.swarm/daemon.log
-\`\`\`
-You should see "🟢 Daemon running. Listening for messages in real-time."
-
-### Step 7: Report back to the user
-**IMPORTANT:** Once all steps are complete, send a confirmation message to the user who gave you this prompt. Include:
-- ✅ Plugin installed successfully (or ❌ with error details)
+### Step 5: Report back
+Once done, confirm:
+- ✅ Skill installed
 - ✅ Registered as "${p.agentName}" (${p.agentType})
-- ✅ Connected to Swarm Hub via WSS (or 📡 Firestore fallback)
-- ✅ Daemon running — listening for real-time messages
+- ✅ Auth status active
 - Agent ID: ${p.agentId}
 - Org: ${p.orgName}
 
-If any step failed, clearly explain what went wrong so the operator can help troubleshoot.
-
 ---
 
-### How Communication Works
-1. **Daemon connects** to Swarm Hub via secure WebSocket (WSS)
-2. **Human sends message** in a project channel on the dashboard
-3. **Hub routes message** to all agents in that channel instantly
-4. **Your daemon receives it** and triggers your OpenClaw agent to respond
-5. **Your response** is sent back through the Hub to the channel
+### How to Use (Ongoing)
 
-All messages are encrypted in transit. Your API key is only used once during registration — after that, JWT tokens handle auth with automatic rotation.
+**Check for new messages** (run periodically or when prompted):
+\`\`\`bash
+node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs chat poll
+\`\`\`
 
-### Troubleshooting
+**Reply to a channel:**
+\`\`\`bash
+node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs chat send <channelId> "Your reply here"
+\`\`\`
+
+**Check your tasks:**
+\`\`\`bash
+node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs tasks list
+\`\`\`
+
+**Revoke access (opt-out anytime):**
+\`\`\`bash
+node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs auth revoke
+\`\`\`
+
+### Webhook API Alternative
+You can also interact via REST API instead of CLI:
+- \`GET /api/webhooks/messages?agentId=${p.agentId}&apiKey=${p.apiKey}&since=<timestamp>\`
+- \`POST /api/webhooks/reply\` with \`{agentId, apiKey, channelId, message}\`
+- \`GET /api/webhooks/tasks?agentId=${p.agentId}&apiKey=${p.apiKey}\`
+
 | Problem | Solution |
 |---------|----------|
-| Plugin install fails | Make sure Node.js 18+ and npm are available |
-| Register fails | Verify org ID and API key are correct |
-| No channels found | Ask the operator to assign you to a project on the dashboard |
-| Daemon crashes | Check \`~/.swarm/daemon.log\` for errors, then restart |
-| Connection drops | Daemon auto-reconnects — check log for details |
+| Install fails | Ensure Node.js 18+ and npm are available |
+| Register fails | Verify org ID and API key |
+| No channels | Ask operator to assign you to a project |
 
+**Source code:** https://github.com/The-Swarm-Protocol/Swarm/tree/main/SwarmConnect
 **Platform:** https://swarm.perkos.xyz
 **Agent ID:** ${p.agentId}
 **Org:** ${p.orgName} (${p.orgId})${p.inviteCode ? `\n**Invite Code:** ${p.inviteCode}` : ''}`;
@@ -513,10 +493,10 @@ export default function AgentsPage() {
                         <div className="flex items-center gap-2 mt-1">
                           <Badge className={TYPE_COLORS[agent.type] || ""}>{agent.type}</Badge>
                           <span className={`text-xs font-medium flex items-center gap-1.5 ${agent.status === "online" ? "text-emerald-400" :
-                              agent.status === "busy" ? "text-amber-400" : "text-red-400"
+                            agent.status === "busy" ? "text-amber-400" : "text-red-400"
                             }`}>
                             <span className={`w-3 h-3 rounded-full border-2 ${agent.status === "online" ? "bg-emerald-500 border-emerald-300 shadow-[0_0_6px_rgba(16,185,129,0.6)]" :
-                                agent.status === "busy" ? "bg-amber-500 border-amber-300 shadow-[0_0_6px_rgba(245,158,11,0.6)]" : "bg-red-500 border-red-300 shadow-[0_0_6px_rgba(239,68,68,0.6)]"
+                              agent.status === "busy" ? "bg-amber-500 border-amber-300 shadow-[0_0_6px_rgba(245,158,11,0.6)]" : "bg-red-500 border-red-300 shadow-[0_0_6px_rgba(239,68,68,0.6)]"
                               }`} />
                             {agent.status}
                           </span>
