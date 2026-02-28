@@ -26,7 +26,6 @@
     "LICENSE"
   ],
   "dependencies": {
-    "firebase": "^11.0.0",
-    "ws": "^8.18.0"
+    "firebase": "^11.0.0"
   }
 }

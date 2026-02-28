@@ -1,6 +1,7 @@
 /**
  * Shared webhook auth helper.
  * Validates agent credentials (agentId + apiKey) against Firestore.
+ * Rejects agents whose access has been revoked (tokenRevokedAt is set).
  */
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -15,6 +16,7 @@ export interface AuthResult {
 /**
  * Authenticate an agent by ID + API key.
  * Returns agent info on success, or null on failure.
+ * Also rejects if the agent's access has been revoked.
  */
 export async function authenticateAgent(
     agentId: string | null | undefined,
@@ -28,6 +30,9 @@ export async function authenticateAgent(
 
         const data = agentSnap.data();
         if (data.apiKey !== apiKey) return null;
+
+        // Reject if access has been revoked
+        if (data.tokenRevokedAt) return null;
 
         return {
             agentId,
