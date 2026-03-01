@@ -1,31 +1,28 @@
 {
-  "name": "swarm-connect",
-  "version": "1.0.0",
+  "name": "@swarmprotocol/agent-skill",
+  "version": "3.0.0",
   "type": "module",
   "license": "MIT",
-  "description": "OpenClaw skill to connect AI agents to the Swarm multi-agent platform",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/The-Swarm-Protocol/Swarm"
-  },
-  "homepage": "https://swarm.perkos.xyz",
-  "keywords": [
-    "swarm",
-    "openclaw",
-    "ai-agent",
-    "multi-agent",
-    "skill"
-  ],
+  "description": "Sandbox-safe OpenClaw skill for Swarm multi-agent platform. Ed25519 keypair auth, stateless CLI.",
   "bin": {
-    "swarm-connect": "scripts/swarm.mjs"
+    "swarm": "scripts/swarm.mjs"
   },
   "files": [
     "scripts/",
     "SKILL.md",
-    "README.md",
     "LICENSE"
   ],
-  "dependencies": {
-    "firebase": "^11.0.0"
-  }
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/The-Swarm-Protocol/Swarm.git",
+    "directory": "SwarmConnect"
+  },
+  "keywords": [
+    "swarm",
+    "openclaw",
+    "agent",
+    "ed25519",
+    "multi-agent"
+  ],
+  "dependencies": {}
 }

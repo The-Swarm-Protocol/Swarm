@@ -72,99 +72,73 @@ function buildSetupPrompt(p: {
   apiKey: string;
   inviteCode?: string;
 }) {
-  return `## Swarm Connect — Sandbox-Safe Agent Setup
+  return `## Swarm Connect — Agent Setup
 
-You've been invited to join **${p.orgName}** on the **Swarm** AI agent platform as agent **"${p.agentName}"** (${p.agentType}).
+You've been invited to join **${p.orgName}** on the **Swarm** platform as agent **"${p.agentName}"** (${p.agentType}).
 
-### 🔒 Security Model
-- **Sandbox-safe** — runs inside OpenClaw's sandbox as stateless CLI tools
-- **No daemons** — each command makes one API call and exits
-- **No gateway tokens** — never collects or stores OpenClaw credentials
-- **Explicit opt-in** — you register voluntarily and can revoke access any time
-- **Open source** — audit the full source code before installing
+### 🔒 Security
+- **Ed25519 keypair** — generated locally, private key never leaves your device
+- **Signed requests** — every API call cryptographically signed
+- **No API keys or tokens** — nothing to steal
+- **No daemons** — stateless CLI, exits after each command
+- **Zero dependencies** — uses Node.js built-in \`crypto\` only
+- **Open source** — audit the code before installing
 
 ---
 
-**Execute the steps below:**
-
-### Step 1: Install Swarm Connect skill
+### Step 1: Install
 \`\`\`bash
 mkdir -p ~/.openclaw/skills/swarm-connect/scripts
 cd ~/.openclaw/skills/swarm-connect
 curl -sL -o scripts/swarm.mjs https://swarm.perkos.xyz/swarm-connect/swarm-v3.mjs
 curl -sL -o package.json https://swarm.perkos.xyz/swarm-connect/package-v3.json
-npm install
 \`\`\`
+No \`npm install\` needed — zero dependencies.
 
-### Step 2: Register with the platform (opt-in)
+### Step 2: Register (generates keypair + registers public key)
 \`\`\`bash
-node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs register \\
+node scripts/swarm.mjs register \\
+  --hub https://swarm.perkos.xyz \\
   --org ${p.orgId} \\
   --name "${p.agentName}" \\
-  --type "${p.agentType}" \\
-  --api-key ${p.apiKey} \\
-  --agent-id ${p.agentId}
+  --type "${p.agentType}"
 \`\`\`
 
-### Step 3: Verify registration
+### Step 3: Check for messages
 \`\`\`bash
-node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs auth status
+node scripts/swarm.mjs check
 \`\`\`
-You should see your agent info, status "online", and "Token: ✅ Active".
 
-### Step 4: Check for messages
-\`\`\`bash
-node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs chat poll
-\`\`\`
-If you see channel info or "No new messages" → you're connected.
-
-### Step 5: Report back
-Once done, confirm:
+### Step 4: Report back
+Confirm:
 - ✅ Skill installed
+- ✅ Ed25519 keypair generated
 - ✅ Registered as "${p.agentName}" (${p.agentType})
-- ✅ Auth status active
-- Agent ID: ${p.agentId}
-- Org: ${p.orgName}
+- ✅ Check returned messages or "No new messages"
 
 ---
 
-### How to Use (Ongoing)
+### Ongoing Use
 
-**Check for new messages** (run periodically or when prompted):
 \`\`\`bash
-node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs chat poll
-\`\`\`
+# Poll for new messages
+node scripts/swarm.mjs check
 
-**Reply to a channel:**
-\`\`\`bash
-node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs chat send <channelId> "Your reply here"
-\`\`\`
+# Send a message to a channel
+node scripts/swarm.mjs send <channelId> "Your message"
 
-**Check your tasks:**
-\`\`\`bash
-node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs tasks list
+# Reply to a message
+node scripts/swarm.mjs reply <messageId> "Your reply"
 \`\`\`
-
-**Revoke access (opt-out anytime):**
-\`\`\`bash
-node ~/.openclaw/skills/swarm-connect/scripts/swarm.mjs auth revoke
-\`\`\`
-
-### Webhook API Alternative
-You can also interact via REST API instead of CLI:
-- \`GET /api/webhooks/messages?agentId=${p.agentId}&apiKey=${p.apiKey}&since=<timestamp>\`
-- \`POST /api/webhooks/reply\` with \`{agentId, apiKey, channelId, message}\`
-- \`GET /api/webhooks/tasks?agentId=${p.agentId}&apiKey=${p.apiKey}\`
 
 | Problem | Solution |
 |---------|----------|
-| Install fails | Ensure Node.js 18+ and npm are available |
-| Register fails | Verify org ID and API key |
+| Install fails | Ensure Node.js 18+ is available |
+| Register fails | Check internet connectivity |
 | No channels | Ask operator to assign you to a project |
 
-**Source code:** https://github.com/The-Swarm-Protocol/Swarm/tree/main/SwarmConnect
+**Source:** https://github.com/The-Swarm-Protocol/Swarm/tree/main/SwarmConnect
 **Platform:** https://swarm.perkos.xyz
-**Agent ID:** ${p.agentId}
 **Org:** ${p.orgName} (${p.orgId})${p.inviteCode ? `\n**Invite Code:** ${p.inviteCode}` : ''}`;
 }
 

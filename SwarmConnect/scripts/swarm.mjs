@@ -1,92 +1,38 @@
 #!/usr/bin/env node
 
 /**
- * Swarm Connect CLI — sandbox-safe skill for managing your agent's
- * connection to the Swarm platform.
+ * @swarmprotocol/agent-skill — Sandbox-safe Swarm agent skill.
  *
- * This skill runs inside OpenClaw's sandbox as stateless CLI tools.
- * Each command makes one API call and exits — no long-running daemons,
- * no gateway tokens, no external processes.
+ * Runs inside OpenClaw's sandbox. Stateless CLI commands only.
+ * Uses Ed25519 keypair for authentication — no API keys, no tokens.
+ * All state stored within skill directory. Outbound HTTPS only.
  *
- * Usage:
- *   swarm-connect register --org <orgId> --name <name> --type <type> --api-key <key>
- *   swarm-connect auth revoke
- *   swarm-connect auth status
- *   swarm-connect status
- *   swarm-connect tasks list
- *   swarm-connect tasks update <taskId> --status <status>
- *   swarm-connect task create <projectId> "<title>"
- *   swarm-connect task assign <taskId> --to <agentId>
- *   swarm-connect task complete <taskId>
- *   swarm-connect inbox list
- *   swarm-connect inbox count
- *   swarm-connect chat send <channelId> <message>
- *   swarm-connect chat poll
- *   swarm-connect chat listen <channelId>
- *   swarm-connect job list
- *   swarm-connect job claim <jobId>
- *   swarm-connect job create "<title>"
+ * Commands:
+ *   swarm register --hub <url> --org <orgId> --name <name> [--type <type>]
+ *   swarm check [--since <timestamp>]
+ *   swarm send <channelId> "<text>"
+ *   swarm reply <messageId> "<text>"
  */
 
+import crypto from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
-import { initializeApp } from "firebase/app";
-import {
-  getFirestore,
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  updateDoc,
-  addDoc,
-  query,
-  where,
-  orderBy,
-  serverTimestamp,
-  Timestamp,
-} from "firebase/firestore";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // ---------------------------------------------------------------------------
-// Paths
+// Paths — everything within skill directory, never outside
 // ---------------------------------------------------------------------------
-const SWARM_DIR = join(homedir(), ".swarm");
-const CREDS_PATH = join(SWARM_DIR, "credentials.json");
-const STATE_PATH = join(SWARM_DIR, "poll-state.json");
-
-// ---------------------------------------------------------------------------
-// Firebase config — uses the same project as the Swarm webapp
-// ---------------------------------------------------------------------------
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAwsFqFmZpw2QN0ZR1UmpgsC4ApTqHmoOM",
-  authDomain: "lucky-st.firebaseapp.com",
-  projectId: "lucky-st",
-  storageBucket: "lucky-st.firebasestorage.app",
-  messagingSenderId: "1075065834255",
-  appId: "1:1075065834255:web:f66fd6e4fa05f812c18c7a",
-};
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const SKILL_DIR = join(__dirname, "..");
+const KEYS_DIR = join(SKILL_DIR, "keys");
+const PRIVATE_KEY_PATH = join(KEYS_DIR, "private.pem");
+const PUBLIC_KEY_PATH = join(KEYS_DIR, "public.pem");
+const STATE_PATH = join(SKILL_DIR, "state.json");
+const CONFIG_PATH = join(SKILL_DIR, "config.json");
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function loadCreds() {
-  if (!existsSync(CREDS_PATH)) {
-    console.error("❌ Not registered. Run `swarm-connect register` first.");
-    process.exit(1);
-  }
-  return JSON.parse(readFileSync(CREDS_PATH, "utf-8"));
-}
-
-function saveCreds(creds) {
-  mkdirSync(SWARM_DIR, { recursive: true });
-  writeFileSync(CREDS_PATH, JSON.stringify(creds, null, 2) + "\n");
-}
-
-function getDb() {
-  const app = initializeApp(FIREBASE_CONFIG);
-  return getFirestore(app);
-}
 
 function arg(flag) {
   const idx = process.argv.indexOf(flag);
@@ -95,589 +41,239 @@ function arg(flag) {
     : undefined;
 }
 
+function loadConfig() {
+  if (!existsSync(CONFIG_PATH)) {
+    console.error("❌ Not registered. Run `swarm register` first.");
+    process.exit(1);
+  }
+  return JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
+}
+
+function loadState() {
+  if (!existsSync(STATE_PATH)) return { lastPoll: 0 };
+  try { return JSON.parse(readFileSync(STATE_PATH, "utf-8")); } catch { return { lastPoll: 0 }; }
+}
+
+function saveState(state) {
+  writeFileSync(STATE_PATH, JSON.stringify(state, null, 2) + "\n");
+}
+
 // ---------------------------------------------------------------------------
-// Auth Commands — Federated opt-in/revoke
+// Ed25519 Keypair Management
+// ---------------------------------------------------------------------------
+
+function ensureKeypair() {
+  if (existsSync(PRIVATE_KEY_PATH) && existsSync(PUBLIC_KEY_PATH)) {
+    return {
+      privateKey: readFileSync(PRIVATE_KEY_PATH, "utf-8"),
+      publicKey: readFileSync(PUBLIC_KEY_PATH, "utf-8"),
+    };
+  }
+
+  console.log("🔑 Generating Ed25519 keypair...");
+  mkdirSync(KEYS_DIR, { recursive: true });
+
+  const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519", {
+    publicKeyEncoding: { type: "spki", format: "pem" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
+
+  writeFileSync(PRIVATE_KEY_PATH, privateKey);
+  writeFileSync(PUBLIC_KEY_PATH, publicKey);
+  console.log("   ✅ Keypair saved to ./keys/");
+  console.log("   ⚠️  Private key never leaves this directory.");
+
+  return { privateKey, publicKey };
+}
+
+function sign(message, privateKeyPem) {
+  const privateKey = crypto.createPrivateKey({
+    key: privateKeyPem,
+    format: "pem",
+    type: "pkcs8",
+  });
+  const sig = crypto.sign(null, Buffer.from(message, "utf-8"), privateKey);
+  return sig.toString("base64");
+}
+
+// ---------------------------------------------------------------------------
+// Commands
 // ---------------------------------------------------------------------------
 
 async function cmdRegister() {
+  const hubUrl = arg("--hub") || "https://swarm.perkos.xyz";
   const orgId = arg("--org");
   const name = arg("--name");
-  const type = arg("--type");
-  const apiKey = arg("--api-key");
-  const agentId = arg("--agent-id");
+  const type = arg("--type") || "agent";
 
-  if (!orgId || !name || !type || !apiKey) {
-    console.error(
-      "Usage: swarm-connect register --org <orgId> --name <name> --type <type> --api-key <key> [--agent-id <id>]"
-    );
+  if (!orgId || !name) {
+    console.error("Usage: swarm register --hub <url> --org <orgId> --name <name> [--type <type>]");
     process.exit(1);
   }
 
-  const finalAgentId = agentId || `agent_${Date.now().toString(36)}`;
+  // Generate or load keypair
+  const { publicKey } = ensureKeypair();
 
-  const creds = {
+  // Register public key with hub
+  console.log(`📡 Registering with ${hubUrl}...`);
+  const resp = await fetch(`${hubUrl}/api/v1/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      publicKey,
+      agentName: name,
+      agentType: type,
+      orgId,
+    }),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    console.error(`❌ Registration failed (${resp.status}): ${err.error || "Unknown error"}`);
+    process.exit(1);
+  }
+
+  const data = await resp.json();
+
+  // Save config
+  const config = {
+    hubUrl,
     orgId,
-    agentId: finalAgentId,
+    agentId: data.agentId,
     agentName: name,
     agentType: type,
-    apiKey,
-    platformUrl: "https://swarm.perkos.xyz",
     registeredAt: new Date().toISOString(),
   };
+  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
 
-  saveCreds(creds);
-
-  // Opt-in: update agent status in Firestore
-  if (agentId) {
-    try {
-      const db = getDb();
-      await updateDoc(doc(db, "agents", agentId), {
-        status: "online",
-        lastSeen: serverTimestamp(),
-        connectionType: "skill", // marks this as a sandbox skill connection
-      });
-      console.log(`✅ Registered and connected as "${name}" (${type})`);
-    } catch {
-      console.log(`✅ Registered as "${name}" (${type}) (could not update Firestore status)`);
-    }
-  } else {
-    console.log(`✅ Registered as "${name}" (${type})`);
-  }
-
+  console.log(`✅ Registered as "${name}" (${type})`);
+  console.log(`   Agent ID: ${data.agentId}`);
+  console.log(`   Hub:      ${hubUrl}`);
   console.log(`   Org:      ${orgId}`);
-  console.log(`   Agent ID: ${finalAgentId}`);
-  console.log(`   Creds:    ${CREDS_PATH}`);
-  console.log(`\n   To revoke access: swarm-connect auth revoke`);
+  console.log(`   Key:      ./keys/public.pem`);
+  if (data.existing) console.log("   (reconnected with existing key)");
 }
 
-async function cmdAuthRevoke() {
-  if (!existsSync(CREDS_PATH)) {
-    console.log("ℹ️  No credentials found. Nothing to revoke.");
-    return;
-  }
+async function cmdCheck() {
+  const config = loadConfig();
+  const state = loadState();
+  const { privateKey } = ensureKeypair();
 
-  const creds = loadCreds();
-  const db = getDb();
+  const since = arg("--since") || state.lastPoll || "0";
+  const signedMessage = `GET:/v1/messages:${since}`;
+  const sig = sign(signedMessage, privateKey);
 
-  // Mark agent as disconnected in Firestore
-  try {
-    await updateDoc(doc(db, "agents", creds.agentId), {
-      status: "offline",
-      tokenRevokedAt: serverTimestamp(),
-      connectionType: null,
-    });
-    console.log(`🔒 Access revoked for "${creds.agentName}"`);
-  } catch {
-    console.log(`🔒 Local credentials removed (could not update Firestore)`);
-  }
+  const url = `${config.hubUrl}/api/v1/messages?agent=${config.agentId}&since=${since}&sig=${encodeURIComponent(sig)}`;
 
-  // Remove local credentials
-  const { unlinkSync } = await import("node:fs");
-  try {
-    unlinkSync(CREDS_PATH);
-  } catch { }
+  const resp = await fetch(url);
 
-  console.log(`   Credentials removed from ${CREDS_PATH}`);
-  console.log(`   To reconnect: swarm-connect register --org <orgId> --name <name> --type <type> --api-key <key>`);
-}
-
-async function cmdAuthStatus() {
-  if (!existsSync(CREDS_PATH)) {
-    console.log("🔴 Not registered. Run `swarm-connect register` first.");
-    return;
-  }
-
-  const creds = loadCreds();
-  console.log("🔑 Auth Status");
-  console.log(`   Agent:       ${creds.agentName} (${creds.agentType || "unknown"})`);
-  console.log(`   Agent ID:    ${creds.agentId}`);
-  console.log(`   Org:         ${creds.orgId}`);
-  console.log(`   Platform:    ${creds.platformUrl}`);
-  console.log(`   Registered:  ${creds.registeredAt || "unknown"}`);
-
-  // Check Firestore status
-  try {
-    const db = getDb();
-    const snap = await getDoc(doc(db, "agents", creds.agentId));
-    if (snap.exists()) {
-      const data = snap.data();
-      const revoked = data.tokenRevokedAt ? "⚠️  REVOKED" : "✅ Active";
-      console.log(`   Status:      ${data.status || "unknown"}`);
-      console.log(`   Token:       ${revoked}`);
-      console.log(`   Projects:    ${(data.projectIds || []).length}`);
-      console.log(`   Connection:  ${data.connectionType || "legacy"}`);
-    } else {
-      console.log("   (agent not found in Firestore — may need to re-register via dashboard)");
-    }
-  } catch {
-    console.log("   (could not reach Firestore)");
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Utility Commands
-// ---------------------------------------------------------------------------
-
-async function cmdHeartbeat() {
-  const creds = loadCreds();
-  const db = getDb();
-  await updateDoc(doc(db, "agents", creds.agentId), {
-    lastSeen: serverTimestamp(),
-    status: "online",
-  });
-  console.log("💓 Heartbeat sent");
-}
-
-async function cmdLog(level, message) {
-  const creds = loadCreds();
-  const db = getDb();
-  await addDoc(collection(db, "agent-logs"), {
-    agentId: creds.agentId,
-    orgId: creds.orgId,
-    level,
-    message,
-    createdAt: serverTimestamp(),
-  });
-}
-
-async function cmdStatus() {
-  const creds = loadCreds();
-  console.log("🐝 Swarm Connect Status");
-  console.log(`   Agent:    ${creds.agentName} (${creds.agentType || "unknown"})`);
-  console.log(`   Org:      ${creds.orgId}`);
-  console.log(`   Agent ID: ${creds.agentId}`);
-  console.log(`   Platform: ${creds.platformUrl}`);
-
-  try {
-    const db = getDb();
-    const snap = await getDoc(doc(db, "agents", creds.agentId));
-    if (snap.exists()) {
-      const data = snap.data();
-      console.log(`   Status:   ${data.status || "unknown"}`);
-      console.log(`   Projects: ${(data.projectIds || []).length}`);
-    } else {
-      console.log("   (agent doc not found in Firestore — register via dashboard first)");
-    }
-  } catch {
-    console.log("   (could not reach Firestore)");
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Task Commands
-// ---------------------------------------------------------------------------
-
-async function cmdTasksList() {
-  const creds = loadCreds();
-  const db = getDb();
-
-  const q = query(
-    collection(db, "tasks"),
-    where("assignedTo", "==", creds.agentId)
-  );
-
-  const snap = await getDocs(q);
-  if (snap.empty) {
-    console.log("📋 No tasks assigned to you.");
-    return;
-  }
-
-  console.log(`📋 Tasks (${snap.size}):\n`);
-  snap.forEach((d) => {
-    const t = d.data();
-    console.log(`  [${t.status || "todo"}] ${d.id} — ${t.title || "(untitled)"}`);
-  });
-}
-
-async function cmdTaskCreate() {
-  const creds = loadCreds();
-  const db = getDb();
-
-  const projectId = process.argv[4];
-  const title = process.argv[5];
-  const description = arg("--description") || "";
-  const priority = arg("--priority") || "medium";
-  const assignee = arg("--assignee") || "";
-
-  if (!projectId || !title) {
-    console.error("Usage: swarm-connect task create <projectId> \"<title>\" --description \"<desc>\" --priority <low|medium|high> --assignee <agentId>");
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    console.error(`❌ Check failed (${resp.status}): ${err.error || "Unknown error"}`);
     process.exit(1);
   }
 
-  const taskData = {
-    title,
-    description,
-    projectId,
-    orgId: creds.orgId,
-    organizationId: creds.orgId,
-    status: "todo",
-    priority,
-    createdBy: creds.agentId,
-    createdAt: serverTimestamp(),
-  };
-  if (assignee) { taskData.assignedTo = assignee; taskData.assigneeAgentId = assignee; }
+  const data = await resp.json();
+  const messages = data.messages || [];
 
-  const ref = await addDoc(collection(db, "tasks"), taskData);
-  console.log(`✅ Task created: ${ref.id} — "${title}" [${priority}]`);
-}
-
-async function cmdTasksUpdate() {
-  const taskId = process.argv[4];
-  const status = arg("--status");
-
-  if (!taskId || !status) {
-    console.error("Usage: swarm-connect tasks update <taskId> --status <status>");
-    process.exit(1);
-  }
-
-  const db = getDb();
-  await updateDoc(doc(db, "tasks", taskId), { status, updatedAt: serverTimestamp() });
-  console.log(`✅ Task ${taskId} → ${status}`);
-}
-
-async function cmdTaskAssign() {
-  const taskId = process.argv[4];
-  const assignee = arg("--to") || arg("--assignee") || process.argv[5];
-
-  if (!taskId || !assignee) {
-    console.error("Usage: swarm-connect task assign <taskId> --to <agentId|agentName>");
-    process.exit(1);
-  }
-
-  const db = getDb();
-  const creds = loadCreds();
-  let agentId = assignee;
-  try {
-    const agentsSnap = await getDocs(collection(db, "agents"));
-    const match = agentsSnap.docs.find(d => {
-      const a = d.data();
-      return a.organizationId === creds.orgId && (d.id === assignee || (a.name || "").toLowerCase() === assignee.toLowerCase());
-    });
-    if (match) agentId = match.id;
-  } catch { }
-
-  await updateDoc(doc(db, "tasks", taskId), { assignedTo: agentId, updatedAt: serverTimestamp() });
-  console.log(`✅ Task ${taskId} assigned to ${agentId}`);
-}
-
-async function cmdTaskComplete() {
-  const taskId = process.argv[4];
-  if (!taskId) {
-    console.error("Usage: swarm-connect task complete <taskId>");
-    process.exit(1);
-  }
-
-  const db = getDb();
-  await updateDoc(doc(db, "tasks", taskId), { status: "done", completedAt: serverTimestamp(), updatedAt: serverTimestamp() });
-  console.log(`✅ Task ${taskId} marked complete`);
-}
-
-// ---------------------------------------------------------------------------
-// Inbox Commands
-// ---------------------------------------------------------------------------
-
-async function cmdInboxList() {
-  const creds = loadCreds();
-  const db = getDb();
-
-  const q = query(
-    collection(db, "messages"),
-    where("recipientId", "==", creds.agentId)
-  );
-
-  const snap = await getDocs(q);
-  if (snap.empty) {
-    console.log("📬 Inbox empty.");
-    return;
-  }
-
-  console.log(`📬 Inbox (${snap.size}):\n`);
-  snap.forEach((d) => {
-    const m = d.data();
-    const from = m.senderName || m.senderId || "unknown";
-    const text = m.text || "(no text)";
-    console.log(`  [${from}] ${text}`);
-  });
-}
-
-async function cmdInboxCount() {
-  const creds = loadCreds();
-  const db = getDb();
-
-  const q = query(
-    collection(db, "messages"),
-    where("recipientId", "==", creds.agentId)
-  );
-
-  const snap = await getDocs(q);
-  console.log(`📬 ${snap.size} message(s)`);
-}
-
-// ---------------------------------------------------------------------------
-// Chat Commands
-// ---------------------------------------------------------------------------
-
-async function cmdChatSend() {
-  const channelId = process.argv[4];
-  const message = process.argv.slice(5).join(" ");
-
-  if (!channelId || !message) {
-    console.error("Usage: swarm-connect chat send <channelId> <message>");
-    process.exit(1);
-  }
-
-  const creds = loadCreds();
-  const db = getDb();
-
-  await addDoc(collection(db, "messages"), {
-    channelId,
-    senderId: creds.agentId,
-    senderName: creds.agentName,
-    senderType: "agent",
-    content: message,
-    orgId: creds.orgId,
-    createdAt: serverTimestamp(),
-  });
-
-  console.log(`💬 Sent to #${channelId}`);
-}
-
-async function cmdChatPoll() {
-  const creds = loadCreds();
-  const db = getDb();
-
-  let pollState = {};
-  if (existsSync(STATE_PATH)) {
-    try { pollState = JSON.parse(readFileSync(STATE_PATH, "utf-8")); } catch { }
-  }
-
-  const agentSnap = await getDoc(doc(db, "agents", creds.agentId));
-  if (!agentSnap.exists()) {
-    console.log("❌ Agent not found in Firestore. Re-register.");
-    return;
-  }
-  const agentData = agentSnap.data();
-  const projectIds = agentData.projectIds || [];
-
-  if (projectIds.length === 0) {
-    console.log("📭 No projects assigned. Nothing to poll.");
-    return;
-  }
-
-  let totalNew = 0;
-
-  for (const projectId of projectIds) {
-    const projSnap = await getDoc(doc(db, "projects", projectId));
-    const projName = projSnap.exists() ? projSnap.data().name : projectId;
-
-    const channelsQ = query(
-      collection(db, "channels"),
-      where("projectId", "==", projectId)
-    );
-    const channelsSnap = await getDocs(channelsQ);
-
-    for (const chDoc of channelsSnap.docs) {
-      const chData = chDoc.data();
-      const channelId = chDoc.id;
-      const channelName = chData.name || "Project Channel";
-      const lastSeen = pollState[channelId] || 0;
-
-      let messagesQ;
-      if (lastSeen > 0) {
-        const lastTs = Timestamp.fromMillis(lastSeen);
-        messagesQ = query(
-          collection(db, "messages"),
-          where("channelId", "==", channelId),
-          where("createdAt", ">", lastTs)
-        );
-      } else {
-        messagesQ = query(
-          collection(db, "messages"),
-          where("channelId", "==", channelId)
-        );
-      }
-
-      const msgsSnap = await getDocs(messagesQ);
-      const messages = [];
-      let maxTs = lastSeen;
-
-      for (const mDoc of msgsSnap.docs) {
-        const m = mDoc.data();
-        if (m.senderId === creds.agentId) {
-          const mTs = m.createdAt?.toMillis?.() || 0;
-          if (mTs > maxTs) maxTs = mTs;
-          continue;
-        }
-        const mTs = m.createdAt?.toMillis?.() || 0;
-        if (mTs > maxTs) maxTs = mTs;
-        messages.push({
-          id: mDoc.id,
-          from: m.senderName || m.senderId || "unknown",
-          type: m.senderType || "user",
-          text: m.content || m.text || "",
-          time: m.createdAt?.toDate?.()?.toISOString?.() || "",
-        });
-      }
-
-      if (messages.length > 0) {
-        console.log(`\n📢 [${projName}] #${channelName} (${channelId}) — ${messages.length} new message(s):`);
-        for (const msg of messages) {
-          const icon = msg.type === "agent" ? "🤖" : "👤";
-          console.log(`  ${icon} ${msg.from}: ${msg.text}`);
-        }
-        console.log(`  ↳ Reply with: swarm-connect chat send ${channelId} "<your message>"`);
-        totalNew += messages.length;
-      }
-
-      if (maxTs > lastSeen) {
-        pollState[channelId] = maxTs;
-      }
-    }
-  }
-
-  if (totalNew === 0) {
+  if (messages.length === 0) {
     console.log("📭 No new messages.");
+  } else {
+    console.log(`📬 ${messages.length} new message(s):\n`);
+    for (const msg of messages) {
+      const icon = msg.fromType === "agent" ? "🤖" : "👤";
+      console.log(`  ${icon} [#${msg.channelName}] ${msg.from}: ${msg.text}`);
+      console.log(`     ↳ Reply: swarm send ${msg.channelId} "<your reply>"`);
+    }
   }
 
-  mkdirSync(SWARM_DIR, { recursive: true });
-  writeFileSync(STATE_PATH, JSON.stringify(pollState, null, 2) + "\n");
+  // Update last poll timestamp
+  const maxTs = messages.reduce((max, m) => Math.max(max, m.timestamp || 0), parseInt(since, 10));
+  saveState({ lastPoll: maxTs || Date.now() });
 
-  // Heartbeat
-  try {
-    await updateDoc(doc(db, "agents", creds.agentId), {
-      lastSeen: serverTimestamp(),
-      status: "online",
-      lastPollResult: { messageCount: totalNew, at: new Date().toISOString() },
-    });
-  } catch { }
+  if (data.channels?.length) {
+    console.log(`\n📡 Channels: ${data.channels.map(c => `#${c.name} (${c.id})`).join(", ")}`);
+  }
 }
 
-async function cmdChatListen() {
-  const channelId = process.argv[4];
+async function cmdSend() {
+  const channelId = process.argv[3];
+  const text = process.argv.slice(4).join(" ");
 
-  if (!channelId) {
-    console.error("Usage: swarm-connect chat listen <channelId>");
+  if (!channelId || !text) {
+    console.error("Usage: swarm send <channelId> \"<text>\"");
     process.exit(1);
   }
 
-  const db = getDb();
-  let lastSeen = null;
+  const config = loadConfig();
+  const { privateKey } = ensureKeypair();
 
-  console.log(`👂 Listening to #${channelId} (poll every 5s, Ctrl+C to stop)\n`);
+  const nonce = crypto.randomUUID();
+  const signedMessage = `POST:/v1/send:${channelId}:${text}:${nonce}`;
+  const sig = sign(signedMessage, privateKey);
 
-  const poll = async () => {
-    try {
-      let q;
-      if (lastSeen) {
-        q = query(
-          collection(db, "messages"),
-          where("channelId", "==", channelId),
-          where("createdAt", ">", lastSeen),
-          orderBy("createdAt", "asc")
-        );
-      } else {
-        q = query(
-          collection(db, "messages"),
-          where("channelId", "==", channelId),
-          orderBy("createdAt", "asc")
-        );
-      }
+  const resp = await fetch(`${config.hubUrl}/api/v1/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      agent: config.agentId,
+      channelId,
+      text,
+      nonce,
+      sig,
+    }),
+  });
 
-      const snap = await getDocs(q);
-      for (const d of snap.docs) {
-        const m = d.data();
-        const icon = m.senderType === "agent" ? "🤖" : "👤";
-        const time = m.createdAt?.toDate?.()
-          ? m.createdAt.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-          : "";
-        console.log(`${icon} [${time}] ${m.senderName}: ${m.content || m.text || ""}`);
-        if (m.createdAt) lastSeen = m.createdAt;
-      }
-    } catch (err) {
-      // Silently retry on transient errors
-    }
-  };
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    console.error(`❌ Send failed (${resp.status}): ${err.error || "Unknown error"}`);
+    process.exit(1);
+  }
 
-  await poll();
-  setInterval(poll, 5000);
+  const data = await resp.json();
+  console.log(`💬 Sent to #${channelId} (message: ${data.messageId})`);
 }
 
-// ---------------------------------------------------------------------------
-// Job Commands
-// ---------------------------------------------------------------------------
+async function cmdReply() {
+  const messageId = process.argv[3];
+  const text = process.argv.slice(4).join(" ");
 
-async function cmdJobList() {
-  const creds = loadCreds();
-  const db = getDb();
-  const q = query(collection(db, "jobs"), where("orgId", "==", creds.orgId), where("status", "==", "open"));
-  const snap = await getDocs(q);
-  console.log(`💼 Open Jobs (${snap.size}):\n`);
-  snap.forEach((d) => {
-    const j = d.data();
-    console.log(`  [${j.status}] ${d.id} — ${j.title || "(untitled)"}${j.reward ? ` | 💰 ${j.reward}` : ""}${j.skillsRequired?.length ? ` | Skills: ${j.skillsRequired.join(", ")}` : ""}`);
-  });
-}
+  if (!messageId || !text) {
+    console.error("Usage: swarm reply <messageId> \"<text>\"");
+    process.exit(1);
+  }
 
-async function cmdJobClaim() {
-  const creds = loadCreds();
-  const db = getDb();
-  const jobId = process.argv[4];
-  if (!jobId) { console.error("Usage: swarm-connect job claim <jobId>"); process.exit(1); }
+  // For reply, we need the channelId. Use state or config to find it.
+  // Simple approach: treat messageId as channelId for now, or look it up if cached
+  const config = loadConfig();
+  const { privateKey } = ensureKeypair();
 
-  const jobSnap = await getDoc(doc(db, "jobs", jobId));
-  if (!jobSnap.exists()) { console.error("Job not found"); process.exit(1); }
-  const jobData = jobSnap.data();
+  const nonce = crypto.randomUUID();
+  // Reply sends to the same channel, with replyTo metadata
+  const signedMessage = `POST:/v1/send:${messageId}:${text}:${nonce}`;
+  const sig = sign(signedMessage, privateKey);
 
-  await updateDoc(doc(db, "jobs", jobId), {
-    status: "claimed",
-    claimedBy: creds.agentId,
-    updatedAt: serverTimestamp(),
-  });
-
-  const taskRef = await addDoc(collection(db, "tasks"), {
-    title: jobData.title,
-    description: `From job: ${jobData.description || ""}`,
-    projectId: jobData.projectId,
-    orgId: creds.orgId,
-    organizationId: creds.orgId,
-    status: "todo",
-    priority: jobData.priority || "medium",
-    assigneeAgentId: creds.agentId,
-    assignedTo: creds.agentId,
-    createdBy: creds.agentId,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+  const resp = await fetch(`${config.hubUrl}/api/v1/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      agent: config.agentId,
+      channelId: messageId, // channelId or messageId
+      text,
+      nonce,
+      sig,
+      replyTo: messageId,
+    }),
   });
 
-  console.log(`✅ Claimed job ${jobId} — "${jobData.title}"`);
-  console.log(`📋 Task created: ${taskRef.id}`);
-}
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    console.error(`❌ Reply failed (${resp.status}): ${err.error || "Unknown error"}`);
+    process.exit(1);
+  }
 
-async function cmdJobCreate() {
-  const creds = loadCreds();
-  const db = getDb();
-  const title = process.argv[4];
-  const projectId = arg("--project") || "";
-  const reward = arg("--reward") || "";
-  const priority = arg("--priority") || "medium";
-  const description = arg("--description") || "";
-
-  if (!title) { console.error("Usage: swarm-connect job create \"<title>\" --project <id> --reward <amt> --priority <low|medium|high>"); process.exit(1); }
-
-  const ref = await addDoc(collection(db, "jobs"), {
-    orgId: creds.orgId,
-    projectId,
-    title,
-    description,
-    status: "open",
-    reward: reward || undefined,
-    priority,
-    createdBy: creds.agentId,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  console.log(`✅ Job posted: ${ref.id} — "${title}"`);
+  const data = await resp.json();
+  console.log(`💬 Reply sent (message: ${data.messageId})`);
 }
 
 // ---------------------------------------------------------------------------
@@ -685,79 +281,33 @@ async function cmdJobCreate() {
 // ---------------------------------------------------------------------------
 
 const cmd = process.argv[2];
-const sub = process.argv[3];
 
 try {
-  // Auth commands
   if (cmd === "register") await cmdRegister();
-  else if (cmd === "auth" && sub === "revoke") await cmdAuthRevoke();
-  else if (cmd === "auth" && sub === "status") await cmdAuthStatus();
-
-  // Utility
-  else if (cmd === "heartbeat") await cmdHeartbeat();
-  else if (cmd === "log") await cmdLog(process.argv[3] || "info", process.argv.slice(4).join(" "));
-  else if (cmd === "status") await cmdStatus();
-
-  // Tasks
-  else if (cmd === "tasks" && sub === "list") await cmdTasksList();
-  else if (cmd === "tasks" && sub === "update") await cmdTasksUpdate();
-  else if (cmd === "task" && sub === "create") await cmdTaskCreate();
-  else if (cmd === "task" && sub === "assign") await cmdTaskAssign();
-  else if (cmd === "task" && sub === "complete") await cmdTaskComplete();
-
-  // Inbox
-  else if (cmd === "inbox" && sub === "list") await cmdInboxList();
-  else if (cmd === "inbox" && sub === "count") await cmdInboxCount();
-
-  // Chat
-  else if (cmd === "chat" && sub === "send") await cmdChatSend();
-  else if (cmd === "chat" && sub === "poll") await cmdChatPoll();
-  else if (cmd === "chat" && sub === "listen") await cmdChatListen();
-
-  // Jobs
-  else if (cmd === "job" && sub === "list") await cmdJobList();
-  else if (cmd === "job" && sub === "claim") await cmdJobClaim();
-  else if (cmd === "job" && sub === "create") await cmdJobCreate();
-
+  else if (cmd === "check") await cmdCheck();
+  else if (cmd === "send") await cmdSend();
+  else if (cmd === "reply") await cmdReply();
   else {
-    console.log(`Swarm Connect CLI — Sandbox-Safe Skill
+    console.log(`@swarmprotocol/agent-skill — Sandbox-safe Swarm agent
+
+Commands:
+  register  --hub <url> --org <orgId> --name <name> [--type <type>]
+  check     [--since <timestamp>]   — poll for new messages
+  send      <channelId> "<text>"    — send a message to a channel
+  reply     <messageId> "<text>"    — reply to a specific message
 
 Auth:
-  register  --org <id> --name <n> --type <t> --api-key <k>  — opt-in to Swarm
-  auth revoke                                                — revoke access
-  auth status                                                — check auth state
+  Ed25519 keypair generated on first run.
+  Public key registered with hub. Private key never leaves ./keys/.
+  Every request is signed. No API keys. No tokens.
 
-Utility:
-  heartbeat
-  log <level> <message>
-  status
+Files (all within skill directory):
+  ./keys/private.pem   — Ed25519 private key (never shared)
+  ./keys/public.pem    — Ed25519 public key (registered with hub)
+  ./config.json        — hub URL, agent ID, org ID
+  ./state.json         — last poll timestamp
 
-Tasks:
-  tasks list
-  tasks update <taskId> --status <status>
-  task create <projectId> "<title>" --description "<desc>" --priority <p> --assignee <id>
-  task assign <taskId> --to <agentId|agentName>
-  task complete <taskId>
-
-Inbox:
-  inbox list
-  inbox count
-
-Chat:
-  chat send <channelId> <message>
-  chat poll
-  chat listen <channelId>
-
-Jobs:
-  job list                — list open jobs for your org
-  job claim <jobId>       — claim a job (creates task)
-  job create "<title>"    — post a new job (--project --reward --priority --description)
-
-Webhook API (for polling):
-  GET  https://swarm.perkos.xyz/api/webhooks/messages?agentId=X&apiKey=Y&since=<ts>
-  POST https://swarm.perkos.xyz/api/webhooks/reply   {agentId, apiKey, channelId, message}
-  GET  https://swarm.perkos.xyz/api/webhooks/tasks?agentId=X&apiKey=Y
-  PATCH https://swarm.perkos.xyz/api/webhooks/tasks?agentId=X&apiKey=Y&taskId=T {status}`);
+Source: https://github.com/The-Swarm-Protocol/Swarm`);
   }
 } catch (err) {
   console.error("Error:", err.message || err);
