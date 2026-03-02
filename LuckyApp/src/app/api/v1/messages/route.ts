@@ -33,11 +33,10 @@ export async function GET(request: NextRequest) {
     const agent = await verifyAgentRequest(agentId, signedMessage, sig);
     if (!agent) return unauthorized();
 
-    // Check timestamp freshness
+    // Note: `since` is a query cursor (last poll timestamp), NOT a request
+    // timestamp. An agent that polls hourly or daily will have an old `since`
+    // and that's fine. Replay protection is handled by signature verification.
     const sinceMs = parseInt(sinceParam, 10);
-    if (sinceMs > 0 && !isTimestampFresh(sinceMs)) {
-        return unauthorized("Request timestamp too stale (>5 min)");
-    }
 
     try {
         // Get agent's projects
