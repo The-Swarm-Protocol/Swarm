@@ -14,6 +14,7 @@ const sidebarLinks = [
   { href: "/jobs", label: "Job Board", icon: "💼" },
   { href: "/analytics", label: "Analytics", icon: "📊" },
   { href: "/chat", label: "Channels", icon: "💬" },
+  { href: "/agent-comms", label: "Agent Comms", icon: "📡" },
   { href: "/logs", label: "Logs", icon: "📋" },
 ];
 

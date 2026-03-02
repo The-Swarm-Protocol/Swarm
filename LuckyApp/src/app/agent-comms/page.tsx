@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useOrg } from "@/contexts/OrgContext";
 import { motion } from "motion/react";
 import BlurText from "@/components/reactbits/BlurText";
@@ -16,28 +16,32 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import {
-    onAgentCommsByOrg,
-    type AgentComm,
+    getChannelsByOrg,
+    getAgentsByOrg,
+    getProjectsByOrg,
+    type Channel,
+    type Agent,
+    type Message,
+    type Project,
 } from "@/lib/firestore";
+import { db } from "@/lib/firebase";
+import {
+    collection,
+    query,
+    where,
+    orderBy,
+    onSnapshot,
+} from "firebase/firestore";
 
-const COMM_TYPE_STYLES: Record<string, { badge: string; icon: string; label: string }> = {
-    message: { badge: "bg-blue-100 text-blue-700 border-blue-200", icon: "💬", label: "Message" },
-    status: { badge: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: "📊", label: "Status" },
-    handoff: { badge: "bg-purple-100 text-purple-700 border-purple-200", icon: "🤝", label: "Handoff" },
-    error: { badge: "bg-red-100 text-red-700 border-red-200", icon: "❌", label: "Error" },
-};
-
-const DARK_COMM_TYPE_STYLES: Record<string, { badge: string }> = {
-    message: { badge: "dark:bg-blue-500/15 dark:text-blue-400 dark:border-blue-500/30" },
-    status: { badge: "dark:bg-emerald-500/15 dark:text-emerald-400 dark:border-emerald-500/30" },
-    handoff: { badge: "dark:bg-purple-500/15 dark:text-purple-400 dark:border-purple-500/30" },
-    error: { badge: "dark:bg-red-500/15 dark:text-red-400 dark:border-red-500/30" },
-};
+// ─── Helpers ─────────────────────────────────────────
 
 function formatTimestamp(ts: unknown): string {
     if (!ts) return "—";
     if (typeof ts === "object" && ts !== null && "toDate" in ts) {
         return (ts as { toDate: () => Date }).toDate().toLocaleString();
+    }
+    if (typeof ts === "object" && ts !== null && "seconds" in ts) {
+        return new Date((ts as { seconds: number }).seconds * 1000).toLocaleString();
     }
     if (ts instanceof Date) return ts.toLocaleString();
     if (typeof ts === "number") return new Date(ts).toLocaleString();
@@ -66,43 +70,112 @@ function relativeTime(ts: unknown): string {
     return `${diffDay}d ago`;
 }
 
+// ─── Component ───────────────────────────────────────
+
 export default function AgentCommsPage() {
     const { currentOrg } = useOrg();
-    const [comms, setComms] = useState<AgentComm[]>([]);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [loading, setLoading] = useState(true);
-    const [filterType, setFilterType] = useState<string>("all");
+    const [channels, setChannels] = useState<Channel[]>([]);
+    const [agents, setAgents] = useState<Agent[]>([]);
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [filterChannel, setFilterChannel] = useState<string>("all");
+    const [filterSender, setFilterSender] = useState<string>("all"); // "all" | "agents" | "humans"
     const [searchQuery, setSearchQuery] = useState("");
+    const feedRef = useRef<HTMLDivElement>(null);
 
+    // Load channels, agents, projects
     useEffect(() => {
-        if (!currentOrg) {
-            setComms([]);
+        if (!currentOrg) return;
+        Promise.all([
+            getChannelsByOrg(currentOrg.id),
+            getAgentsByOrg(currentOrg.id),
+            getProjectsByOrg(currentOrg.id),
+        ]).then(([ch, ag, pr]) => {
+            setChannels(ch);
+            setAgents(ag);
+            setProjects(pr);
+        });
+    }, [currentOrg]);
+
+    // Subscribe to real-time messages across all org channels
+    useEffect(() => {
+        if (!currentOrg || channels.length === 0) {
+            setMessages([]);
             setLoading(false);
             return;
         }
 
         setLoading(true);
+        const channelIds = channels.map(c => c.id);
 
-        const unsubscribe = onAgentCommsByOrg(currentOrg.id, (data) => {
-            setComms(data);
-            setLoading(false);
-        });
+        // Firestore 'in' limited to 30, batch if needed
+        const unsubs: (() => void)[] = [];
+        const allMessages = new Map<string, Message>();
 
-        return () => unsubscribe();
-    }, [currentOrg]);
+        for (let i = 0; i < channelIds.length; i += 30) {
+            const batch = channelIds.slice(i, i + 30);
+            const q = query(
+                collection(db, "messages"),
+                where("channelId", "in", batch),
+                orderBy("createdAt", "desc")
+            );
 
-    const filteredComms = comms.filter((comm) => {
-        if (filterType !== "all" && comm.type !== filterType) return false;
+            const unsub = onSnapshot(q, (snap) => {
+                snap.docs.forEach(d => {
+                    allMessages.set(d.id, { id: d.id, ...d.data() } as Message);
+                });
+
+                // Sort newest first and update state
+                const sorted = Array.from(allMessages.values()).sort((a, b) => {
+                    const aT = a.createdAt && typeof a.createdAt === "object" && "seconds" in a.createdAt
+                        ? (a.createdAt as { seconds: number }).seconds : 0;
+                    const bT = b.createdAt && typeof b.createdAt === "object" && "seconds" in b.createdAt
+                        ? (b.createdAt as { seconds: number }).seconds : 0;
+                    return bT - aT;
+                });
+
+                setMessages(sorted);
+                setLoading(false);
+            });
+            unsubs.push(unsub);
+        }
+
+        return () => unsubs.forEach(u => u());
+    }, [currentOrg, channels]);
+
+    // Lookup helpers
+    const channelMap = new Map(channels.map(c => [c.id, c]));
+    const agentMap = new Map(agents.map(a => [a.id, a]));
+    const projectMap = new Map(projects.map(p => [p.id, p]));
+
+    const getChannelName = (channelId: string) => channelMap.get(channelId)?.name || channelId;
+    const getProjectForChannel = (channelId: string) => {
+        const ch = channelMap.get(channelId);
+        if (!ch?.projectId) return null;
+        return projectMap.get(ch.projectId) || null;
+    };
+
+    // Filter messages
+    const filteredMessages = messages.filter(msg => {
+        if (filterChannel !== "all" && msg.channelId !== filterChannel) return false;
+        if (filterSender === "agents" && msg.senderType !== "agent") return false;
+        if (filterSender === "humans" && msg.senderType !== "human") return false;
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
             return (
-                comm.content?.toLowerCase().includes(q) ||
-                comm.fromAgentName?.toLowerCase().includes(q) ||
-                comm.toAgentName?.toLowerCase().includes(q) ||
-                comm.type?.toLowerCase().includes(q)
+                msg.content?.toLowerCase().includes(q) ||
+                msg.senderName?.toLowerCase().includes(q) ||
+                getChannelName(msg.channelId).toLowerCase().includes(q)
             );
         }
         return true;
     });
+
+    // Stats
+    const agentMsgCount = messages.filter(m => m.senderType === "agent").length;
+    const humanMsgCount = messages.filter(m => m.senderType === "human").length;
+    const uniqueAgents = new Set(messages.filter(m => m.senderType === "agent").map(m => m.senderId));
 
     if (!currentOrg) {
         return (
@@ -119,7 +192,7 @@ export default function AgentCommsPage() {
             <div>
                 <BlurText text="Agent Comms" className="text-3xl font-bold tracking-tight" delay={80} animateBy="words" />
                 <p className="text-muted-foreground mt-1">
-                    Real-time inter-agent communications feed
+                    Live feed of all agent and team communications across channels
                 </p>
             </div>
 
@@ -131,30 +204,39 @@ export default function AgentCommsPage() {
                 className="flex flex-col sm:flex-row gap-3"
             >
                 <Input
-                    placeholder="Search communications..."
+                    placeholder="Search messages..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="max-w-xs"
                 />
-                <Select value={filterType} onValueChange={setFilterType}>
-                    <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Filter by type" />
+                <Select value={filterChannel} onValueChange={setFilterChannel}>
+                    <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="All Channels" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="all">All Types</SelectItem>
-                        <SelectItem value="message">💬 Message</SelectItem>
-                        <SelectItem value="status">📊 Status</SelectItem>
-                        <SelectItem value="handoff">🤝 Handoff</SelectItem>
-                        <SelectItem value="error">❌ Error</SelectItem>
+                        <SelectItem value="all">All Channels</SelectItem>
+                        {channels.map(ch => (
+                            <SelectItem key={ch.id} value={ch.id}>#{ch.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <Select value={filterSender} onValueChange={setFilterSender}>
+                    <SelectTrigger className="w-[160px]">
+                        <SelectValue placeholder="All Senders" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Senders</SelectItem>
+                        <SelectItem value="agents">🤖 Agents Only</SelectItem>
+                        <SelectItem value="humans">👤 Humans Only</SelectItem>
                     </SelectContent>
                 </Select>
                 <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => { setFilterType("all"); setSearchQuery(""); }}
+                    onClick={() => { setFilterChannel("all"); setFilterSender("all"); setSearchQuery(""); }}
                     className="w-fit"
                 >
-                    Clear Filters
+                    Clear
                 </Button>
             </motion.div>
 
@@ -165,28 +247,25 @@ export default function AgentCommsPage() {
                 transition={{ duration: 0.4, delay: 0.15 }}
                 className="flex gap-4 flex-wrap"
             >
-                {Object.entries(COMM_TYPE_STYLES).map(([type, style]) => {
-                    const count = comms.filter(c => c.type === type).length;
-                    return (
-                        <button
-                            key={type}
-                            onClick={() => setFilterType(filterType === type ? "all" : type)}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium transition-all duration-200 hover:scale-105 ${filterType === type
-                                    ? "ring-2 ring-amber-500/50 border-amber-500/40"
-                                    : "border-border/50"
-                                }`}
-                        >
-                            <span>{style.icon}</span>
-                            <span>{style.label}</span>
-                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                                {count}
-                            </Badge>
-                        </button>
-                    );
-                })}
+                {[
+                    { icon: "📨", label: "Total", value: messages.length },
+                    { icon: "🤖", label: "Agent Messages", value: agentMsgCount },
+                    { icon: "👤", label: "Human Messages", value: humanMsgCount },
+                    { icon: "🟢", label: "Active Agents", value: uniqueAgents.size },
+                    { icon: "📡", label: "Channels", value: channels.length },
+                ].map(stat => (
+                    <div
+                        key={stat.label}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium bg-card"
+                    >
+                        <span>{stat.icon}</span>
+                        <span className="font-semibold">{stat.value}</span>
+                        <span className="text-muted-foreground">{stat.label}</span>
+                    </div>
+                ))}
             </motion.div>
 
-            {/* Communications Feed */}
+            {/* Live Feed */}
             {loading ? (
                 <div className="text-center py-12 text-muted-foreground">
                     <div className="inline-flex items-center gap-2">
@@ -194,7 +273,7 @@ export default function AgentCommsPage() {
                         <span>Loading communications...</span>
                     </div>
                 </div>
-            ) : filteredComms.length === 0 ? (
+            ) : filteredMessages.length === 0 ? (
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -202,81 +281,81 @@ export default function AgentCommsPage() {
                     className="text-center py-16 text-muted-foreground"
                 >
                     <div className="text-6xl mb-4">📡</div>
-                    <p className="text-lg font-medium">No agent communications yet</p>
+                    <p className="text-lg font-medium">No communications yet</p>
                     <p className="text-sm mt-2 max-w-md mx-auto">
-                        Communications will appear here as your agents coordinate tasks,
-                        exchange status updates, perform handoffs, and report errors.
+                        Messages will appear here in real-time as agents and team members
+                        communicate in project channels.
                     </p>
-                    <div className="mt-6 flex items-center justify-center gap-6 text-xs">
-                        {Object.entries(COMM_TYPE_STYLES).map(([type, style]) => (
-                            <div key={type} className="flex items-center gap-1.5">
-                                <span>{style.icon}</span>
-                                <span className="capitalize">{type}</span>
-                            </div>
-                        ))}
-                    </div>
                 </motion.div>
             ) : (
                 <motion.div
+                    ref={feedRef}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ duration: 0.4, delay: 0.2 }}
-                    className="space-y-2"
+                    className="space-y-2 max-h-[calc(100vh-360px)] overflow-y-auto pr-1"
                 >
-                    {filteredComms.map((comm, index) => {
-                        const style = COMM_TYPE_STYLES[comm.type] || COMM_TYPE_STYLES.message;
-                        const darkStyle = DARK_COMM_TYPE_STYLES[comm.type] || DARK_COMM_TYPE_STYLES.message;
+                    {filteredMessages.map((msg, index) => {
+                        const isAgent = msg.senderType === "agent";
+                        const project = getProjectForChannel(msg.channelId);
 
                         return (
                             <motion.div
-                                key={comm.id}
+                                key={msg.id}
                                 initial={{ opacity: 0, y: 8 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.3, delay: Math.min(index * 0.03, 0.3) }}
+                                transition={{ duration: 0.3, delay: Math.min(index * 0.02, 0.3) }}
                             >
                                 <SpotlightCard className="p-0" spotlightColor="rgba(255, 191, 0, 0.05)">
                                     <div className="flex items-start gap-3 p-4">
-                                        {/* Type icon */}
-                                        <span className="text-lg mt-0.5 shrink-0">{style.icon}</span>
+                                        {/* Sender icon */}
+                                        <span className="text-lg mt-0.5 shrink-0">
+                                            {isAgent ? "🤖" : "👤"}
+                                        </span>
 
                                         {/* Content */}
                                         <div className="flex-1 min-w-0">
-                                            {/* Agent direction row */}
+                                            {/* Sender + channel row */}
                                             <div className="flex items-center gap-2 flex-wrap mb-1">
-                                                <Badge className={`${style.badge} ${darkStyle.badge} text-[10px]`}>
-                                                    {style.label}
+                                                <span className={`text-xs font-semibold ${isAgent
+                                                    ? "text-amber-600 dark:text-amber-400"
+                                                    : "text-blue-600 dark:text-blue-400"
+                                                    }`}>
+                                                    {msg.senderName}
+                                                </span>
+
+                                                <span className="text-muted-foreground text-xs">in</span>
+
+                                                <Badge variant="outline" className="text-[10px]">
+                                                    #{getChannelName(msg.channelId)}
                                                 </Badge>
 
-                                                {/* From agent */}
-                                                <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
-                                                    🤖 {comm.fromAgentName}
-                                                </span>
+                                                {project && (
+                                                    <span className="text-[10px] text-muted-foreground">
+                                                        📁 {project.name}
+                                                    </span>
+                                                )}
 
-                                                {/* Arrow */}
-                                                <span className="text-muted-foreground text-xs">→</span>
-
-                                                {/* To agent */}
-                                                <span className="inline-flex items-center gap-1 text-xs font-semibold text-cyan-600 dark:text-cyan-400">
-                                                    🤖 {comm.toAgentName}
-                                                </span>
+                                                {isAgent && (
+                                                    <Badge className="text-[10px] bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                                                        verified ✓
+                                                    </Badge>
+                                                )}
                                             </div>
 
-                                            {/* Message content */}
-                                            <p className="text-sm mt-1 leading-relaxed">{comm.content}</p>
-
-                                            {/* Metadata preview */}
-                                            {comm.metadata && Object.keys(comm.metadata).length > 0 && (
-                                                <div className="mt-2 px-2 py-1 rounded bg-muted/50 text-[11px] text-muted-foreground font-mono truncate">
-                                                    {JSON.stringify(comm.metadata).slice(0, 120)}
-                                                    {JSON.stringify(comm.metadata).length > 120 && "…"}
-                                                </div>
-                                            )}
+                                            {/* Message text */}
+                                            <p className="text-sm mt-1 leading-relaxed whitespace-pre-wrap break-words">
+                                                {msg.content}
+                                            </p>
                                         </div>
 
                                         {/* Timestamp */}
                                         <div className="text-right shrink-0">
-                                            <span className="text-xs text-muted-foreground whitespace-nowrap" title={formatTimestamp(comm.createdAt)}>
-                                                {relativeTime(comm.createdAt)}
+                                            <span
+                                                className="text-xs text-muted-foreground whitespace-nowrap"
+                                                title={formatTimestamp(msg.createdAt)}
+                                            >
+                                                {relativeTime(msg.createdAt)}
                                             </span>
                                         </div>
                                     </div>
