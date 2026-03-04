@@ -64,9 +64,6 @@ export default function LandingPage() {
             <span className="text-2xl font-bold text-[#FFD700] tracking-tight">Swarm</span>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/dashboard" className="hidden sm:block text-sm font-medium text-muted-foreground hover:text-white transition-colors">
-              Enter App
-            </Link>
             <ConnectButton client={client} chains={WALLET_CHAINS} />
           </div>
         </div>
@@ -136,9 +133,9 @@ export default function LandingPage() {
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6 animate-in delay-300 pointer-events-auto">
               <ConnectButton client={client} chains={WALLET_CHAINS} />
-              <Link href="/dashboard">
+              <Link href="/docs">
                 <Button variant="outline" size="lg" className="h-12 px-8 rounded-full border-white/10 hover:bg-white/5 group bg-black/20">
-                  Platform Demo
+                  Read the Docs
                   <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
                 </Button>
               </Link>
