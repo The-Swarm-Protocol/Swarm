@@ -8,7 +8,7 @@ import {
   LayoutDashboard, FolderKanban, Users, Briefcase, MessageSquare,
   LayoutGrid, Shield, Package, Clock, Activity, BarChart3, Settings,
   Map, Calendar, Radio, FileText, ChevronLeft, ChevronRight, GripVertical,
-  Command,
+  Command, Coins, Stethoscope, Brain, UserCog,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════
@@ -47,6 +47,7 @@ const DEFAULT_SECTIONS: NavSection[] = [
       { id: "jobs", href: "/jobs", label: "Jobs", icon: Briefcase },
       { id: "channels", href: "/chat", label: "Channels", icon: MessageSquare },
       { id: "approvals", href: "/approvals", label: "Approvals", icon: Shield },
+      { id: "operators", href: "/operators", label: "Operators", icon: UserCog },
       { id: "cron", href: "/cron", label: "Scheduler", icon: Clock },
     ],
   },
@@ -55,7 +56,9 @@ const DEFAULT_SECTIONS: NavSection[] = [
     label: "Intelligence",
     items: [
       { id: "activity", href: "/activity", label: "Activity", icon: Activity },
+      { id: "cerebro", href: "/cerebro", label: "Cerebro", icon: Brain },
       { id: "metrics", href: "/metrics", label: "Metrics", icon: BarChart3 },
+      { id: "usage", href: "/usage", label: "Usage", icon: Coins },
       { id: "skills", href: "/skills", label: "Skills", icon: Package },
       { id: "agent-map", href: "/agent-map", label: "Agent Map", icon: Map },
     ],
@@ -65,6 +68,7 @@ const DEFAULT_SECTIONS: NavSection[] = [
     label: "System",
     items: [
       { id: "logs", href: "/logs", label: "Logs", icon: FileText },
+      { id: "doctor", href: "/doctor", label: "Health", icon: Stethoscope },
       { id: "settings", href: "/settings", label: "Settings", icon: Settings },
     ],
   },

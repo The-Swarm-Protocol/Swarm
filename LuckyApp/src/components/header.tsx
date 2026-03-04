@@ -15,6 +15,7 @@ import GradientText from '@/components/reactbits/GradientText';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { NotificationCenter } from '@/components/notification-center';
 
 const client = createThirdwebClient({
   clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || 'cbd8abcfa13db759ca2f5fa7d8a5a5e5',
@@ -107,7 +108,8 @@ export function Header() {
               <GradientText colors={['#FFD700', '#FFA500', '#FF8C00']} animationSpeed={4} className="text-lg font-bold text-glow-gold">Swarm</GradientText>
             </Link>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {isConnected && <NotificationCenter />}
             {isConnected && currentOrg && organizations.length > 0 && (
               <>
                 {currentOrg.logoUrl && (
