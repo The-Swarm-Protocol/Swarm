@@ -7,9 +7,9 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, FolderKanban, Users, Briefcase, MessageSquare,
-  LayoutGrid, Shield, Package, Clock, Activity, BarChart3, Settings,
+  LayoutGrid, Shield, Clock, Activity, BarChart3, Settings,
   Map, Calendar, Radio, FileText, ChevronLeft, ChevronRight, GripVertical,
-  Command, Coins, Stethoscope, Brain, UserCog, Network, HardDrive, BookOpen,
+  Command, Coins, Stethoscope, Brain, UserCog, Network, HardDrive, BookOpen, Store,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════
@@ -61,7 +61,7 @@ const DEFAULT_SECTIONS: NavSection[] = [
       { id: "memory", href: "/memory", label: "Memory", icon: HardDrive },
       { id: "metrics", href: "/metrics", label: "Metrics", icon: BarChart3 },
       { id: "usage", href: "/usage", label: "Usage", icon: Coins },
-      { id: "skills", href: "/skills", label: "Skills", icon: Package },
+      { id: "market", href: "/market", label: "Market", icon: Store },
       { id: "agent-map", href: "/agent-map", label: "Agent Map", icon: Map },
     ],
   },

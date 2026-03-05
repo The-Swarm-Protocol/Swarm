@@ -1,11 +1,11 @@
-/** Layout for /skills — wraps page with Header, Sidebar, and ProtectedRoute. */
+/** Layout for /market — wraps page with Header, Sidebar, and ProtectedRoute. */
 import { HeaderWrapper as Header } from "@/components/header-wrapper";
 import { Sidebar } from "@/components/sidebar";
 import { ProtectedRoute } from "@/components/protected-route";
 
-export const metadata = { title: "Skill Marketplace — Swarm" };
+export const metadata = { title: "Market — Swarm" };
 
-export default function SkillsLayout({ children }: { children: React.ReactNode }) {
+export default function MarketLayout({ children }: { children: React.ReactNode }) {
     return (
         <ProtectedRoute>
             <div className="min-h-screen">

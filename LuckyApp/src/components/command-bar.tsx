@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Search, Command, ArrowRight, LayoutGrid, MessageSquare, Users, Briefcase, Settings, Zap, Activity, BarChart3, Shield, Package, Clock } from "lucide-react";
+import { Search, Command, ArrowRight, LayoutGrid, MessageSquare, Users, Briefcase, Settings, Zap, Activity, BarChart3, Shield, Clock, Store } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════
 // Routes & Actions
@@ -27,7 +27,7 @@ const NAV_ITEMS: CommandItem[] = [
     { id: "channels", label: "Channels", icon: MessageSquare, href: "/chat", section: "Navigation" },
     { id: "board", label: "Board (Kanban)", icon: LayoutGrid, href: "/kanban", section: "Navigation" },
     { id: "approvals", label: "Approvals", icon: Shield, href: "/approvals", section: "Navigation" },
-    { id: "skills", label: "Skill Marketplace", icon: Package, href: "/skills", section: "Navigation" },
+    { id: "market", label: "Market", icon: Store, href: "/market", section: "Navigation" },
     { id: "cron", label: "Cron Scheduler", icon: Clock, href: "/cron", section: "Navigation" },
     { id: "activity", label: "Activity Timeline", icon: Activity, href: "/activity", section: "Navigation" },
     { id: "metrics", label: "Metrics", icon: BarChart3, href: "/metrics", section: "Navigation" },

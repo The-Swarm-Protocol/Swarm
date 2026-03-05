@@ -1,9 +1,9 @@
 /**
- * Skill Marketplace — Types + Registry
+ * Market — Types + Registry
  *
- * Browse, install, and manage agent skills (tools/plugins).
- * Skills are stored in Firestore per-org, with a static registry
- * of available skills from the marketplace.
+ * Browse, install, and manage agent mods, plugins, and skills.
+ * Items are stored in Firestore per-org, with a static registry
+ * of available items from the marketplace.
  */
 
 import {
@@ -25,10 +25,15 @@ import { db } from "./firebase";
 // Types
 // ═══════════════════════════════════════════════════════════════
 
+export type MarketItemType = "mod" | "plugin" | "skill";
+export type MarketItemSource = "verified" | "community";
+
 export interface Skill {
     id: string;
     name: string;
     description: string;
+    type: MarketItemType;
+    source: MarketItemSource;
     category: string;
     icon: string;
     version: string;
@@ -56,7 +61,7 @@ export interface SkillBundle {
 export interface InstalledSkill {
     id: string;             // Firestore doc ID
     orgId: string;
-    skillId: string;        // reference to marketplace skill
+    skillId: string;        // reference to marketplace item
     enabled: boolean;
     config?: Record<string, string>;  // API keys, settings
     installedAt: Date | null;
@@ -68,52 +73,63 @@ export interface InstalledSkill {
 // ═══════════════════════════════════════════════════════════════
 
 export const SKILL_REGISTRY: Skill[] = [
+    // ── Mods ──
     {
-        id: "web-search",
-        name: "Web Search",
-        description: "Search the web for real-time information. Uses Tavily or SerpAPI for comprehensive results.",
-        category: "Research",
-        icon: "🔍",
-        version: "1.2.0",
-        author: "Swarm Core",
-        requiredKeys: ["TAVILY_API_KEY"],
-        tags: ["search", "research", "web", "news"],
-    },
-    {
-        id: "code-interpreter",
-        name: "Code Interpreter",
-        description: "Execute Python and JavaScript code in a sandboxed environment. Great for data analysis, math, and scripting.",
-        category: "Developer",
-        icon: "💻",
-        version: "2.0.1",
-        author: "Swarm Core",
-        tags: ["code", "python", "javascript", "analysis"],
-    },
-    {
-        id: "file-manager",
-        name: "File Manager",
-        description: "Read, write, and manage files. Supports text files, CSVs, JSON, and more.",
-        category: "Developer",
-        icon: "📁",
-        version: "1.1.0",
-        author: "Swarm Core",
-        tags: ["files", "filesystem", "csv", "json"],
-    },
-    {
-        id: "image-gen",
-        name: "Image Generator",
-        description: "Generate images from text prompts using DALL-E 3 or Stable Diffusion.",
-        category: "Creative",
-        icon: "🎨",
+        id: "professional-tone",
+        name: "Professional Tone",
+        description: "Enforce professional, formal communication style in all agent responses.",
+        type: "mod",
+        source: "verified",
+        category: "Communication Style",
+        icon: "👔",
         version: "1.0.0",
         author: "Swarm Core",
-        requiredKeys: ["OPENAI_API_KEY"],
-        tags: ["image", "art", "generation", "dalle"],
+        tags: ["tone", "professional", "formal", "style"],
     },
+    {
+        id: "safety-guardrails",
+        name: "Safety Guardrails",
+        description: "Apply safety constraints — prevent agents from executing destructive actions without approval.",
+        type: "mod",
+        source: "verified",
+        category: "Safety",
+        icon: "🛡️",
+        version: "1.0.0",
+        author: "Swarm Core",
+        tags: ["safety", "guardrails", "constraints", "approval"],
+    },
+    {
+        id: "concise-mode",
+        name: "Concise Mode",
+        description: "Force agents to produce shorter, more direct responses. Ideal for high-throughput workflows.",
+        type: "mod",
+        source: "verified",
+        category: "Communication Style",
+        icon: "✂️",
+        version: "1.0.0",
+        author: "Swarm Core",
+        tags: ["concise", "brief", "short", "style"],
+    },
+    {
+        id: "chain-of-thought",
+        name: "Chain of Thought",
+        description: "Require agents to show their reasoning process step-by-step before giving a final answer.",
+        type: "mod",
+        source: "verified",
+        category: "Reasoning",
+        icon: "🧩",
+        version: "1.0.0",
+        author: "Swarm Core",
+        tags: ["reasoning", "cot", "thinking", "transparency"],
+    },
+
+    // ── Plugins ──
     {
         id: "github-tools",
         name: "GitHub Integration",
         description: "Interact with GitHub repos — create issues, PRs, read code, manage workflows.",
+        type: "plugin",
+        source: "verified",
         category: "Developer",
         icon: "🐙",
         version: "1.3.0",
@@ -125,6 +141,8 @@ export const SKILL_REGISTRY: Skill[] = [
         id: "slack-notify",
         name: "Slack Notifications",
         description: "Send notifications and messages to Slack channels and users.",
+        type: "plugin",
+        source: "verified",
         category: "Communication",
         icon: "💬",
         version: "1.0.0",
@@ -133,9 +151,101 @@ export const SKILL_REGISTRY: Skill[] = [
         tags: ["slack", "notifications", "messaging"],
     },
     {
+        id: "email-sender",
+        name: "Email Sender",
+        description: "Compose and send emails via SMTP or SendGrid. Supports templates and attachments.",
+        type: "plugin",
+        source: "verified",
+        category: "Communication",
+        icon: "📧",
+        version: "1.0.0",
+        author: "Swarm Core",
+        requiredKeys: ["SENDGRID_API_KEY"],
+        tags: ["email", "smtp", "sendgrid", "notifications"],
+    },
+    {
+        id: "calendar-sync",
+        name: "Calendar Sync",
+        description: "Read and create calendar events. Integrates with Google Calendar and Outlook.",
+        type: "plugin",
+        source: "verified",
+        category: "Productivity",
+        icon: "📅",
+        version: "1.0.0",
+        author: "Swarm Core",
+        requiredKeys: ["GOOGLE_CALENDAR_KEY"],
+        tags: ["calendar", "events", "scheduling"],
+    },
+    {
+        id: "blockchain-tools",
+        name: "Blockchain Tools",
+        description: "Interact with EVM chains — read balances, send transactions, query contracts.",
+        type: "plugin",
+        source: "verified",
+        category: "Web3",
+        icon: "⛓️",
+        version: "1.0.0",
+        author: "Swarm Core",
+        tags: ["blockchain", "web3", "ethereum", "transactions"],
+    },
+
+    // ── Skills ──
+    {
+        id: "web-search",
+        name: "Web Search",
+        description: "Search the web for real-time information. Uses Tavily or SerpAPI for comprehensive results.",
+        type: "skill",
+        source: "verified",
+        category: "Research",
+        icon: "🔍",
+        version: "1.2.0",
+        author: "Swarm Core",
+        requiredKeys: ["TAVILY_API_KEY"],
+        tags: ["search", "research", "web", "news"],
+    },
+    {
+        id: "code-interpreter",
+        name: "Code Interpreter",
+        description: "Execute Python and JavaScript code in a sandboxed environment. Great for data analysis, math, and scripting.",
+        type: "skill",
+        source: "verified",
+        category: "Developer",
+        icon: "💻",
+        version: "2.0.1",
+        author: "Swarm Core",
+        tags: ["code", "python", "javascript", "analysis"],
+    },
+    {
+        id: "file-manager",
+        name: "File Manager",
+        description: "Read, write, and manage files. Supports text files, CSVs, JSON, and more.",
+        type: "skill",
+        source: "verified",
+        category: "Developer",
+        icon: "📁",
+        version: "1.1.0",
+        author: "Swarm Core",
+        tags: ["files", "filesystem", "csv", "json"],
+    },
+    {
+        id: "image-gen",
+        name: "Image Generator",
+        description: "Generate images from text prompts using DALL-E 3 or Stable Diffusion.",
+        type: "skill",
+        source: "verified",
+        category: "Creative",
+        icon: "🎨",
+        version: "1.0.0",
+        author: "Swarm Core",
+        requiredKeys: ["OPENAI_API_KEY"],
+        tags: ["image", "art", "generation", "dalle"],
+    },
+    {
         id: "pdf-reader",
         name: "PDF Reader",
         description: "Extract text, tables, and metadata from PDF documents.",
+        type: "skill",
+        source: "verified",
         category: "Research",
         icon: "📄",
         version: "1.1.0",
@@ -146,6 +256,8 @@ export const SKILL_REGISTRY: Skill[] = [
         id: "data-viz",
         name: "Data Visualization",
         description: "Create charts, graphs, and dashboards from data using Chart.js and D3.",
+        type: "skill",
+        source: "verified",
         category: "Analytics",
         icon: "📊",
         version: "1.0.0",
@@ -153,41 +265,11 @@ export const SKILL_REGISTRY: Skill[] = [
         tags: ["charts", "graphs", "data", "visualization"],
     },
     {
-        id: "email-sender",
-        name: "Email Sender",
-        description: "Compose and send emails via SMTP or SendGrid. Supports templates and attachments.",
-        category: "Communication",
-        icon: "📧",
-        version: "1.0.0",
-        author: "Swarm Core",
-        requiredKeys: ["SENDGRID_API_KEY"],
-        tags: ["email", "smtp", "sendgrid", "notifications"],
-    },
-    {
-        id: "blockchain-tools",
-        name: "Blockchain Tools",
-        description: "Interact with EVM chains — read balances, send transactions, query contracts.",
-        category: "Web3",
-        icon: "⛓️",
-        version: "1.0.0",
-        author: "Swarm Core",
-        tags: ["blockchain", "web3", "ethereum", "transactions"],
-    },
-    {
-        id: "calendar-sync",
-        name: "Calendar Sync",
-        description: "Read and create calendar events. Integrates with Google Calendar and Outlook.",
-        category: "Productivity",
-        icon: "📅",
-        version: "1.0.0",
-        author: "Swarm Core",
-        requiredKeys: ["GOOGLE_CALENDAR_KEY"],
-        tags: ["calendar", "events", "scheduling"],
-    },
-    {
         id: "memory-store",
         name: "Long-Term Memory",
         description: "Persistent memory for agents. Store and retrieve facts, context, and conversation history across sessions.",
+        type: "skill",
+        source: "verified",
         category: "Core",
         icon: "🧠",
         version: "1.0.0",
@@ -221,13 +303,24 @@ export const SKILL_BUNDLES: SkillBundle[] = [
 ];
 
 // ═══════════════════════════════════════════════════════════════
-// Categories
+// Categories (per type)
 // ═══════════════════════════════════════════════════════════════
 
 export const SKILL_CATEGORIES = [
     "All",
     ...Array.from(new Set(SKILL_REGISTRY.map((s) => s.category))).sort(),
 ];
+
+function categoriesForType(type: MarketItemType): string[] {
+    return [
+        "All",
+        ...Array.from(new Set(SKILL_REGISTRY.filter((s) => s.type === type).map((s) => s.category))).sort(),
+    ];
+}
+
+export const MOD_CATEGORIES = categoriesForType("mod");
+export const PLUGIN_CATEGORIES = categoriesForType("plugin");
+export const SKILL_ONLY_CATEGORIES = categoriesForType("skill");
 
 // ═══════════════════════════════════════════════════════════════
 // Firestore CRUD (installed skills per org)

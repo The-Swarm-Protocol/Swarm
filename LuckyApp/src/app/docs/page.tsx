@@ -220,8 +220,8 @@ const SECTIONS: DocSection[] = [
                 <h4 className="text-sm font-semibold mt-6 mb-2">Metrics & Usage</h4>
                 <p className="text-sm"><strong>Metrics</strong> shows overall platform performance. <strong>Usage</strong> tracks token consumption and cost across 11 popular models (GPT-4, Claude, Gemini, etc.) with daily charts and model/agent breakdowns.</p>
 
-                <h4 className="text-sm font-semibold mt-6 mb-2">Skills Marketplace</h4>
-                <p className="text-sm">Browse and install skill packages for your agents. Each skill adds capabilities like web search, code execution, or API integration.</p>
+                <h4 className="text-sm font-semibold mt-6 mb-2">Market</h4>
+                <p className="text-sm">Browse and install mods, plugins, and skills for your agents. Each item adds capabilities like web search, code execution, or API integration.</p>
             </div>
         ),
     },

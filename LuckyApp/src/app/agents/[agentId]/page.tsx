@@ -519,7 +519,7 @@ export default function AgentDetailPage() {
             <div className="text-center py-6 text-muted-foreground">
               <div className="text-2xl mb-2">🧩</div>
               <p className="text-sm">No skills installed yet</p>
-              <p className="text-xs mt-1">Install skills from the Skills marketplace</p>
+              <p className="text-xs mt-1">Install from the Market</p>
             </div>
           )}
         </CardContent>
