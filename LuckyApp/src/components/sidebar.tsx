@@ -9,7 +9,7 @@ import {
   LayoutDashboard, FolderKanban, Users, Briefcase, MessageSquare,
   LayoutGrid, Shield, Clock, Activity, BarChart3, Settings,
   Map, Calendar, Radio, FileText, ChevronLeft, ChevronRight, GripVertical,
-  Command, Coins, Stethoscope, Brain, UserCog, Network, HardDrive, BookOpen, Store,
+  Command, Coins, Stethoscope, Brain, UserCog, Network, HardDrive, BookOpen, Store, Building2
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════
@@ -36,6 +36,7 @@ const DEFAULT_SECTIONS: NavSection[] = [
     label: "Core",
     items: [
       { id: "dashboard", href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { id: "organizations", href: "/organizations", label: "Orgs", icon: Building2 },
       { id: "projects", href: "/swarms", label: "Projects", icon: FolderKanban },
       { id: "agents", href: "/agents", label: "Agents", icon: Users },
       { id: "board", href: "/kanban", label: "Boards", icon: LayoutGrid },

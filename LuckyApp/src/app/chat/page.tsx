@@ -5,6 +5,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Flag } from "lucide-react";
 import { useActiveAccount } from "thirdweb/react";
 import { useOrg } from "@/contexts/OrgContext";
 import {
@@ -17,6 +18,7 @@ import {
   deleteMessagesByChannel,
   getAgentsByOrg,
   ensureAgentGroupChat,
+  createReport,
   type Channel,
   type Message,
   type Agent,
@@ -97,6 +99,10 @@ export default function ChatPage() {
   const [deleteTarget, setDeleteTarget] = useState<Channel | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+
+  const [reportingMsg, setReportingMsg] = useState<Message | null>(null);
+  const [reportReason, setReportReason] = useState("");
+  const [submittingReport, setSubmittingReport] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -259,6 +265,28 @@ export default function ChatPage() {
     }
   }, [activeChannel, address, messageInput]);
 
+  const handleSubmitReport = async () => {
+    if (!reportingMsg || !currentOrg || !address || !reportReason.trim()) return;
+    setSubmittingReport(true);
+    try {
+      await createReport({
+        orgId: currentOrg.id,
+        reportedUserId: reportingMsg.senderId,
+        messageId: reportingMsg.id,
+        channelId: activeChannel?.id,
+        reason: reportReason.trim(),
+        reportedBy: address,
+      });
+      setReportingMsg(null);
+      setReportReason("");
+    } catch (err) {
+      console.error("Failed to submit report:", err);
+      setError("Failed to submit report");
+    } finally {
+      setSubmittingReport(false);
+    }
+  };
+
   /* ── Guards ── */
 
   if (!currentOrg) {
@@ -336,8 +364,8 @@ export default function ChatPage() {
                           <div
                             key={ch.id}
                             className={`group relative flex items-center gap-2 px-3 py-2.5 text-sm cursor-pointer transition-colors ${activeChannel?.id === ch.id
-                                ? "bg-amber-500/10 border-r-2 border-amber-500 text-amber-600 dark:text-amber-400"
-                                : "text-muted-foreground hover:bg-card hover:text-foreground"
+                              ? "bg-amber-500/10 border-r-2 border-amber-500 text-amber-600 dark:text-amber-400"
+                              : "text-muted-foreground hover:bg-card hover:text-foreground"
                               }`}
                             onClick={() => {
                               if (renamingId !== ch.id) setActiveChannel(ch);
@@ -400,8 +428,8 @@ export default function ChatPage() {
                           <div
                             key={ch.id}
                             className={`group relative flex items-center gap-2 px-3 py-2.5 text-sm cursor-pointer transition-colors ${activeChannel?.id === ch.id
-                                ? "bg-amber-500/10 border-r-2 border-amber-500 text-amber-600 dark:text-amber-400"
-                                : "text-muted-foreground hover:bg-card hover:text-foreground"
+                              ? "bg-amber-500/10 border-r-2 border-amber-500 text-amber-600 dark:text-amber-400"
+                              : "text-muted-foreground hover:bg-card hover:text-foreground"
                               }`}
                             onClick={() => setActiveChannel(ch)}
                           >
@@ -492,8 +520,8 @@ export default function ChatPage() {
                               {showSender && (
                                 <div
                                   className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${isAgent
-                                      ? "bg-gradient-to-br from-amber-500 to-orange-600 text-black"
-                                      : "bg-gradient-to-br from-indigo-500 to-purple-600 text-white"
+                                    ? "bg-gradient-to-br from-amber-500 to-orange-600 text-black"
+                                    : "bg-gradient-to-br from-indigo-500 to-purple-600 text-white"
                                     }`}
                                 >
                                   {isAgent ? "🤖" : msg.senderName.charAt(0).toUpperCase()}
@@ -518,9 +546,21 @@ export default function ChatPage() {
                                   </span>
                                 </div>
                               )}
-                              <p className="text-sm text-foreground/90 break-words whitespace-pre-wrap leading-relaxed">
-                                {msg.content}
-                              </p>
+                              <div className="relative group/msg flex items-start gap-2">
+                                <p className="text-sm text-foreground/90 break-words whitespace-pre-wrap leading-relaxed">
+                                  {msg.content}
+                                </p>
+                                {/* Report Button */}
+                                {msg.senderId !== address && (
+                                  <button
+                                    onClick={() => setReportingMsg(msg)}
+                                    className="opacity-0 group-hover/msg:opacity-100 transition-opacity text-muted-foreground hover:text-red-400 p-1 rounded hover:bg-muted mt-0.5"
+                                    title="Report abusive message"
+                                  >
+                                    <Flag className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -594,6 +634,38 @@ export default function ChatPage() {
                 onClick={() => handleDelete(deleteTarget)}
               >
                 🗑️ Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════ Report Abuse Modal ═══════════════ */}
+      {reportingMsg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold mb-2">Report Abusive Message</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Please provide a reason for reporting this message from <strong>{reportingMsg.senderName}</strong>.
+              Our moderation team will review it.
+            </p>
+            <textarea
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              className="w-full h-24 max-h-48 rounded bg-muted/50 border border-border p-2 text-sm text-foreground mb-4 focus:outline-none focus:border-amber-500/50"
+              placeholder="Reason for report..."
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" size="sm" onClick={() => { setReportingMsg(null); setReportReason(""); }} disabled={submittingReport}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={handleSubmitReport}
+                disabled={submittingReport || !reportReason.trim()}
+              >
+                {submittingReport ? "Submitting..." : "Submit Report"}
               </Button>
             </div>
           </div>
