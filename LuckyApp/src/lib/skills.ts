@@ -101,60 +101,6 @@ export interface AgentSkill {
 // ═══════════════════════════════════════════════════════════════
 
 export const SKILL_REGISTRY: Skill[] = [
-    // ── Mods ──
-    {
-        id: "professional-tone",
-        name: "Professional Tone",
-        description: "Enforce professional, formal communication style in all agent responses.",
-        type: "mod",
-        source: "verified",
-        category: "Communication Style",
-        icon: "👔",
-        version: "1.0.0",
-        author: "Swarm Core",
-        tags: ["tone", "professional", "formal", "style"],
-        pricing: { model: "free" },
-    },
-    {
-        id: "safety-guardrails",
-        name: "Safety Guardrails",
-        description: "Apply safety constraints — prevent agents from executing destructive actions without approval.",
-        type: "mod",
-        source: "verified",
-        category: "Safety",
-        icon: "🛡️",
-        version: "1.0.0",
-        author: "Swarm Core",
-        tags: ["safety", "guardrails", "constraints", "approval"],
-        pricing: { model: "free" },
-    },
-    {
-        id: "concise-mode",
-        name: "Concise Mode",
-        description: "Force agents to produce shorter, more direct responses. Ideal for high-throughput workflows.",
-        type: "mod",
-        source: "verified",
-        category: "Communication Style",
-        icon: "✂️",
-        version: "1.0.0",
-        author: "Swarm Core",
-        tags: ["concise", "brief", "short", "style"],
-        pricing: { model: "free" },
-    },
-    {
-        id: "chain-of-thought",
-        name: "Chain of Thought",
-        description: "Require agents to show their reasoning process step-by-step before giving a final answer.",
-        type: "mod",
-        source: "verified",
-        category: "Reasoning",
-        icon: "🧩",
-        version: "1.0.0",
-        author: "Swarm Core",
-        tags: ["reasoning", "cot", "thinking", "transparency"],
-        pricing: { model: "free" },
-    },
-
     // ── Plugins ──
     {
         id: "github-tools",
