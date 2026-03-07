@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogHeader, DialogTitle, DialogContent } from "@/components/ui/dialog";
 import { useOrg } from "@/contexts/OrgContext";
-import { getAgentsByOrg, getOrganization, updateOrganization, type Agent } from "@/lib/firestore";
+import { getAgentsByOrg, getOrganization, updateOrganization, ensureAgentGroupChat, sendMessage, type Agent } from "@/lib/firestore";
 import { getAgentAvatarUrl } from "@/lib/agent-avatar";
 import { cn } from "@/lib/utils";
 import SpotlightCard from "@/components/reactbits/SpotlightCard";
@@ -106,6 +106,23 @@ export default function SwarmPage() {
     try {
       await updateOrganization(currentOrg.id, { swarmSlots: updated } as Partial<typeof currentOrg>);
       setAssignments(updated);
+
+      // Notify Agent Hub about the new assignment
+      const agent = agents.find(a => a.id === agentId);
+      const slot = PROTOCOL_SLOTS.find(s => s.id === slotId);
+      if (agent && slot) {
+        ensureAgentGroupChat(currentOrg.id).then(hub => {
+          sendMessage({
+            channelId: hub.id,
+            senderId: "system",
+            senderName: "Swarm Protocol",
+            senderType: "agent",
+            content: `⚡ **@${agent.name}** has been assigned to **${slot.name}**.\n\n${slot.description}.\n\nYou are now responsible for this role within the Swarm Protocol. Begin operations when ready.`,
+            orgId: currentOrg.id,
+            createdAt: new Date(),
+          });
+        }).catch(() => {});
+      }
     } catch (err) {
       console.error("Failed to assign agent:", err);
     }
