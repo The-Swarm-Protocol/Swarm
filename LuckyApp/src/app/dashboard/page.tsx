@@ -25,12 +25,14 @@ import {
   getProjectsByOrg,
   getAgentsByOrg,
   getJobsByOrg,
+  getOrganization,
   createJob,
   claimJob,
   type Task,
   type Agent,
   type Job,
 } from "@/lib/firestore";
+import { getAgentAvatarUrl } from "@/lib/agent-avatar";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -160,6 +162,7 @@ const ALL_WIDGET_CATALOG: WidgetCatalogEntry[] = [
   { id: "widget-llm-usage", icon: "💰", label: "API Usage & Costs", description: "Live tracking of LLM token costs & rate limits", colSpan: "lg:col-span-2" },
   { id: "widget-live-stream", icon: "Terminal", label: "Live Feed Stream", description: "Raw I/O stream of agent messages", colSpan: "lg:col-span-2" },
   { id: "widget-cron-jobs", icon: "🕒", label: "Cron Jobs", description: "Manage background scheduled agent tasks", colSpan: "lg:col-span-2" },
+  { id: "widget-daily-briefing", icon: "📋", label: "Daily Briefing", description: "Daily org summary from your briefing agent", colSpan: "lg:col-span-2" },
 ];
 
 const DEFAULT_ACTIVE_STATS = [
@@ -167,7 +170,7 @@ const DEFAULT_ACTIVE_STATS = [
 ];
 
 const DEFAULT_ACTIVE_WIDGETS = [
-  "widget-recent-tasks", "widget-quick-actions", "widget-recent-jobs", "widget-org-info", "widget-live-stream", "widget-cron-jobs",
+  "widget-daily-briefing", "widget-recent-tasks", "widget-quick-actions", "widget-recent-jobs", "widget-org-info", "widget-live-stream", "widget-cron-jobs",
 ];
 
 /* ------------------------------------------------------------------ */
@@ -232,6 +235,7 @@ export default function DashboardPage() {
   const [allJobs, setAllJobs] = useState<Job[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [activityFeed, setActivityFeed] = useState<ActivityEvent[]>([]);
+  const [swarmSlots, setSwarmSlots] = useState<Record<string, { agentId: string; assignedAt: unknown } | null>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dispatching, setDispatching] = useState(false);
@@ -276,12 +280,15 @@ export default function DashboardPage() {
       const orgStats = await getOrgStats(currentOrg.id);
       setStats(orgStats);
 
-      const [tasks, projects, agentsData, jobs] = await Promise.all([
+      const [tasks, projects, agentsData, jobs, freshOrg] = await Promise.all([
         getTasksByOrg(currentOrg.id),
         getProjectsByOrg(currentOrg.id),
         getAgentsByOrg(currentOrg.id),
         getJobsByOrg(currentOrg.id),
+        getOrganization(currentOrg.id),
       ]);
+
+      setSwarmSlots(freshOrg?.swarmSlots || {});
 
       setAgents(agentsData);
       setAllTasks(tasks);
@@ -927,6 +934,120 @@ export default function DashboardPage() {
       label: "Cron Jobs",
       colSpan: "lg:col-span-2",
       render: () => <CronWidget />,
+    },
+    "widget-daily-briefing": {
+      label: "Daily Briefing",
+      colSpan: "lg:col-span-2",
+      render: () => {
+        const slot = swarmSlots["daily-briefings"];
+        const briefingAgent = slot ? agents.find(a => a.id === slot.agentId) : null;
+
+        if (!briefingAgent) {
+          return (
+            <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden" spotlightColor="rgba(245, 158, 11, 0.06)">
+              <CardHeader>
+                <CardTitle className="text-lg">
+                  📋 <DecryptedText text="Daily Briefing" speed={30} maxIterations={6} animateOn="view" sequential className="text-lg font-semibold" encryptedClassName="text-lg font-semibold text-amber-500/40" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-6 space-y-3">
+                  <div className="text-4xl opacity-30">📋</div>
+                  <p className="text-sm text-muted-foreground">No agent assigned to Daily Briefings</p>
+                  <p className="text-xs text-muted-foreground/60">Equip an agent in the Swarm inventory to start receiving daily briefings.</p>
+                  <Button asChild variant="outline" size="sm" className="mt-2">
+                    <Link href="/swarm">Go to Swarm Inventory</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </SpotlightCard>
+          );
+        }
+
+        // Briefing agent is equipped — show digest
+        const today = new Date();
+        const dateStr = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+
+        const todoCount = stats?.todoTasks || 0;
+        const activeCount = stats?.activeTasks || 0;
+        const doneCount = stats?.completedTasks || 0;
+        const openJobCount = stats?.openJobs || 0;
+        const onlineCount = agents.filter(a => a.status === "online").length;
+        const totalAgents = agents.length;
+
+        return (
+          <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden" spotlightColor="rgba(245, 158, 11, 0.08)">
+            <CardHeader className="flex flex-row items-center justify-between px-6 pt-6">
+              <CardTitle className="text-lg">
+                📋 <DecryptedText text="Daily Briefing" speed={30} maxIterations={6} animateOn="view" sequential className="text-lg font-semibold" encryptedClassName="text-lg font-semibold text-amber-500/40" />
+              </CardTitle>
+              <Link href="/swarm" className="text-sm">
+                <ShinyText text="Swarm →" speed={3} color="#b5954a" shineColor="#FFD700" className="text-sm" />
+              </Link>
+            </CardHeader>
+            <CardContent className="px-6 pb-6 space-y-4">
+              {/* Agent badge */}
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/5 border border-amber-500/10">
+                <img
+                  src={briefingAgent.avatarUrl || getAgentAvatarUrl(briefingAgent.name, briefingAgent.type)}
+                  alt={briefingAgent.name}
+                  className="w-8 h-8 rounded-full border-2 border-amber-500/30"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{briefingAgent.name}</p>
+                  <p className="text-[10px] text-muted-foreground">Briefing Agent · {dateStr}</p>
+                </div>
+                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${briefingAgent.status === "online" ? "bg-emerald-400" : briefingAgent.status === "busy" ? "bg-amber-400" : "bg-gray-400"}`} />
+              </div>
+
+              {/* Briefing digest */}
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-base">🤖</span>
+                  <span className="text-muted-foreground">Agents:</span>
+                  <span className="font-medium">{onlineCount} online</span>
+                  <span className="text-muted-foreground/50">/ {totalAgents} total</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-base">🎯</span>
+                  <span className="text-muted-foreground">Active tasks:</span>
+                  <span className="font-medium">{activeCount}</span>
+                  {todoCount > 0 && <span className="text-muted-foreground/50">({todoCount} pending)</span>}
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-base">✅</span>
+                  <span className="text-muted-foreground">Completed:</span>
+                  <span className="font-medium text-emerald-400">{doneCount}</span>
+                </div>
+                {openJobCount > 0 && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-base">💼</span>
+                    <span className="text-muted-foreground">Open jobs:</span>
+                    <span className="font-medium text-amber-400">{openJobCount}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Recent activity summary */}
+              {activityFeed.length > 0 && (
+                <div className="pt-3 border-t border-border space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider">Recent Activity</p>
+                  {activityFeed.slice(0, 4).map((event) => {
+                    const config = EVENT_TYPE_CONFIG[event.eventType] || { label: event.eventType, icon: "📌", color: "text-muted-foreground" };
+                    return (
+                      <div key={event.id} className="flex items-center gap-2 text-xs">
+                        <span className="shrink-0">{config.icon}</span>
+                        <span className="text-muted-foreground truncate flex-1">{event.description}</span>
+                        <span className="text-muted-foreground/40 shrink-0">{formatRelativeTime(event.createdAt)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </SpotlightCard>
+        );
+      },
     },
   };
 

@@ -77,6 +77,29 @@ function dateLabel(ts: unknown): string {
   return date.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
 }
 
+/** Render message text with @mention highlights */
+function renderMessageContent(content: string, agentNames: Set<string>): React.ReactNode {
+  if (agentNames.size === 0) return content;
+  // Build regex that matches @AgentName for all known agents (sorted longest-first to avoid partial matches)
+  const sorted = [...agentNames].sort((a, b) => b.length - a.length);
+  const escaped = sorted.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(`(@(?:${escaped.join("|")}))(?=\\s|$|[.,!?;:])`, "g");
+  const parts: React.ReactNode[] = [];
+  let lastIdx = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(content)) !== null) {
+    if (match.index > lastIdx) parts.push(content.slice(lastIdx, match.index));
+    parts.push(
+      <span key={match.index} className="px-1 rounded bg-amber-500/15 text-amber-400 font-medium">
+        {match[1]}
+      </span>
+    );
+    lastIdx = match.index + match[0].length;
+  }
+  if (lastIdx < content.length) parts.push(content.slice(lastIdx));
+  return parts.length > 0 ? parts : content;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Component                                                         */
 /* ------------------------------------------------------------------ */
@@ -126,6 +149,11 @@ export default function ChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // @mention autocomplete
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const mentionRef = useRef<HTMLDivElement>(null);
 
   /* ── Load channels ── */
   const loadChannels = useCallback(async () => {
@@ -336,6 +364,79 @@ export default function ChatPage() {
     }
   };
 
+  // ─── @mention helpers ───
+
+  /** Filtered agents matching the current @query */
+  const mentionResults = mentionQuery !== null
+    ? agents.filter(a => a.name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 6)
+    : [];
+
+  /** Detect @mention trigger on input change */
+  const handleInputChange = useCallback((value: string) => {
+    setMessageInput(value);
+
+    const el = inputRef.current;
+    if (!el) { setMentionQuery(null); return; }
+
+    const cursor = el.selectionStart ?? value.length;
+    const textBefore = value.slice(0, cursor);
+
+    // Find the last @ that starts a mention (preceded by start-of-string or whitespace)
+    const match = textBefore.match(/(?:^|\s)@(\w*)$/);
+    if (match) {
+      setMentionQuery(match[1]);
+      setMentionIndex(0);
+    } else {
+      setMentionQuery(null);
+    }
+  }, []);
+
+  /** Insert a selected @mention into the input */
+  const insertMention = useCallback((agentName: string) => {
+    const el = inputRef.current;
+    if (!el) return;
+
+    const cursor = el.selectionStart ?? messageInput.length;
+    const textBefore = messageInput.slice(0, cursor);
+    const textAfter = messageInput.slice(cursor);
+
+    // Replace the @query with @AgentName
+    const replaced = textBefore.replace(/(?:^|\s)@(\w*)$/, (m) => {
+      const prefix = m.startsWith(" ") ? " " : "";
+      return `${prefix}@${agentName} `;
+    });
+
+    setMessageInput(replaced + textAfter);
+    setMentionQuery(null);
+
+    // Re-focus and set cursor after inserted mention
+    setTimeout(() => {
+      el.focus();
+      const pos = replaced.length;
+      el.setSelectionRange(pos, pos);
+    }, 0);
+  }, [messageInput]);
+
+  /** Handle keyboard nav within mention popup */
+  const handleMentionKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (mentionQuery === null || mentionResults.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setMentionIndex(i => (i + 1) % mentionResults.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setMentionIndex(i => (i - 1 + mentionResults.length) % mentionResults.length);
+    } else if (e.key === "Tab" || e.key === "Enter") {
+      if (mentionResults[mentionIndex]) {
+        e.preventDefault();
+        insertMention(mentionResults[mentionIndex].name);
+      }
+    } else if (e.key === "Escape") {
+      setMentionQuery(null);
+    }
+  }, [mentionQuery, mentionResults, mentionIndex, insertMention]);
+
   // ─── Send message (text + optional attachments) ───
   const handleSend = useCallback(async () => {
     if (!activeChannel || !address) return;
@@ -364,6 +465,7 @@ export default function ChatPage() {
 
       setMessageInput("");
       setPendingFiles([]);
+      setMentionQuery(null);
     } catch (err) {
       console.error("Failed to send:", err);
       setError(err instanceof Error ? err.message : "Failed to send message");
@@ -414,6 +516,7 @@ export default function ChatPage() {
   }
 
   const onlineAgents = agents.filter(a => a.status === "online");
+  const agentNameSet = new Set(agents.map(a => a.name));
   const sortedChannels = sortByLatest(channels, lastMsgTs);
   const sortedProjectChannels = sortByLatest(projectChannels, lastMsgTs);
 
@@ -658,7 +761,7 @@ export default function ChatPage() {
                                 <div className="flex-1 min-w-0">
                                   {msg.content && (
                                     <p className="text-sm text-foreground/90 break-words whitespace-pre-wrap leading-relaxed">
-                                      {msg.content}
+                                      {renderMessageContent(msg.content, agentNameSet)}
                                     </p>
                                   )}
                                   {msg.attachments && msg.attachments.length > 0 && (
@@ -718,6 +821,45 @@ export default function ChatPage() {
                   </div>
                 )}
               </div>
+
+              {/* @mention autocomplete popup — rendered outside scroll area */}
+              {mentionQuery !== null && mentionResults.length > 0 && (
+                <div className="shrink-0 px-4">
+                  <div className="max-w-3xl mx-auto">
+                    <div
+                      ref={mentionRef}
+                      className="w-64 max-h-52 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg mb-1"
+                    >
+                      {mentionResults.map((agent, i) => (
+                        <button
+                          key={agent.id}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors ${
+                            i === mentionIndex ? "bg-amber-500/10 text-foreground" : "text-muted-foreground hover:bg-muted"
+                          }`}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            insertMention(agent.name);
+                          }}
+                          onMouseEnter={() => setMentionIndex(i)}
+                        >
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                            agent.status === "online" ? "bg-emerald-500/20 text-emerald-400" : "bg-muted text-muted-foreground"
+                          }`}>
+                            🤖
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-medium text-foreground truncate block">@{agent.name}</span>
+                          </div>
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${
+                            agent.status === "online" ? "bg-emerald-400" : agent.status === "busy" ? "bg-amber-400" : "bg-gray-400"
+                          }`} />
+                          <Badge variant="outline" className="text-[9px] shrink-0">{agent.type}</Badge>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Input */}
               <div className="border-t border-border p-4 shrink-0">
@@ -789,10 +931,21 @@ export default function ChatPage() {
                     <Input
                       ref={inputRef}
                       value={messageInput}
-                      onChange={(e) => setMessageInput(e.target.value)}
-                      placeholder={`Message ${activeChannel.name}…`}
+                      onChange={(e) => handleInputChange(e.target.value)}
+                      placeholder={`Message ${activeChannel.name}… (type @ to mention agents)`}
                       className="flex-1 bg-muted/50 border-border focus-visible:border-amber-500/50"
                       onKeyDown={(e) => {
+                        // Let mention popup handle arrow/tab/enter/esc first
+                        if (mentionQuery !== null && mentionResults.length > 0) {
+                          if (["ArrowDown", "ArrowUp", "Tab", "Escape"].includes(e.key)) {
+                            handleMentionKeyDown(e);
+                            return;
+                          }
+                          if (e.key === "Enter") {
+                            handleMentionKeyDown(e);
+                            return;
+                          }
+                        }
                         if (e.key === "Enter" && !e.shiftKey && (messageInput.trim() || pendingFiles.length > 0)) {
                           e.preventDefault();
                           handleSend();

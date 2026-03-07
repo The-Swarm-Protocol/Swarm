@@ -2,11 +2,12 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import Link from "next/link";
 import {
     Search, Download, Trash2, Check, Loader2,
     Puzzle, Star, Shield, ShieldCheck, Wrench, Plug, Store,
     Layers, Users, Plus, Clock, CheckCircle2, XCircle,
-    CreditCard, Crown, Infinity, Calendar,
+    CreditCard, Crown, Infinity, Calendar, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,7 +18,7 @@ import { useActiveAccount } from "thirdweb/react";
 import {
     type Skill, type OwnedItem, type MarketItemType, type CommunityMarketItem,
     type MarketSubscription, type SubscriptionPlan,
-    SKILL_REGISTRY, SKILL_BUNDLES,
+    SKILL_REGISTRY, SKILL_BUNDLES, MOD_REGISTRY,
     MOD_CATEGORIES, PLUGIN_CATEGORIES, SKILL_ONLY_CATEGORIES,
     acquireItem, removeFromInventory, toggleInventoryItem, getOwnedItems, acquireBundle,
     getCommunityItems, getUserSubmissions, deleteCommunityItem,
@@ -91,49 +92,61 @@ function MarketItemCard({
     const priceLabel = getCheapestLabel(item);
 
     return (
-        <Card className="p-4 bg-card border-border transition-all hover:border-amber-500/20 group">
-            <div className="flex items-start gap-3">
-                <div className="text-2xl shrink-0 w-10 h-10 flex items-center justify-center rounded-lg bg-muted/50">
-                    {item.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                        <h3 className="font-semibold text-sm truncate">{item.name}</h3>
-                        <span className="text-[10px] text-muted-foreground">v{item.version}</span>
-                        {isPaid && priceLabel ? (
-                            <Badge className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/20">
-                                <CreditCard className="h-2.5 w-2.5 mr-0.5" />{priceLabel}
-                            </Badge>
-                        ) : (
-                            <Badge variant="outline" className="text-[10px] border-emerald-500/20 text-emerald-400">Free</Badge>
-                        )}
+        <Card className="p-0 bg-card border-border transition-all hover:border-amber-500/20 group overflow-hidden">
+            <div className="flex items-start gap-3 p-4">
+                <Link href={`/market/${item.id}`} className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className="text-2xl shrink-0 w-10 h-10 flex items-center justify-center rounded-lg bg-muted/50">
+                        {item.icon}
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{item.description}</p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="outline" className="text-[10px]">{item.category}</Badge>
-                        {item.source === "verified" ? (
-                            <Badge variant="outline" className="text-[10px] border-amber-500/20 text-amber-500">
-                                <ShieldCheck className="h-2.5 w-2.5 mr-0.5" />Verified
-                            </Badge>
-                        ) : (
-                            <Badge variant="outline" className="text-[10px] border-blue-500/20 text-blue-400">
-                                <Users className="h-2.5 w-2.5 mr-0.5" />Community
-                            </Badge>
-                        )}
-                        {subscription && (
-                            <Badge className="text-[10px] bg-purple-500/10 text-purple-400 border-purple-500/20">
-                                <Crown className="h-2.5 w-2.5 mr-0.5" />
-                                {subscription.plan === "lifetime" ? "Lifetime" : subscription.plan === "yearly" ? "Yearly" : "Monthly"}
-                            </Badge>
-                        )}
-                        {item.requiredKeys?.map((k) => (
-                            <Badge key={k} variant="outline" className="text-[10px] border-amber-500/20 text-amber-500">
-                                <Shield className="h-2.5 w-2.5 mr-0.5" />{k}
-                            </Badge>
-                        ))}
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                            <h3 className="font-semibold text-sm truncate">{item.name}</h3>
+                            <span className="text-[10px] text-muted-foreground">v{item.version}</span>
+                            {isPaid && priceLabel ? (
+                                <Badge className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/20">
+                                    <CreditCard className="h-2.5 w-2.5 mr-0.5" />{priceLabel}
+                                </Badge>
+                            ) : (
+                                <Badge variant="outline" className="text-[10px] border-emerald-500/20 text-emerald-400">Free</Badge>
+                            )}
+                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity ml-auto shrink-0" />
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{item.description}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <Badge variant="outline" className="text-[10px]">{item.category}</Badge>
+                            {(() => {
+                                const modEntry = MOD_REGISTRY.find((m) => m.legacySkillId === item.id);
+                                const capCount = modEntry?.capabilities.length ?? 0;
+                                return capCount > 1 ? (
+                                    <Badge variant="outline" className="text-[10px] border-cyan-500/20 text-cyan-400">
+                                        {capCount} capabilities
+                                    </Badge>
+                                ) : null;
+                            })()}
+                            {item.source === "verified" ? (
+                                <Badge variant="outline" className="text-[10px] border-amber-500/20 text-amber-500">
+                                    <ShieldCheck className="h-2.5 w-2.5 mr-0.5" />Verified
+                                </Badge>
+                            ) : (
+                                <Badge variant="outline" className="text-[10px] border-blue-500/20 text-blue-400">
+                                    <Users className="h-2.5 w-2.5 mr-0.5" />Community
+                                </Badge>
+                            )}
+                            {subscription && (
+                                <Badge className="text-[10px] bg-purple-500/10 text-purple-400 border-purple-500/20">
+                                    <Crown className="h-2.5 w-2.5 mr-0.5" />
+                                    {subscription.plan === "lifetime" ? "Lifetime" : subscription.plan === "yearly" ? "Yearly" : "Monthly"}
+                                </Badge>
+                            )}
+                            {item.requiredKeys?.map((k) => (
+                                <Badge key={k} variant="outline" className="text-[10px] border-amber-500/20 text-amber-500">
+                                    <Shield className="h-2.5 w-2.5 mr-0.5" />{k}
+                                </Badge>
+                            ))}
+                        </div>
                     </div>
-                </div>
-                <div className="shrink-0">
+                </Link>
+                <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
                     {owned ? (
                         <div className="flex items-center gap-1">
                             <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px]">

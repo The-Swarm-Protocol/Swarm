@@ -12,6 +12,7 @@ import {
     addDoc,
     updateDoc,
     deleteDoc,
+    getDoc,
     getDocs,
     query,
     where,
@@ -153,6 +154,87 @@ export interface AgentSkill {
     orgId: string;
     installedAt: Date | null;
     installedBy: string;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Mod Registry — Vendor Package + Capability Types
+// ═══════════════════════════════════════════════════════════════
+
+export type ModCategory = "official" | "community" | "partner";
+export type ModStatus = "draft" | "review" | "approved" | "disabled";
+export type InstallScope = "org" | "project" | "agent";
+
+export type PermissionScope =
+    | "read"
+    | "write"
+    | "execute"
+    | "external_api"
+    | "wallet_access"
+    | "webhook_access"
+    | "cross_chain_message"
+    | "sensitive_data_access";
+
+export type CapabilityType = "plugin" | "skill" | "workflow" | "example" | "panel" | "policy";
+
+/** Top-level vendor package */
+export interface VendorMod {
+    id: string;
+    slug: string;
+    vendor: string;
+    name: string;
+    version: string;
+    category: ModCategory;
+    description: string;
+    iconUrl?: string;
+    icon?: string;
+    installedScopes: InstallScope[];
+    capabilities: string[];
+    status: ModStatus;
+    legacySkillId?: string;
+    sidebarConfig?: {
+        sectionId: string;
+        label: string;
+        href: string;
+        iconName: string;
+    };
+    pricing?: MarketPricing;
+    requiredKeys?: string[];
+    tags?: string[];
+}
+
+/** Every installable unit exposed by a mod */
+export interface Capability {
+    id: string;
+    modId: string;
+    type: CapabilityType;
+    key: string;
+    name: string;
+    description: string;
+    configSchema?: unknown;
+    permissionScopes: PermissionScope[];
+}
+
+/** Tracks per-org mod installation */
+export interface ModInstallation {
+    id: string;
+    modId: string;
+    orgId: string;
+    enabled: boolean;
+    enabledCapabilities: string[];
+    config: Record<string, unknown>;
+    installedBy: string;
+    installedAt: Date | null;
+}
+
+/** Resolved capability for an agent (merged from all sources) */
+export interface ResolvedCapability {
+    key: string;
+    name: string;
+    description: string;
+    type: CapabilityType;
+    modId: string;
+    modName: string;
+    permissionScopes: PermissionScope[];
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -392,6 +474,108 @@ function categoriesForType(type: MarketItemType): string[] {
 export const MOD_CATEGORIES = categoriesForType("mod");
 export const PLUGIN_CATEGORIES = categoriesForType("plugin");
 export const SKILL_ONLY_CATEGORIES = categoriesForType("skill");
+
+// ═══════════════════════════════════════════════════════════════
+// Mod + Capability Registries (derived from SKILL_REGISTRY)
+// ═══════════════════════════════════════════════════════════════
+
+function inferPermissions(desc: string, id: string): PermissionScope[] {
+    const scopes: PermissionScope[] = ["execute"];
+    const text = `${desc} ${id}`.toLowerCase();
+    if (text.includes("chain") || text.includes("ccip") || text.includes("propagate"))
+        scopes.push("cross_chain_message");
+    if (text.includes("wallet") || text.includes("transaction") || text.includes("attestation"))
+        scopes.push("wallet_access");
+    if (text.includes("api") || text.includes("oracle") || text.includes("fetch") || text.includes("search"))
+        scopes.push("external_api", "read");
+    if (text.includes("publish") || text.includes("write") || text.includes("create") || text.includes("send"))
+        scopes.push("write");
+    if (text.includes("read") || text.includes("extract") || text.includes("query"))
+        scopes.push("read");
+    return [...new Set(scopes)];
+}
+
+export const MOD_REGISTRY: VendorMod[] = [];
+export const CAPABILITY_REGISTRY: Capability[] = [];
+
+for (const skill of SKILL_REGISTRY) {
+    const mod: VendorMod = {
+        id: `mod-${skill.id}`,
+        slug: skill.id,
+        vendor: skill.author,
+        name: skill.name,
+        version: skill.version,
+        category: skill.source === "verified" ? "official" : "community",
+        description: skill.description,
+        icon: skill.icon,
+        installedScopes: ["org"],
+        capabilities: [],
+        status: "approved",
+        legacySkillId: skill.id,
+        sidebarConfig: skill.sidebarConfig,
+        pricing: skill.pricing,
+        requiredKeys: skill.requiredKeys,
+        tags: skill.tags,
+    };
+
+    if (skill.modManifest) {
+        for (const agentSkill of skill.modManifest.agentSkills) {
+            const cap: Capability = {
+                id: agentSkill.id,
+                modId: mod.id,
+                type: "skill",
+                key: agentSkill.id,
+                name: agentSkill.name,
+                description: agentSkill.description,
+                permissionScopes: inferPermissions(agentSkill.description, agentSkill.id),
+            };
+            CAPABILITY_REGISTRY.push(cap);
+            mod.capabilities.push(cap.id);
+        }
+        for (const workflow of skill.modManifest.workflows) {
+            const cap: Capability = {
+                id: `${skill.id}.workflow.${workflow.id}`,
+                modId: mod.id,
+                type: "workflow",
+                key: `${skill.id}.workflow.${workflow.id}`,
+                name: workflow.name,
+                description: workflow.description,
+                permissionScopes: inferPermissions(workflow.description, workflow.id),
+            };
+            CAPABILITY_REGISTRY.push(cap);
+            mod.capabilities.push(cap.id);
+        }
+    } else {
+        const cap: Capability = {
+            id: skill.id,
+            modId: mod.id,
+            type: skill.type === "plugin" ? "plugin" : "skill",
+            key: skill.id,
+            name: skill.name,
+            description: skill.description,
+            permissionScopes: inferPermissions(skill.description, skill.id),
+        };
+        CAPABILITY_REGISTRY.push(cap);
+        mod.capabilities.push(cap.id);
+    }
+
+    MOD_REGISTRY.push(mod);
+}
+
+/** Get all capabilities for a specific mod */
+export function getModCapabilities(modId: string): Capability[] {
+    return CAPABILITY_REGISTRY.filter((c) => c.modId === modId);
+}
+
+/** Look up a mod by slug */
+export function getModBySlug(slug: string): VendorMod | undefined {
+    return MOD_REGISTRY.find((m) => m.slug === slug);
+}
+
+/** Look up a mod by its registry ID */
+export function getModById(modId: string): VendorMod | undefined {
+    return MOD_REGISTRY.find((m) => m.id === modId);
+}
 
 // ═══════════════════════════════════════════════════════════════
 // Firestore CRUD — Org Inventory (items the org owns)
@@ -676,4 +860,158 @@ export async function getUserSubmissions(walletAddress: string): Promise<Communi
 /** Delete a community submission */
 export async function deleteCommunityItem(docId: string): Promise<void> {
     await deleteDoc(doc(db, COMMUNITY_COLLECTION, docId));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Firestore CRUD — Mod Installations
+// ═══════════════════════════════════════════════════════════════
+
+const MOD_INSTALL_COLLECTION = "modInstallations";
+
+/** Install a mod for an org */
+export async function installMod(
+    modId: string,
+    orgId: string,
+    installedBy: string,
+    enabledCapabilities?: string[],
+): Promise<string> {
+    const mod = MOD_REGISTRY.find((m) => m.id === modId);
+    if (!mod) throw new Error(`Mod not found: ${modId}`);
+
+    const ref = await addDoc(collection(db, MOD_INSTALL_COLLECTION), {
+        modId,
+        orgId,
+        enabled: true,
+        enabledCapabilities: enabledCapabilities ?? mod.capabilities,
+        config: {},
+        installedBy,
+        installedAt: serverTimestamp(),
+    });
+
+    // Backward compat: also write to legacy inventory
+    if (mod.legacySkillId) {
+        await acquireItem(orgId, mod.legacySkillId, installedBy);
+    }
+
+    return ref.id;
+}
+
+/** Uninstall a mod from an org */
+export async function uninstallMod(installationId: string): Promise<void> {
+    const snap = await getDoc(doc(db, MOD_INSTALL_COLLECTION, installationId));
+    if (!snap.exists()) return;
+    const data = snap.data();
+
+    await deleteDoc(doc(db, MOD_INSTALL_COLLECTION, installationId));
+
+    // Backward compat: also remove from legacy inventory
+    const mod = MOD_REGISTRY.find((m) => m.id === data.modId);
+    if (mod?.legacySkillId) {
+        const legacyItems = await getOwnedItems(data.orgId);
+        const legacyItem = legacyItems.find((i) => i.skillId === mod.legacySkillId);
+        if (legacyItem) await removeFromInventory(legacyItem.id);
+    }
+}
+
+/** Get all mod installations for an org */
+export async function getModInstallations(orgId: string): Promise<ModInstallation[]> {
+    const q = query(
+        collection(db, MOD_INSTALL_COLLECTION),
+        where("orgId", "==", orgId),
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => {
+        const data = d.data();
+        return {
+            id: d.id,
+            modId: data.modId,
+            orgId: data.orgId,
+            enabled: data.enabled ?? true,
+            enabledCapabilities: data.enabledCapabilities ?? [],
+            config: data.config ?? {},
+            installedBy: data.installedBy,
+            installedAt: data.installedAt instanceof Timestamp ? data.installedAt.toDate() : null,
+        };
+    });
+}
+
+/** Toggle a mod installation on/off */
+export async function toggleModInstallation(installationId: string, enabled: boolean): Promise<void> {
+    await updateDoc(doc(db, MOD_INSTALL_COLLECTION, installationId), { enabled });
+}
+
+/** Enable/disable a specific capability within a mod installation */
+export async function toggleModCapability(
+    installationId: string,
+    capabilityId: string,
+    enabled: boolean,
+): Promise<void> {
+    const snap = await getDoc(doc(db, MOD_INSTALL_COLLECTION, installationId));
+    if (!snap.exists()) return;
+    const data = snap.data();
+    let caps: string[] = data.enabledCapabilities ?? [];
+
+    if (enabled && !caps.includes(capabilityId)) {
+        caps = [...caps, capabilityId];
+    } else if (!enabled) {
+        caps = caps.filter((c) => c !== capabilityId);
+    }
+
+    await updateDoc(doc(db, MOD_INSTALL_COLLECTION, installationId), {
+        enabledCapabilities: caps,
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Capability Resolver — What can this agent actually use?
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Resolve all capabilities available to a specific agent.
+ * Merges: org mod installations + legacy agent skill assignments.
+ */
+export async function getAgentCapabilities(
+    agentId: string,
+    orgId: string,
+): Promise<ResolvedCapability[]> {
+    const [installations, agentAssignments] = await Promise.all([
+        getModInstallations(orgId),
+        getAgentSkills(agentId),
+    ]);
+
+    const enabledInstalls = installations.filter((i) => i.enabled);
+    const assignedSkillIds = new Set(agentAssignments.map((a) => a.skillId));
+
+    // Collect all enabled capability IDs from org mod installations
+    const capabilityIds = new Set<string>();
+    for (const install of enabledInstalls) {
+        for (const capId of install.enabledCapabilities) {
+            capabilityIds.add(capId);
+        }
+    }
+
+    // Also include legacy agent-level assignments
+    for (const skillId of assignedSkillIds) {
+        capabilityIds.add(skillId);
+    }
+
+    // Resolve each ID against the capability registry
+    const resolved: ResolvedCapability[] = [];
+    for (const capId of capabilityIds) {
+        const cap = CAPABILITY_REGISTRY.find((c) => c.id === capId);
+        if (!cap) continue;
+
+        const mod = MOD_REGISTRY.find((m) => m.id === cap.modId);
+        resolved.push({
+            key: cap.key,
+            name: cap.name,
+            description: cap.description,
+            type: cap.type,
+            modId: cap.modId,
+            modName: mod?.name ?? "Unknown",
+            permissionScopes: cap.permissionScopes,
+        });
+    }
+
+    return resolved;
 }
