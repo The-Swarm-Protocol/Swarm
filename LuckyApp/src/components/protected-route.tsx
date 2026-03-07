@@ -6,7 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useActiveAccount, useActiveWalletConnectionStatus } from 'thirdweb/react';
 import { useOrg } from '@/contexts/OrgContext';
 
-// Minimum grace period (ms) after mount before allowing redirects.
+// Minimum grace period (ms) after first app load before allowing redirects.
 // Acts as a safety net in case connectionStatus hasn't settled yet.
 const AUTH_GRACE_MS = 3_000;
 
@@ -14,6 +14,11 @@ const AUTH_GRACE_MS = 3_000;
 // Must be long enough for OrgContext's disconnect grace (6s) to settle so
 // we never redirect while orgs are still being re-fetched after reconnection.
 const ONBOARDING_REDIRECT_DELAY = 2_000;
+
+// Module-level flags — survive across ProtectedRoute re-mounts (sidebar navigation).
+// Once the app has settled auth, new ProtectedRoute instances skip the grace period.
+let appAuthSettled = false;
+let appHadOrgs = false;
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const account = useActiveAccount();
@@ -23,27 +28,32 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Track whether we've ever seen orgs so we don't flash to onboarding on transient drops
-  const hadOrgs = useRef(false);
-  if (organizations.length > 0) hadOrgs.current = true;
+  // Track whether we've ever seen orgs (module-level so it survives re-mounts)
+  if (organizations.length > 0) appHadOrgs = true;
 
-  // --- Grace period: don't redirect until AUTH_GRACE_MS after mount ---
+  // --- Grace period: don't redirect until AUTH_GRACE_MS after first load ---
   const mountTime = useRef(Date.now());
-  const [graceOver, setGraceOver] = useState(false);
+  const [graceOver, setGraceOver] = useState(appAuthSettled);
 
   useEffect(() => {
+    if (appAuthSettled) return; // Already settled from a previous mount
     const remaining = AUTH_GRACE_MS - (Date.now() - mountTime.current);
     if (remaining <= 0) {
+      appAuthSettled = true;
       setGraceOver(true);
       return;
     }
-    const timer = setTimeout(() => setGraceOver(true), remaining);
+    const timer = setTimeout(() => {
+      appAuthSettled = true;
+      setGraceOver(true);
+    }, remaining);
     return () => clearTimeout(timer);
   }, []);
 
   // If wallet connects during grace period, end it early
   useEffect(() => {
     if (isConnected && !graceOver) {
+      appAuthSettled = true;
       setGraceOver(true);
     }
   }, [isConnected, graceOver]);
@@ -58,7 +68,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     // Wallet is definitively disconnected
     if (!isConnected) {
       // If we previously had orgs, give extra time — wallet may be transiently dropped
-      if (hadOrgs.current) {
+      if (appHadOrgs) {
         const timer = setTimeout(() => {
           // Re-check at fire time — wallet may have reconnected by now
           // (we can't read hooks here, so rely on cleanup cancelling this)

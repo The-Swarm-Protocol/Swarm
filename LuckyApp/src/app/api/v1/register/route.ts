@@ -12,6 +12,7 @@
 import { NextRequest } from "next/server";
 import { PLATFORM_BRIEFING } from "../briefing";
 import { getAgentAvatarUrl } from "@/lib/agent-avatar";
+import { agentCheckIn, type Agent } from "@/lib/firestore";
 import { db } from "@/lib/firebase";
 import {
     collection,
@@ -86,6 +87,7 @@ export async function POST(request: NextRequest) {
         if (!existing.empty) {
             // Update existing agent (same key reconnecting)
             const existingDoc = existing.docs[0];
+            const existingData = existingDoc.data();
             await updateDoc(doc(db, "agents", existingDoc.id), {
                 status: "online",
                 lastSeen: serverTimestamp(),
@@ -94,9 +96,13 @@ export async function POST(request: NextRequest) {
                 ...(bio ? { bio } : {}),
             });
 
+            // Post check-in greeting to Agent Hub
+            const agent = { id: existingDoc.id, ...existingData } as Agent;
+            agentCheckIn(agent, agent.orgId || orgId, skills.length > 0 ? skills : undefined, bio).catch(() => {});
+
             return Response.json({
                 agentId: existingDoc.id,
-                agentName: existingDoc.data().name || agentName,
+                agentName: existingData.name || agentName,
                 registered: true,
                 existing: true,
                 reportedSkills: skills.length,
@@ -116,6 +122,7 @@ export async function POST(request: NextRequest) {
         if (!nameMatch.empty) {
             // Same org + name → update existing agent with new key
             const matchedDoc = nameMatch.docs[0];
+            const matchedData = matchedDoc.data();
             await updateDoc(doc(db, "agents", matchedDoc.id), {
                 publicKey,
                 status: "online",
@@ -125,9 +132,13 @@ export async function POST(request: NextRequest) {
                 ...(bio ? { bio } : {}),
             });
 
+            // Post check-in greeting to Agent Hub
+            const agent = { id: matchedDoc.id, ...matchedData } as Agent;
+            agentCheckIn(agent, agent.orgId || orgId, skills.length > 0 ? skills : undefined, bio).catch(() => {});
+
             return Response.json({
                 agentId: matchedDoc.id,
-                agentName: matchedDoc.data().name || agentName,
+                agentName: matchedData.name || agentName,
                 registered: true,
                 existing: true,
                 reportedSkills: skills.length,
@@ -153,6 +164,10 @@ export async function POST(request: NextRequest) {
             lastSeen: serverTimestamp(),
             createdAt: serverTimestamp(),
         });
+
+        // Post check-in greeting to Agent Hub
+        const newAgent = { id: ref.id, name: agentName, type: agentType || "agent", orgId } as Agent;
+        agentCheckIn(newAgent, orgId, skills.length > 0 ? skills : undefined, bio).catch(() => {});
 
         return Response.json({
             agentId: ref.id,

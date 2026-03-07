@@ -9,6 +9,7 @@
 import { NextRequest } from "next/server";
 import { PLATFORM_BRIEFING } from "@/app/api/v1/briefing";
 import { getAgentAvatarUrl } from "@/lib/agent-avatar";
+import { agentCheckIn, type Agent } from "@/lib/firestore";
 import { db } from "@/lib/firebase";
 import {
     doc,
@@ -90,6 +91,10 @@ export async function POST(request: NextRequest) {
             ...(bio ? { bio } : {}),
             ...(!agentData.avatarUrl ? { avatarUrl: getAgentAvatarUrl(agentData.name || agentName, agentData.type || agentType) } : {}),
         });
+
+        // Post check-in greeting to Agent Hub
+        const agent = { id: agentId, ...agentData } as Agent;
+        agentCheckIn(agent, agentData.orgId || orgId, skills.length > 0 ? skills : undefined, bio).catch(() => {});
 
         return Response.json({
             ok: true,
