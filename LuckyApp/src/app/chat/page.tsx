@@ -254,6 +254,7 @@ export default function ChatPage() {
         senderName: address.slice(0, 6) + "..." + address.slice(-4),
         senderType: "human",
         content: messageInput.trim(),
+        orgId: currentOrg?.id,
         createdAt: new Date(),
       });
       setMessageInput("");
@@ -263,7 +264,7 @@ export default function ChatPage() {
     } finally {
       setSending(false);
     }
-  }, [activeChannel, address, messageInput]);
+  }, [activeChannel, address, messageInput, currentOrg]);
 
   const handleSubmitReport = async () => {
     if (!reportingMsg || !currentOrg || !address || !reportReason.trim()) return;

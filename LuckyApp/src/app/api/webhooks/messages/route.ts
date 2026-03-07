@@ -29,16 +29,14 @@ export async function GET(request: NextRequest) {
     if (!agent) return unauthorized();
 
     try {
-        // Get agent's projects
+        // Get agent's projects and org
         const agentSnap = await getDoc(doc(db, "agents", agent.agentId));
         if (!agentSnap.exists()) {
             return Response.json({ error: "Agent not found" }, { status: 404 });
         }
-        const projectIds: string[] = agentSnap.data().projectIds || [];
-
-        if (projectIds.length === 0) {
-            return Response.json({ messages: [], channels: [] });
-        }
+        const agentData = agentSnap.data();
+        const projectIds: string[] = agentData.projectIds || [];
+        const orgId = agentData.orgId || agent.orgId;
 
         // Get channels for agent's projects
         const channelIds: string[] = [];
@@ -56,6 +54,26 @@ export async function GET(request: NextRequest) {
                     name: chDoc.data().name || "Channel",
                     projectId,
                 };
+            }
+        }
+
+        // Always include the Agent Hub channel (org-wide, no projectId)
+        if (orgId) {
+            const hubQ = query(
+                collection(db, "channels"),
+                where("orgId", "==", orgId),
+                where("name", "==", "Agent Hub")
+            );
+            const hubSnap = await getDocs(hubQ);
+            if (!hubSnap.empty) {
+                const hubDoc = hubSnap.docs[0];
+                if (!channelIds.includes(hubDoc.id)) {
+                    channelIds.push(hubDoc.id);
+                    channelMeta[hubDoc.id] = {
+                        name: "Agent Hub",
+                        projectId: "org",
+                    };
+                }
             }
         }
 
