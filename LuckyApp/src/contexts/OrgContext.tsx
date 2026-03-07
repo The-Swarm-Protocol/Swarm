@@ -2,7 +2,7 @@
 'use client';
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
-import { useActiveAccount } from 'thirdweb/react';
+import { useActiveAccount, useActiveWalletConnectionStatus } from 'thirdweb/react';
 import {
   createOrganization,
   getOrganizationsByWallet,
@@ -43,11 +43,13 @@ export function useOrg() {
 const ORG_STORAGE_KEY = 'swarm_selected_org_id';
 
 /** Grace period (ms) before clearing state on wallet disconnect.
- *  Rides through transient drops caused by page reloads, tab sleep, etc. */
-const DISCONNECT_GRACE_MS = 3_000;
+ *  Must be longer than ProtectedRoute's AUTH_GRACE_MS (3s) to avoid
+ *  the redirect seeing empty orgs before reconnection completes. */
+const DISCONNECT_GRACE_MS = 6_000;
 
 export function OrgProvider({ children }: { children: ReactNode }) {
   const account = useActiveAccount();
+  const connectionStatus = useActiveWalletConnectionStatus();
   const address = account?.address;
 
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -152,15 +154,24 @@ export function OrgProvider({ children }: { children: ReactNode }) {
         disconnectTimer.current = null;
       }
       refreshOrgs();
-    } else {
-      // Wallet address went falsy — start grace period before clearing state.
-      // This prevents flickers caused by page reloads, tab sleep, or slow RPC.
-      disconnectTimer.current = setTimeout(() => {
-        setOrganizations([]);
-        setCurrentOrg(null);
-        setLoading(false);
+    } else if (connectionStatus === 'connecting' || connectionStatus === 'unknown') {
+      // Wallet is actively reconnecting (AutoConnect, page reload) — don't clear state yet.
+      // Cancel any existing timer since reconnection is in progress.
+      if (disconnectTimer.current) {
+        clearTimeout(disconnectTimer.current);
         disconnectTimer.current = null;
-      }, DISCONNECT_GRACE_MS);
+      }
+    } else {
+      // Wallet address is falsy AND status is definitively disconnected —
+      // start grace period before clearing state.
+      if (!disconnectTimer.current) {
+        disconnectTimer.current = setTimeout(() => {
+          setOrganizations([]);
+          setCurrentOrg(null);
+          setLoading(false);
+          disconnectTimer.current = null;
+        }, DISCONNECT_GRACE_MS);
+      }
     }
 
     return () => {
@@ -169,7 +180,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
         disconnectTimer.current = null;
       }
     };
-  }, [address, refreshOrgs]);
+  }, [address, connectionStatus, refreshOrgs]);
 
   return (
     <OrgContext.Provider value={{

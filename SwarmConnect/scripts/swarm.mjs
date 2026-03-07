@@ -8,10 +8,14 @@
  * All state stored within skill directory. Outbound HTTPS only.
  *
  * Commands:
- *   swarm register --hub <url> --org <orgId> --name <name> [--type <type>]
- *   swarm check [--since <timestamp>]
- *   swarm send <channelId> "<text>"
- *   swarm reply <messageId> "<text>"
+ *   swarm register  --hub <url> --org <orgId> --name <name> [--type <type>] [--skills <s1,s2>] [--bio <bio>]
+ *   swarm check     [--since <timestamp>] [--history]
+ *   swarm send      <channelId> "<text>"
+ *   swarm reply     <messageId> "<text>"
+ *   swarm status    — show agent status + heartbeat
+ *   swarm discover  [--skill <id>] [--type <type>] [--status <status>]
+ *   swarm profile   [--skills <s1,s2>] [--bio <bio>]
+ *   swarm daemon    [--interval <seconds>] — auto-checkin loop
  */
 
 import crypto from "node:crypto";
@@ -41,12 +45,20 @@ function arg(flag) {
     : undefined;
 }
 
+function hasFlag(flag) {
+  return process.argv.includes(flag);
+}
+
 function loadConfig() {
   if (!existsSync(CONFIG_PATH)) {
-    console.error("❌ Not registered. Run `swarm register` first.");
+    console.error("Not registered. Run `swarm register` first.");
     process.exit(1);
   }
   return JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
+}
+
+function saveConfig(config) {
+  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
 }
 
 function loadState() {
@@ -70,7 +82,7 @@ function ensureKeypair() {
     };
   }
 
-  console.log("🔑 Generating Ed25519 keypair...");
+  console.log("Generating Ed25519 keypair...");
   mkdirSync(KEYS_DIR, { recursive: true });
 
   const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519", {
@@ -80,8 +92,8 @@ function ensureKeypair() {
 
   writeFileSync(PRIVATE_KEY_PATH, privateKey);
   writeFileSync(PUBLIC_KEY_PATH, publicKey);
-  console.log("   ✅ Keypair saved to ./keys/");
-  console.log("   ⚠️  Private key never leaves this directory.");
+  console.log("   Keypair saved to ./keys/");
+  console.log("   Private key never leaves this directory.");
 
   return { privateKey, publicKey };
 }
@@ -97,6 +109,55 @@ function sign(message, privateKeyPem) {
 }
 
 // ---------------------------------------------------------------------------
+// Signed request helpers
+// ---------------------------------------------------------------------------
+
+/** Build Ed25519-signed query params for GET requests */
+function signedQuery(config, privateKey, path) {
+  const ts = Date.now().toString();
+  const message = `GET:${path}:${ts}`;
+  const sig = sign(message, privateKey);
+  return `agent=${config.agentId}&sig=${encodeURIComponent(sig)}&ts=${ts}`;
+}
+
+/** Report skills + bio to the hub (heartbeat) */
+async function reportSkills(config, privateKey, skills, bio) {
+  const ts = Date.now().toString();
+  const message = `POST:/v1/report-skills:${ts}`;
+  const sig = sign(message, privateKey);
+
+  const body = {};
+  if (skills && skills.length > 0) body.skills = skills;
+  if (bio) body.bio = bio;
+
+  const resp = await fetch(
+    `${config.hubUrl}/api/v1/report-skills?agent=${config.agentId}&sig=${encodeURIComponent(sig)}&ts=${ts}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(`Report failed (${resp.status}): ${err.error || "Unknown error"}`);
+  }
+
+  return await resp.json();
+}
+
+/** Parse comma-separated skills string into skill objects */
+function parseSkills(skillsStr) {
+  if (!skillsStr) return [];
+  return skillsStr.split(",").map(s => s.trim()).filter(Boolean).map(s => ({
+    id: s.toLowerCase().replace(/\s+/g, "-"),
+    name: s,
+    type: "skill",
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
 
@@ -105,24 +166,29 @@ async function cmdRegister() {
   const orgId = arg("--org");
   const name = arg("--name");
   const type = arg("--type") || "agent";
+  const skillsStr = arg("--skills");
+  const bio = arg("--bio");
 
   if (!orgId || !name) {
-    console.error("Usage: swarm register --hub <url> --org <orgId> --name <name> [--type <type>]");
+    console.error("Usage: swarm register --hub <url> --org <orgId> --name <name> [--type <type>] [--skills <s1,s2>] [--bio <bio>]");
     process.exit(1);
   }
 
   // Warn if already registered (prevent accidental re-registration)
   if (existsSync(CONFIG_PATH)) {
     const existing = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
-    console.log(`⚠️  Already registered as "${existing.agentName}" (ID: ${existing.agentId})`);
+    console.log(`Already registered as "${existing.agentName}" (ID: ${existing.agentId})`);
     console.log(`   Re-registering will update the existing agent on the hub.`);
   }
 
   // Generate or load keypair
-  const { publicKey } = ensureKeypair();
+  const { publicKey, privateKey } = ensureKeypair();
+
+  // Parse skills
+  const skills = parseSkills(skillsStr);
 
   // Register public key with hub
-  console.log(`📡 Registering with ${hubUrl}...`);
+  console.log(`Registering with ${hubUrl}...`);
   const resp = await fetch(`${hubUrl}/api/v1/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -131,18 +197,20 @@ async function cmdRegister() {
       agentName: name,
       agentType: type,
       orgId,
+      ...(skills.length > 0 ? { skills } : {}),
+      ...(bio ? { bio } : {}),
     }),
   });
 
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    console.error(`❌ Registration failed (${resp.status}): ${err.error || "Unknown error"}`);
+    console.error(`Registration failed (${resp.status}): ${err.error || "Unknown error"}`);
     process.exit(1);
   }
 
   const data = await resp.json();
 
-  // Save config
+  // Save config (include skills + bio for future use)
   const config = {
     hubUrl,
     orgId,
@@ -150,18 +218,59 @@ async function cmdRegister() {
     agentName: name,
     agentType: type,
     registeredAt: new Date().toISOString(),
+    ...(skills.length > 0 ? { skills } : {}),
+    ...(bio ? { bio } : {}),
   };
-  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
+  saveConfig(config);
 
   if (data.existing) {
-    console.log(`🔄 Reconnected to existing agent "${data.agentName}"`);
+    console.log(`Reconnected to existing agent "${data.agentName}"`);
   } else {
-    console.log(`✅ Registered as "${name}" (${type})`);
+    console.log(`Registered as "${name}" (${type})`);
   }
   console.log(`   Agent ID: ${data.agentId}`);
   console.log(`   Hub:      ${hubUrl}`);
   console.log(`   Org:      ${orgId}`);
   console.log(`   Key:      ./keys/public.pem`);
+  if (skills.length > 0) {
+    console.log(`   Skills:   ${skills.map(s => s.name).join(", ")}`);
+  }
+  if (bio) {
+    console.log(`   Bio:      ${bio}`);
+  }
+
+  // Auto-broadcast skills after registration
+  if (skills.length > 0 || bio) {
+    try {
+      await reportSkills(config, privateKey, skills, bio);
+      console.log(`   Skills broadcast to hub`);
+    } catch (err) {
+      console.error(`   Warning: Skills broadcast failed: ${err.message}`);
+    }
+  }
+
+  // Auto-checkin: poll messages to confirm connection
+  console.log(`\nChecking in...`);
+  try {
+    const signedMessage = `GET:/v1/messages:0`;
+    const sig = sign(signedMessage, privateKey);
+    const url = `${config.hubUrl}/api/v1/messages?agent=${config.agentId}&since=0&sig=${encodeURIComponent(sig)}`;
+    const checkResp = await fetch(url);
+    if (checkResp.ok) {
+      const checkData = await checkResp.json();
+      const channels = checkData.channels || [];
+      if (channels.length) {
+        console.log(`   Channels: ${channels.map(c => `#${c.name}`).join(", ")}`);
+      } else {
+        console.log(`   No channels yet — assign this agent to a project in the dashboard.`);
+      }
+      saveState({ lastPoll: Date.now() });
+    }
+  } catch {
+    // Non-fatal — registration succeeded, checkin is bonus
+  }
+
+  console.log(`\nReady. Run \`swarm daemon\` for auto-checkins.`);
 }
 
 async function cmdCheck() {
@@ -170,7 +279,7 @@ async function cmdCheck() {
   const { privateKey } = ensureKeypair();
 
   const isFirstRun = !existsSync(STATE_PATH);
-  const hasHistory = process.argv.includes("--history");
+  const hasHistory = hasFlag("--history");
 
   // First run or --history: fetch everything (since=0)
   // Normal run: fetch since last poll
@@ -186,7 +295,7 @@ async function cmdCheck() {
   }
 
   if (isFirstRun) {
-    console.log("🆕 First check — fetching channel history...\n");
+    console.log("First check — fetching channel history...\n");
   }
 
   const signedMessage = `GET:/v1/messages:${since}`;
@@ -198,7 +307,7 @@ async function cmdCheck() {
 
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    console.error(`❌ Check failed (${resp.status}): ${err.error || "Unknown error"}`);
+    console.error(`Check failed (${resp.status}): ${err.error || "Unknown error"}`);
     process.exit(1);
   }
 
@@ -208,21 +317,21 @@ async function cmdCheck() {
 
   // Always show channels
   if (channels.length) {
-    console.log(`📡 Channels: ${channels.map(c => `#${c.name} (${c.id})`).join(", ")}`);
+    console.log(`Channels: ${channels.map(c => `#${c.name} (${c.id})`).join(", ")}`);
   }
 
   if (messages.length === 0) {
-    console.log("📭 No new messages.");
+    console.log("No new messages.");
     if (!hasHistory && !isFirstRun) {
-      console.log("💡 Tip: Use `swarm check --history` to see older messages");
+      console.log("Tip: Use `swarm check --history` to see older messages");
     }
   } else {
     const label = isFirstRun ? "existing" : "new";
-    console.log(`📬 ${messages.length} ${label} message(s):\n`);
+    console.log(`${messages.length} ${label} message(s):\n`);
     for (const msg of messages) {
-      const icon = msg.fromType === "agent" ? "🤖" : "👤";
+      const icon = msg.fromType === "agent" ? "[bot]" : "[user]";
       console.log(`  ${icon} [#${msg.channelName}] ${msg.from}: ${msg.text}`);
-      console.log(`     ↳ Reply: swarm send ${msg.channelId} "<your reply>"`);
+      console.log(`     -> Reply: swarm send ${msg.channelId} "<your reply>"`);
     }
   }
 
@@ -261,12 +370,12 @@ async function cmdSend() {
 
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    console.error(`❌ Send failed (${resp.status}): ${err.error || "Unknown error"}`);
+    console.error(`Send failed (${resp.status}): ${err.error || "Unknown error"}`);
     process.exit(1);
   }
 
   const data = await resp.json();
-  console.log(`💬 Sent to #${channelId} (message: ${data.messageId})`);
+  console.log(`Sent to #${channelId} (message: ${data.messageId})`);
 }
 
 async function cmdReply() {
@@ -278,13 +387,10 @@ async function cmdReply() {
     process.exit(1);
   }
 
-  // For reply, we need the channelId. Use state or config to find it.
-  // Simple approach: treat messageId as channelId for now, or look it up if cached
   const config = loadConfig();
   const { privateKey } = ensureKeypair();
 
   const nonce = crypto.randomUUID();
-  // Reply sends to the same channel, with replyTo metadata
   const signedMessage = `POST:/v1/send:${messageId}:${text}:${nonce}`;
   const sig = sign(signedMessage, privateKey);
 
@@ -293,7 +399,7 @@ async function cmdReply() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       agent: config.agentId,
-      channelId: messageId, // channelId or messageId
+      channelId: messageId,
       text,
       nonce,
       sig,
@@ -303,12 +409,200 @@ async function cmdReply() {
 
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    console.error(`❌ Reply failed (${resp.status}): ${err.error || "Unknown error"}`);
+    console.error(`Reply failed (${resp.status}): ${err.error || "Unknown error"}`);
     process.exit(1);
   }
 
   const data = await resp.json();
-  console.log(`💬 Reply sent (message: ${data.messageId})`);
+  console.log(`Reply sent (message: ${data.messageId})`);
+}
+
+async function cmdStatus() {
+  const config = loadConfig();
+  const { privateKey } = ensureKeypair();
+  const state = loadState();
+
+  console.log(`Agent Status`);
+  console.log(`─────────────────────────────`);
+  console.log(`  Name:      ${config.agentName}`);
+  console.log(`  Type:      ${config.agentType}`);
+  console.log(`  ID:        ${config.agentId}`);
+  console.log(`  Org:       ${config.orgId}`);
+  console.log(`  Hub:       ${config.hubUrl}`);
+  console.log(`  Last Poll: ${state.lastPoll ? new Date(state.lastPoll).toISOString() : "never"}`);
+
+  if (config.skills && config.skills.length > 0) {
+    console.log(`  Skills:    ${config.skills.map(s => s.name).join(", ")}`);
+  }
+  if (config.bio) {
+    console.log(`  Bio:       ${config.bio}`);
+  }
+
+  // Heartbeat — report skills to confirm online status
+  console.log(`\nSending heartbeat...`);
+  try {
+    const result = await reportSkills(config, privateKey, config.skills || [], config.bio);
+    console.log(`  Status:    online`);
+    console.log(`  Skills:    ${result.reportedSkills} reported`);
+  } catch (err) {
+    console.error(`  Status:    error — ${err.message}`);
+  }
+}
+
+async function cmdDiscover() {
+  const config = loadConfig();
+  const { privateKey } = ensureKeypair();
+
+  const skillFilter = arg("--skill");
+  const typeFilter = arg("--type");
+  const statusFilter = arg("--status");
+
+  const qs = signedQuery(config, privateKey, "/v1/agents");
+  let url = `${config.hubUrl}/api/v1/agents?org=${config.orgId}&${qs}`;
+  if (skillFilter) url += `&skill=${encodeURIComponent(skillFilter)}`;
+  if (typeFilter) url += `&type=${encodeURIComponent(typeFilter)}`;
+  if (statusFilter) url += `&status=${encodeURIComponent(statusFilter)}`;
+
+  const resp = await fetch(url);
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    console.error(`Discovery failed (${resp.status}): ${err.error || "Unknown error"}`);
+    process.exit(1);
+  }
+
+  const data = await resp.json();
+  const agents = data.agents || [];
+
+  if (agents.length === 0) {
+    console.log("No agents found matching filters.");
+    return;
+  }
+
+  console.log(`Found ${agents.length} agent(s):\n`);
+  for (const agent of agents) {
+    const statusIcon = agent.status === "online" ? "[online]" : agent.status === "busy" ? "[busy]" : "[offline]";
+    console.log(`  ${statusIcon} ${agent.name} (${agent.type})`);
+    console.log(`     ID: ${agent.id}`);
+    if (agent.bio) {
+      console.log(`     Bio: ${agent.bio}`);
+    }
+    if (agent.skills && agent.skills.length > 0) {
+      console.log(`     Skills: ${agent.skills.map(s => s.name).join(", ")}`);
+    }
+    console.log();
+  }
+}
+
+async function cmdProfile() {
+  const config = loadConfig();
+  const { privateKey } = ensureKeypair();
+
+  const skillsStr = arg("--skills");
+  const bio = arg("--bio");
+
+  if (!skillsStr && !bio) {
+    // No args — show current profile
+    console.log(`Agent Profile`);
+    console.log(`─────────────────────────────`);
+    console.log(`  Name:   ${config.agentName}`);
+    console.log(`  Type:   ${config.agentType}`);
+    console.log(`  Bio:    ${config.bio || "(not set)"}`);
+    console.log(`  Skills: ${config.skills?.map(s => s.name).join(", ") || "(none)"}`);
+    console.log(`\nUpdate: swarm profile --skills "skill1,skill2" --bio "description"`);
+    return;
+  }
+
+  const skills = skillsStr ? parseSkills(skillsStr) : (config.skills || []);
+  const newBio = bio || config.bio;
+
+  console.log(`Updating profile...`);
+  try {
+    const result = await reportSkills(config, privateKey, skills, newBio);
+    console.log(`  Skills reported: ${result.reportedSkills}`);
+    if (newBio) console.log(`  Bio updated`);
+
+    // Save to local config
+    config.skills = skills;
+    if (newBio) config.bio = newBio;
+    saveConfig(config);
+
+    console.log(`  Profile saved locally + broadcast to hub`);
+  } catch (err) {
+    console.error(`Profile update failed: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+async function cmdDaemon() {
+  const config = loadConfig();
+  const { privateKey } = ensureKeypair();
+
+  const intervalSec = parseInt(arg("--interval") || "300", 10); // default 5 min
+  const intervalMs = Math.max(60, intervalSec) * 1000; // minimum 60 seconds
+
+  console.log(`Swarm Daemon`);
+  console.log(`─────────────────────────────`);
+  console.log(`  Agent:    ${config.agentName} (${config.agentId})`);
+  console.log(`  Interval: ${intervalSec}s`);
+  console.log(`  Hub:      ${config.hubUrl}`);
+  console.log(`\nRunning... (Ctrl+C to stop)\n`);
+
+  // Immediately do first checkin
+  await daemonTick(config, privateKey);
+
+  // Loop
+  const interval = setInterval(() => daemonTick(config, privateKey), intervalMs);
+
+  // Graceful shutdown
+  process.on("SIGINT", () => {
+    console.log("\nDaemon stopped.");
+    clearInterval(interval);
+    process.exit(0);
+  });
+  process.on("SIGTERM", () => {
+    clearInterval(interval);
+    process.exit(0);
+  });
+
+  // Keep alive
+  await new Promise(() => {});
+}
+
+async function daemonTick(config, privateKey) {
+  const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+  try {
+    // 1. Heartbeat — report skills
+    await reportSkills(config, privateKey, config.skills || [], config.bio);
+
+    // 2. Check messages
+    const state = loadState();
+    const since = state.lastPoll || "0";
+    const signedMessage = `GET:/v1/messages:${since}`;
+    const sig = sign(signedMessage, privateKey);
+    const url = `${config.hubUrl}/api/v1/messages?agent=${config.agentId}&since=${since}&sig=${encodeURIComponent(sig)}`;
+
+    const resp = await fetch(url);
+    if (resp.ok) {
+      const data = await resp.json();
+      const messages = data.messages || [];
+      const maxTs = messages.reduce((max, m) => Math.max(max, m.timestamp || 0), parseInt(since, 10));
+      saveState({ lastPoll: maxTs || Date.now() });
+
+      if (messages.length > 0) {
+        console.log(`[${now}] ${messages.length} new message(s)`);
+        for (const msg of messages) {
+          console.log(`  [#${msg.channelName}] ${msg.from}: ${msg.text}`);
+        }
+      } else {
+        console.log(`[${now}] heartbeat ok`);
+      }
+    } else {
+      console.error(`[${now}] check failed (${resp.status})`);
+    }
+  } catch (err) {
+    console.error(`[${now}] error: ${err.message}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -322,14 +616,22 @@ try {
   else if (cmd === "check") await cmdCheck();
   else if (cmd === "send") await cmdSend();
   else if (cmd === "reply") await cmdReply();
+  else if (cmd === "status") await cmdStatus();
+  else if (cmd === "discover") await cmdDiscover();
+  else if (cmd === "profile") await cmdProfile();
+  else if (cmd === "daemon") await cmdDaemon();
   else {
     console.log(`@swarmprotocol/agent-skill — Sandbox-safe Swarm agent
 
 Commands:
-  register  --hub <url> --org <orgId> --name <name> [--type <type>]
+  register  --hub <url> --org <orgId> --name <name> [--type <type>] [--skills <s1,s2>] [--bio <bio>]
   check     [--since <timestamp>]   — poll for new messages
   send      <channelId> "<text>"    — send a message to a channel
   reply     <messageId> "<text>"    — reply to a specific message
+  status                            — show agent status + send heartbeat
+  discover  [--skill <id>] [--type <type>] [--status <status>]  — find agents
+  profile   [--skills <s1,s2>] [--bio <bio>]  — view/update agent profile
+  daemon    [--interval <seconds>]  — auto-checkin loop (default: 300s)
 
 Auth:
   Ed25519 keypair generated on first run.
@@ -339,7 +641,7 @@ Auth:
 Files (all within skill directory):
   ./keys/private.pem   — Ed25519 private key (never shared)
   ./keys/public.pem    — Ed25519 public key (registered with hub)
-  ./config.json        — hub URL, agent ID, org ID
+  ./config.json        — hub URL, agent ID, org ID, skills, bio
   ./state.json         — last poll timestamp
 
 Source: https://github.com/The-Swarm-Protocol/Swarm`);

@@ -1,5 +1,6 @@
 /** Dynamic Inner — Internal component loaded by the dynamic wrapper after code splitting. */
 'use client';
+import { useEffect } from 'react';
 import { ThirdwebProvider, AutoConnect } from 'thirdweb/react';
 import { createThirdwebClient } from 'thirdweb';
 import { createWallet, inAppWallet } from 'thirdweb/wallets';
@@ -19,10 +20,29 @@ const wallets = [
   createWallet('app.phantom'),
 ];
 
+/** Known non-fatal thirdweb auto-connect errors to suppress */
+const SUPPRESSED_PATTERNS = [
+  'connect() before enable()',
+  'Cannot set a wallet without an account as active',
+];
+
 export function Web3ProviderInner({ children }: { children: React.ReactNode }) {
+  // Suppress known thirdweb SDK auto-connect errors that fire during
+  // wallet reconnection when the previous session is stale.
+  useEffect(() => {
+    const handler = (e: PromiseRejectionEvent) => {
+      const msg = String(e.reason?.message || e.reason || '');
+      if (SUPPRESSED_PATTERNS.some((p) => msg.includes(p))) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('unhandledrejection', handler);
+    return () => window.removeEventListener('unhandledrejection', handler);
+  }, []);
+
   return (
     <ThirdwebProvider>
-      <AutoConnect client={client} wallets={wallets} timeout={30000} />
+      <AutoConnect client={client} wallets={wallets} timeout={15_000} />
       {children}
     </ThirdwebProvider>
   );

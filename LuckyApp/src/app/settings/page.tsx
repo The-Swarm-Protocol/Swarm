@@ -1,4 +1,4 @@
-/** Settings — Organization configuration, project management, and preferences. */
+/** Settings — User profile + organization configuration. */
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useOrg } from '@/contexts/OrgContext';
 import { useActiveAccount } from 'thirdweb/react';
-import { updateOrganization } from '@/lib/firestore';
+import { updateOrganization, getProfile, setProfile } from '@/lib/firestore';
 import { Badge } from '@/components/ui/badge';
 import { GitHubIcon } from '@/components/github/github-icon';
 import SpotlightCard from "@/components/reactbits/SpotlightCard";
@@ -36,6 +36,74 @@ export default function SettingsPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  // User profile state
+  const [displayName, setDisplayName] = useState('');
+  const [userBio, setUserBio] = useState('');
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+
+  // Load user profile
+  useEffect(() => {
+    if (!address) return;
+    (async () => {
+      try {
+        const profile = await getProfile(address);
+        if (profile) {
+          setDisplayName(profile.displayName || '');
+          setUserBio(profile.bio || '');
+          setUserAvatar(profile.avatar || null);
+        }
+        setProfileLoaded(true);
+      } catch {
+        setProfileLoaded(true);
+      }
+    })();
+  }, [address]);
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!address) return;
+    setSavingProfile(true);
+    setProfileMessage(null);
+    try {
+      await setProfile(address, {
+        displayName: displayName.trim(),
+        bio: userBio.trim(),
+        ...(userAvatar ? { avatar: userAvatar } : {}),
+      });
+      setProfileMessage({ type: 'success', text: 'Profile updated!' });
+    } catch (err) {
+      setProfileMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to save profile' });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !address) return;
+    if (file.size > 500 * 1024) {
+      setProfileMessage({ type: 'error', text: 'Avatar must be under 500KB' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result as string;
+      setUserAvatar(base64);
+      try {
+        await setProfile(address, { avatar: base64 });
+        setProfileMessage({ type: 'success', text: 'Avatar updated!' });
+      } catch {
+        setProfileMessage({ type: 'error', text: 'Failed to save avatar' });
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   // Initialize form with current org data
   useEffect(() => {
@@ -148,6 +216,91 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div className="max-w-2xl space-y-6">
+
+        {/* ── User Profile ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Your Profile</CardTitle>
+            <CardDescription>Your personal settings across all organizations</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSaveProfile} className="space-y-5">
+              <div className="flex items-center gap-4">
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={handleAvatarChange}
+                />
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="w-16 h-16 rounded-full border border-border bg-muted flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-80 transition-opacity shrink-0"
+                >
+                  {userAvatar ? (
+                    <img src={userAvatar} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-xl font-bold text-muted-foreground">
+                      {displayName ? displayName.charAt(0).toUpperCase() : address?.slice(2, 4).toUpperCase()}
+                    </span>
+                  )}
+                </button>
+                <div className="text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground font-mono text-xs">
+                    {address ? `${address.slice(0, 8)}...${address.slice(-6)}` : ''}
+                  </p>
+                  <button type="button" onClick={() => avatarInputRef.current?.click()} className="text-[10px] text-muted-foreground hover:text-foreground mt-0.5">
+                    Change avatar
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Display Name</label>
+                <Input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="How others see you"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Bio</label>
+                <Textarea
+                  value={userBio}
+                  onChange={(e) => setUserBio(e.target.value)}
+                  rows={2}
+                  placeholder="A short description about yourself"
+                  maxLength={300}
+                />
+                <p className="text-xs text-muted-foreground mt-1">{userBio.length}/300</p>
+              </div>
+
+              {profileMessage && (
+                <div className={`text-sm rounded-md p-3 ${profileMessage.type === 'success'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                  : 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800'
+                  }`}>
+                  {profileMessage.text}
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  disabled={savingProfile || !profileLoaded}
+                  className="bg-amber-600 hover:bg-amber-700 text-black"
+                >
+                  {savingProfile ? 'Saving...' : 'Save Profile'}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* ── Organization Profile ── */}
         <Card>
           <CardHeader>
             <CardTitle>Organization Profile</CardTitle>

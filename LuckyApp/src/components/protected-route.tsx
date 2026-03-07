@@ -8,7 +8,12 @@ import { useOrg } from '@/contexts/OrgContext';
 
 // Minimum grace period (ms) after mount before allowing redirects.
 // Acts as a safety net in case connectionStatus hasn't settled yet.
-const AUTH_GRACE_MS = 3000;
+const AUTH_GRACE_MS = 3_000;
+
+// Extra delay before redirecting to onboarding.
+// Must be long enough for OrgContext's disconnect grace (6s) to settle so
+// we never redirect while orgs are still being re-fetched after reconnection.
+const ONBOARDING_REDIRECT_DELAY = 2_000;
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const account = useActiveAccount();
@@ -17,6 +22,10 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { organizations, loading } = useOrg();
   const router = useRouter();
   const pathname = usePathname();
+
+  // Track whether we've ever seen orgs so we don't flash to onboarding on transient drops
+  const hadOrgs = useRef(false);
+  if (organizations.length > 0) hadOrgs.current = true;
 
   // --- Grace period: don't redirect until AUTH_GRACE_MS after mount ---
   const mountTime = useRef(Date.now());
@@ -48,6 +57,15 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
     // Wallet is definitively disconnected
     if (!isConnected) {
+      // If we previously had orgs, give extra time — wallet may be transiently dropped
+      if (hadOrgs.current) {
+        const timer = setTimeout(() => {
+          // Re-check at fire time — wallet may have reconnected by now
+          // (we can't read hooks here, so rely on cleanup cancelling this)
+          router.push('/');
+        }, ONBOARDING_REDIRECT_DELAY);
+        return () => clearTimeout(timer);
+      }
       router.push('/');
       return;
     }
@@ -55,7 +73,8 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     // Organization checks (only after loading is complete)
     if (!loading && isConnected) {
       if (organizations.length === 0 && pathname !== '/onboarding') {
-        const timer = setTimeout(() => router.push('/onboarding'), 750);
+        // Longer delay for org check — OrgContext may still be in its disconnect grace
+        const timer = setTimeout(() => router.push('/onboarding'), ONBOARDING_REDIRECT_DELAY);
         return () => clearTimeout(timer);
       } else if (organizations.length > 0 && pathname === '/onboarding') {
         const timer = setTimeout(() => router.push('/dashboard'), 750);
