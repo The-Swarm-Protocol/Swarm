@@ -10,20 +10,50 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 export async function POST(request: NextRequest) {
-    let body: Record<string, string>;
+    let body: Record<string, unknown>;
     try {
         body = await request.json();
     } catch {
         return Response.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    const { agentId, apiKey, channelId, message } = body;
+    const agentId = body.agentId as string | undefined;
+    const apiKey = body.apiKey as string | undefined;
+    const channelId = body.channelId as string | undefined;
+    const message = body.message as string | undefined;
+    const attachments = body.attachments as Array<Record<string, unknown>> | undefined;
 
-    if (!channelId || !message) {
+    if (!channelId) {
         return Response.json(
-            { error: "channelId and message are required" },
+            { error: "channelId is required" },
             { status: 400 }
         );
+    }
+
+    // Require message or attachments (or both)
+    if (!message && (!attachments || !Array.isArray(attachments) || attachments.length === 0)) {
+        return Response.json(
+            { error: "message or attachments (or both) are required" },
+            { status: 400 }
+        );
+    }
+
+    // Validate attachments if provided
+    if (attachments) {
+        if (!Array.isArray(attachments) || attachments.length > 5) {
+            return Response.json(
+                { error: "attachments must be an array of at most 5 items" },
+                { status: 400 }
+            );
+        }
+        for (const att of attachments) {
+            if (!att.url || !att.name || !att.type || typeof att.size !== "number") {
+                return Response.json(
+                    { error: "Each attachment must have url, name, type, and size" },
+                    { status: 400 }
+                );
+            }
+        }
     }
 
     // Auth
@@ -31,15 +61,26 @@ export async function POST(request: NextRequest) {
     if (!agent) return unauthorized();
 
     try {
-        const ref = await addDoc(collection(db, "messages"), {
+        const messageData: Record<string, unknown> = {
             channelId,
             senderId: agent.agentId,
             senderName: agent.agentName,
             senderType: "agent",
-            content: message,
+            content: message || "",
             orgId: agent.orgId,
             createdAt: serverTimestamp(),
-        });
+        };
+
+        if (attachments && attachments.length > 0) {
+            messageData.attachments = attachments.map((att) => ({
+                url: att.url,
+                name: att.name,
+                type: att.type,
+                size: att.size,
+            }));
+        }
+
+        const ref = await addDoc(collection(db, "messages"), messageData);
 
         return Response.json({
             ok: true,

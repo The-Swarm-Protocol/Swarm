@@ -5,7 +5,15 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Flag } from "lucide-react";
+import { Flag, Paperclip, Mic, Square, X, Download } from "lucide-react";
+import {
+  uploadFiles,
+  uploadVoiceRecording,
+  validateFiles,
+  getFileCategory,
+  formatFileSize,
+} from "@/lib/storage";
+import type { Attachment } from "@/lib/firestore";
 import { useActiveAccount } from "thirdweb/react";
 import { useOrg } from "@/contexts/OrgContext";
 import {
@@ -103,6 +111,18 @@ export default function ChatPage() {
   const [reportingMsg, setReportingMsg] = useState<Message | null>(null);
   const [reportReason, setReportReason] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
+
+  // File attachments
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Voice recording
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -243,10 +263,93 @@ export default function ChatPage() {
     }
   };
 
+  // ─── File selection ───
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    const combined = [...pendingFiles, ...files];
+    const err = validateFiles(combined);
+    if (err) { setError(err); return; }
+    setPendingFiles(combined);
+    e.target.value = "";
+  };
+
+  const removePendingFile = (index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // ─── Voice recording ───
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+        setRecordingDuration(0);
+
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        if (blob.size === 0 || !activeChannel || !address || !currentOrg) return;
+
+        try {
+          setUploading(true);
+          const attachment = await uploadVoiceRecording(blob, currentOrg.id, activeChannel.id);
+          await sendMessage({
+            channelId: activeChannel.id,
+            senderId: address,
+            senderAddress: address,
+            senderName: address.slice(0, 6) + "..." + address.slice(-4),
+            senderType: "human",
+            content: "",
+            orgId: currentOrg.id,
+            createdAt: new Date(),
+            attachments: [attachment],
+          });
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Failed to send voice message");
+        } finally {
+          setUploading(false);
+        }
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingDuration(0);
+      recordingTimerRef.current = setInterval(() => setRecordingDuration((p) => p + 1), 1000);
+    } catch {
+      setError("Microphone access denied");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  // ─── Send message (text + optional attachments) ───
   const handleSend = useCallback(async () => {
-    if (!activeChannel || !address || !messageInput.trim()) return;
+    if (!activeChannel || !address) return;
+    if (!messageInput.trim() && pendingFiles.length === 0) return;
+
     try {
       setSending(true);
+      setUploading(pendingFiles.length > 0);
+
+      let attachments: Attachment[] | undefined;
+      if (pendingFiles.length > 0 && currentOrg) {
+        attachments = await uploadFiles(pendingFiles, currentOrg.id, activeChannel.id);
+      }
+
       await sendMessage({
         channelId: activeChannel.id,
         senderId: address,
@@ -256,15 +359,19 @@ export default function ChatPage() {
         content: messageInput.trim(),
         orgId: currentOrg?.id,
         createdAt: new Date(),
+        ...(attachments ? { attachments } : {}),
       });
+
       setMessageInput("");
+      setPendingFiles([]);
     } catch (err) {
       console.error("Failed to send:", err);
       setError(err instanceof Error ? err.message : "Failed to send message");
     } finally {
       setSending(false);
+      setUploading(false);
     }
-  }, [activeChannel, address, messageInput, currentOrg]);
+  }, [activeChannel, address, messageInput, pendingFiles, currentOrg]);
 
   const handleSubmitReport = async () => {
     if (!reportingMsg || !currentOrg || !address || !reportReason.trim()) return;
@@ -548,9 +655,49 @@ export default function ChatPage() {
                                 </div>
                               )}
                               <div className="relative group/msg flex items-start gap-2">
-                                <p className="text-sm text-foreground/90 break-words whitespace-pre-wrap leading-relaxed">
-                                  {msg.content}
-                                </p>
+                                <div className="flex-1 min-w-0">
+                                  {msg.content && (
+                                    <p className="text-sm text-foreground/90 break-words whitespace-pre-wrap leading-relaxed">
+                                      {msg.content}
+                                    </p>
+                                  )}
+                                  {msg.attachments && msg.attachments.length > 0 && (
+                                    <div className="flex flex-col gap-1.5 mt-1">
+                                      {msg.attachments.map((att, ai) => {
+                                        const cat = getFileCategory(att.type);
+                                        if (cat === "image") {
+                                          return (
+                                            <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="block">
+                                              <img src={att.url} alt={att.name} className="max-w-xs max-h-60 rounded-lg border border-border object-cover hover:opacity-90 transition-opacity" loading="lazy" />
+                                            </a>
+                                          );
+                                        }
+                                        if (cat === "video") {
+                                          return <video key={ai} src={att.url} controls className="max-w-sm rounded-lg border border-border" preload="metadata" />;
+                                        }
+                                        if (cat === "audio") {
+                                          return (
+                                            <div key={ai} className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border max-w-xs">
+                                              <audio src={att.url} controls className="h-8 flex-1" preload="metadata" />
+                                              <span className="text-[10px] text-muted-foreground shrink-0">
+                                                {att.name.startsWith("voice_") ? "Voice message" : att.name}
+                                              </span>
+                                            </div>
+                                          );
+                                        }
+                                        return (
+                                          <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border max-w-xs hover:bg-muted transition-colors">
+                                            <Download className="w-4 h-4 text-muted-foreground shrink-0" />
+                                            <div className="flex-1 min-w-0">
+                                              <p className="text-sm text-foreground truncate">{att.name}</p>
+                                              <p className="text-[10px] text-muted-foreground">{formatFileSize(att.size)}</p>
+                                            </div>
+                                          </a>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
                                 {/* Report Button */}
                                 {msg.senderId !== address && (
                                   <button
@@ -574,28 +721,95 @@ export default function ChatPage() {
 
               {/* Input */}
               <div className="border-t border-border p-4 shrink-0">
-                <div className="max-w-3xl mx-auto flex gap-3">
-                  <Input
-                    ref={inputRef}
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    placeholder={`Message ${activeChannel.name}…`}
-                    className="flex-1 bg-muted/50 border-border focus-visible:border-amber-500/50"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey && messageInput.trim()) {
-                        e.preventDefault();
-                        handleSend();
-                      }
-                    }}
-                    disabled={sending}
-                  />
-                  <Button
-                    onClick={handleSend}
-                    disabled={sending || !messageInput.trim()}
-                    className="bg-amber-600 hover:bg-amber-700 text-black px-6"
-                  >
-                    {sending ? "…" : "Send"}
-                  </Button>
+                <div className="max-w-3xl mx-auto">
+                  {/* Pending files preview */}
+                  {pendingFiles.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {pendingFiles.map((file, i) => (
+                        <div key={i} className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted border border-border text-xs">
+                          <span className="truncate max-w-[120px]">{file.name}</span>
+                          <span className="text-muted-foreground">({formatFileSize(file.size)})</span>
+                          <button onClick={() => removePendingFile(i)} className="text-muted-foreground hover:text-red-400">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Voice recording indicator */}
+                  {isRecording && (
+                    <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-md bg-red-950/20 border border-red-500/30 text-sm text-red-400">
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                      Recording... {recordingDuration}s
+                      <button onClick={stopRecording} className="ml-auto p-1 hover:bg-red-500/20 rounded">
+                        <Square className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Main input row */}
+                  <div className="flex gap-2 items-end">
+                    {/* Hidden file input */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={handleFileSelect}
+                    />
+
+                    {/* Attach button */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0 text-muted-foreground hover:text-foreground"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={sending || uploading || isRecording}
+                      title="Attach files"
+                    >
+                      <Paperclip className="w-4 h-4" />
+                    </Button>
+
+                    {/* Voice button */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className={`shrink-0 ${isRecording ? "text-red-500" : "text-muted-foreground hover:text-foreground"}`}
+                      onClick={isRecording ? stopRecording : startRecording}
+                      disabled={sending || uploading}
+                      title={isRecording ? "Stop recording" : "Record voice message"}
+                    >
+                      {isRecording ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                    </Button>
+
+                    {/* Text input */}
+                    <Input
+                      ref={inputRef}
+                      value={messageInput}
+                      onChange={(e) => setMessageInput(e.target.value)}
+                      placeholder={`Message ${activeChannel.name}…`}
+                      className="flex-1 bg-muted/50 border-border focus-visible:border-amber-500/50"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey && (messageInput.trim() || pendingFiles.length > 0)) {
+                          e.preventDefault();
+                          handleSend();
+                        }
+                      }}
+                      disabled={sending || isRecording}
+                    />
+
+                    {/* Send button */}
+                    <Button
+                      onClick={handleSend}
+                      disabled={sending || uploading || isRecording || (!messageInput.trim() && pendingFiles.length === 0)}
+                      className="bg-amber-600 hover:bg-amber-700 text-black px-6"
+                    >
+                      {uploading ? "Uploading..." : sending ? "…" : "Send"}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </>

@@ -22,20 +22,52 @@ const usedNonces = new Set<string>();
 const MAX_NONCES = 10000;
 
 export async function POST(request: NextRequest) {
-    let body: Record<string, string>;
+    let body: Record<string, unknown>;
     try {
         body = await request.json();
     } catch {
         return Response.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    const { agent: agentId, channelId, text, nonce, sig, replyTo } = body;
+    const agentId = body.agent as string | undefined;
+    const channelId = body.channelId as string | undefined;
+    const text = body.text as string | undefined;
+    const nonce = body.nonce as string | undefined;
+    const sig = body.sig as string | undefined;
+    const replyTo = body.replyTo as string | undefined;
+    const attachments = body.attachments as Array<Record<string, unknown>> | undefined;
 
-    if (!agentId || !channelId || !text || !nonce || !sig) {
+    if (!agentId || !channelId || !nonce || !sig) {
         return Response.json(
-            { error: "agent, channelId, text, nonce, and sig are required" },
+            { error: "agent, channelId, nonce, and sig are required" },
             { status: 400 }
         );
+    }
+
+    // Require text or attachments (or both)
+    if (!text && (!attachments || !Array.isArray(attachments) || attachments.length === 0)) {
+        return Response.json(
+            { error: "text or attachments (or both) are required" },
+            { status: 400 }
+        );
+    }
+
+    // Validate attachments if provided
+    if (attachments) {
+        if (!Array.isArray(attachments) || attachments.length > 5) {
+            return Response.json(
+                { error: "attachments must be an array of at most 5 items" },
+                { status: 400 }
+            );
+        }
+        for (const att of attachments) {
+            if (!att.url || !att.name || !att.type || typeof att.size !== "number") {
+                return Response.json(
+                    { error: "Each attachment must have url, name, type, and size" },
+                    { status: 400 }
+                );
+            }
+        }
     }
 
     // Check nonce hasn't been used (replay protection)
@@ -47,7 +79,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify signature: agent signed "POST:/v1/send:<channelId>:<text>:<nonce>"
-    const signedMessage = `POST:/v1/send:${channelId}:${text}:${nonce}`;
+    // Attachments are NOT included in the signature (only text + nonce)
+    const signedMessage = `POST:/v1/send:${channelId}:${text || ""}:${nonce}`;
     const agentData = await verifyAgentRequest(agentId, signedMessage, sig);
     if (!agentData) return unauthorized();
 
@@ -68,7 +101,7 @@ export async function POST(request: NextRequest) {
             senderId: agentData.agentId,
             senderName: agentData.agentName,
             senderType: "agent",
-            content: text,
+            content: text || "",
             orgId: agentData.orgId,
             nonce,
             verified: true, // signature verified by hub
@@ -77,6 +110,15 @@ export async function POST(request: NextRequest) {
 
         if (replyTo) {
             messageData.replyTo = replyTo;
+        }
+
+        if (attachments && attachments.length > 0) {
+            messageData.attachments = attachments.map((att: Record<string, unknown>) => ({
+                url: att.url,
+                name: att.name,
+                type: att.type,
+                size: att.size,
+            }));
         }
 
         const ref = await addDoc(collection(db, "messages"), messageData);
