@@ -110,6 +110,14 @@ export interface Channel {
   createdAt: unknown;
 }
 
+export interface Attachment {
+  url: string;
+  name: string;
+  type: string;
+  size: number;
+  storagePath?: string;
+}
+
 export interface Message {
   id: string;
   channelId: string;
@@ -119,6 +127,7 @@ export interface Message {
   senderType: 'human' | 'agent';
   content: string;
   orgId?: string;
+  attachments?: Attachment[];
   createdAt: unknown;
 }
 

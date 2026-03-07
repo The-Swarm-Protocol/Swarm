@@ -90,6 +90,7 @@ export async function GET(request: NextRequest) {
             fromType: string;
             text: string;
             timestamp: number;
+            attachments?: Array<{ url: string; name: string; type: string; size: number }>;
         }> = [];
 
         for (const channelId of channelIds) {
@@ -117,7 +118,7 @@ export async function GET(request: NextRequest) {
                 // Skip agent's own messages
                 if (m.senderId === agent.agentId) continue;
 
-                messages.push({
+                const msg: typeof messages[number] = {
                     id: mDoc.id,
                     channelId,
                     channelName: channelMeta[channelId]?.name || channelId,
@@ -125,7 +126,11 @@ export async function GET(request: NextRequest) {
                     fromType: m.senderType || "user",
                     text: m.content || m.text || "",
                     timestamp: m.createdAt?.toMillis?.() || m.ts || 0,
-                });
+                };
+                if (m.attachments && Array.isArray(m.attachments)) {
+                    msg.attachments = m.attachments;
+                }
+                messages.push(msg);
             }
         }
 
