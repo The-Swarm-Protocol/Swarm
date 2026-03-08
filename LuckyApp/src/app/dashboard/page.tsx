@@ -1,7 +1,7 @@
 /** Dashboard — Customizable command center with drag-and-drop widgets, add/remove from catalog. */
 'use client';
 
-import { useState, useEffect, useCallback, type DragEvent } from 'react';
+import { useState, useEffect, useCallback, useMemo, type DragEvent } from 'react';
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { motion } from "motion/react";
@@ -41,6 +41,19 @@ import {
   type ActivityEvent,
 } from "@/lib/activity";
 import type { DispatchPayload } from "@/components/agent-map/agent-map";
+import { TaskDonutChart } from "@/components/charts/task-donut-chart";
+import { AgentStatusChart } from "@/components/charts/agent-status-chart";
+import { MiniSparkline } from "@/components/charts/mini-sparkline";
+import { TaskVelocityChart } from "@/components/charts/task-velocity-chart";
+import { CostTrendChart } from "@/components/charts/cost-trend-chart";
+import { AgentWorkloadChart } from "@/components/charts/agent-workload-chart";
+import { ActivityHeatmapChart } from "@/components/charts/activity-heatmap-chart";
+import {
+  computeTaskVelocity,
+  computeAgentWorkload,
+  computeActivityByHour,
+} from "@/lib/dashboard-data";
+import type { DailyCost } from "@/lib/usage";
 
 const AgentMap = dynamic(
   () => import('@/components/agent-map/agent-map'),
@@ -235,6 +248,8 @@ export default function DashboardPage() {
   const [allJobs, setAllJobs] = useState<Job[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [activityFeed, setActivityFeed] = useState<ActivityEvent[]>([]);
+  const [activityAll, setActivityAll] = useState<ActivityEvent[]>([]);
+  const [dailyCosts, setDailyCosts] = useState<DailyCost[]>([]);
   const [swarmSlots, setSwarmSlots] = useState<Record<string, { agentId: string; assignedAt: unknown } | null>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -329,12 +344,22 @@ export default function DashboardPage() {
         .slice(0, 5);
       setRecentJobs(sortedJobs);
 
-      // Load activity feed
+      // Load activity feed (200 for heatmap, slice 8 for feed widget)
       try {
-        const feed = await getActivityFeed(currentOrg.id, { max: 8 });
-        setActivityFeed(feed);
+        const feed = await getActivityFeed(currentOrg.id, { max: 200 });
+        setActivityAll(feed);
+        setActivityFeed(feed.slice(0, 8));
       } catch {
         // Activity feed is non-critical
+      }
+
+      // Load cost data
+      try {
+        const { getUsageRecords, aggregateDaily } = await import("@/lib/usage");
+        const records = await getUsageRecords(currentOrg.id, 14);
+        setDailyCosts(aggregateDaily(records));
+      } catch {
+        // Cost data is non-critical
       }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
