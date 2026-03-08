@@ -15,6 +15,7 @@ import {
   Command, Coins, Stethoscope, Brain, UserCog, Network, HardDrive, BookOpen, Store, Building2,
   Link as LinkIcon, Zap,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 /** Map iconName strings from sidebarConfig to lucide components */
 const ICON_MAP: Record<string, typeof LayoutDashboard> = {
