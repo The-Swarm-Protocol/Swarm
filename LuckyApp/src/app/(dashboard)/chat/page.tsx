@@ -5,7 +5,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Flag, Paperclip, Mic, Square, X, Download } from "lucide-react";
+import { Flag, Paperclip, Mic, Square, X, Download, GripVertical } from "lucide-react";
 import {
   uploadFiles,
   uploadVoiceRecording,
@@ -26,6 +26,7 @@ import {
   deleteMessagesByChannel,
   getAgentsByOrg,
   ensureAgentGroupChat,
+  ensureAgentPrivateChannel,
   createReport,
   type Channel,
   type Message,
@@ -101,6 +102,37 @@ function renderMessageContent(content: string, agentNames: Set<string>): React.R
 }
 
 /* ------------------------------------------------------------------ */
+/*  Channel Order Persistence                                         */
+/* ------------------------------------------------------------------ */
+
+const CHANNEL_ORDER_KEY = "swarm-channel-order";
+
+function loadChannelOrder(): Record<string, string[]> | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const val = localStorage.getItem(CHANNEL_ORDER_KEY);
+    return val ? JSON.parse(val) : null;
+  } catch { return null; }
+}
+
+function saveChannelOrder(order: Record<string, string[]>) {
+  try { localStorage.setItem(CHANNEL_ORDER_KEY, JSON.stringify(order)); } catch {}
+}
+
+/** Apply saved order to channels, appending any new channels at the end */
+function applyOrder(channels: Channel[], savedIds: string[] | undefined): Channel[] {
+  if (!savedIds || savedIds.length === 0) return channels;
+  const lookup = new Map(channels.map(c => [c.id, c]));
+  const ordered: Channel[] = [];
+  for (const id of savedIds) {
+    const ch = lookup.get(id);
+    if (ch) { ordered.push(ch); lookup.delete(id); }
+  }
+  for (const ch of lookup.values()) ordered.push(ch);
+  return ordered;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Component                                                         */
 /* ------------------------------------------------------------------ */
 
@@ -111,9 +143,14 @@ export default function ChatPage() {
 
   // Channels / conversations
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [dmChannels, setDmChannels] = useState<Channel[]>([]);
   const [projectChannels, setProjectChannels] = useState<Channel[]>([]);
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
   const [lastMsgTs, setLastMsgTs] = useState<Map<string, number>>(new Map());
+
+  // Channel drag-and-drop
+  const [dragCh, setDragCh] = useState<{ id: string; section: string } | null>(null);
+  const [dropChTarget, setDropChTarget] = useState<{ id: string; section: string } | null>(null);
 
   // Messages
   const [messages, setMessages] = useState<Message[]>([]);
@@ -164,20 +201,36 @@ export default function ChatPage() {
       // Ensure the Agent Hub group chat exists (also deduplicates)
       await ensureAgentGroupChat(currentOrg.id);
       const all = await getChannelsByOrg(currentOrg.id);
-      // Deduplicate by name — keep first occurrence (prevents duplicate Agent Hub tabs)
-      const seen = new Set<string>();
+
+      // Deduplicate: project channels by projectId, DM channels by agentId, chat channels by name
+      const seenProjects = new Set<string>();
+      const seenAgents = new Set<string>();
+      const seenNames = new Set<string>();
       const deduped = all.filter(c => {
-        if (seen.has(c.name)) return false;
-        seen.add(c.name);
+        if (c.projectId) {
+          if (seenProjects.has(c.projectId)) return false;
+          seenProjects.add(c.projectId);
+          return true;
+        }
+        if (c.agentId) {
+          if (seenAgents.has(c.agentId)) return false;
+          seenAgents.add(c.agentId);
+          return true;
+        }
+        if (seenNames.has(c.name)) return false;
+        seenNames.add(c.name);
         return true;
       });
-      const chatChannels = deduped.filter(c => !c.projectId);
-      const projChannels = deduped.filter(c => !!c.projectId);
-      setChannels(chatChannels);
-      setProjectChannels(projChannels);
+
+      const chatChs = deduped.filter(c => !c.projectId && !c.agentId);
+      const dmChs = deduped.filter(c => !!c.agentId);
+      const projChs = deduped.filter(c => !!c.projectId);
+      setChannels(chatChs);
+      setDmChannels(dmChs);
+      setProjectChannels(projChs);
 
       // Auto-select first if nothing selected
-      const allVisible = [...chatChannels, ...projChannels];
+      const allVisible = [...chatChs, ...dmChs, ...projChs];
       if (!activeChannel && allVisible.length > 0) {
         const sorted = sortByLatest(allVisible, lastMsgTs);
         setActiveChannel(sorted[0]);
@@ -195,6 +248,34 @@ export default function ChatPage() {
     if (!currentOrg) return;
     getAgentsByOrg(currentOrg.id).then(setAgents).catch(console.error);
   }, [currentOrg]);
+
+  // Ensure DM channels exist for all agents, then reload channel list
+  useEffect(() => {
+    if (!currentOrg || agents.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await Promise.all(
+          agents.map(a => ensureAgentPrivateChannel(a.id, currentOrg.id, a.name))
+        );
+        if (!cancelled) {
+          // Reload to pick up DM channels
+          const all = await getChannelsByOrg(currentOrg.id);
+          const seenAgents = new Set<string>();
+          const dmChs = all.filter(c => {
+            if (!c.agentId) return false;
+            if (seenAgents.has(c.agentId)) return false;
+            seenAgents.add(c.agentId);
+            return true;
+          });
+          setDmChannels(dmChs);
+        }
+      } catch (err) {
+        console.error("Failed to ensure agent DM channels:", err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currentOrg, agents]);
 
   // Load channels on org change
   useEffect(() => {
@@ -497,6 +578,52 @@ export default function ChatPage() {
     }
   };
 
+  /* ── Channel drag-and-drop handlers ── */
+
+  const onChDragStart = (section: string, chId: string) => (e: React.DragEvent) => {
+    setDragCh({ id: chId, section });
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", `channel:${section}:${chId}`);
+  };
+
+  const onChDragOver = (section: string, chId: string) => (e: React.DragEvent) => {
+    if (!dragCh || dragCh.section !== section) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDropChTarget({ id: chId, section });
+  };
+
+  const onChDrop = (section: string, targetId: string) => (e: React.DragEvent) => {
+    e.preventDefault();
+    setDropChTarget(null);
+    if (!dragCh || dragCh.section !== section || dragCh.id === targetId) {
+      setDragCh(null);
+      return;
+    }
+
+    const setState = section === "chat" ? setChannels : section === "dm" ? setDmChannels : setProjectChannels;
+    setState(prev => {
+      const arr = [...prev];
+      const fromIdx = arr.findIndex(c => c.id === dragCh.id);
+      const toIdx = arr.findIndex(c => c.id === targetId);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+      const [moved] = arr.splice(fromIdx, 1);
+      arr.splice(toIdx, 0, moved);
+
+      // Persist order
+      const saved = loadChannelOrder() || {};
+      saved[section] = arr.map(c => c.id);
+      saveChannelOrder(saved);
+      return arr;
+    });
+    setDragCh(null);
+  };
+
+  const onChDragEnd = () => {
+    setDragCh(null);
+    setDropChTarget(null);
+  };
+
   /* ── Guards ── */
 
   if (!currentOrg) {
@@ -517,8 +644,10 @@ export default function ChatPage() {
 
   const onlineAgents = agents.filter(a => a.status === "online");
   const agentNameSet = new Set(agents.map(a => a.name));
-  const sortedChannels = sortByLatest(channels, lastMsgTs);
-  const sortedProjectChannels = sortByLatest(projectChannels, lastMsgTs);
+  const savedOrder = loadChannelOrder();
+  const sortedChannels = savedOrder?.chat ? applyOrder(channels, savedOrder.chat) : sortByLatest(channels, lastMsgTs);
+  const sortedDmChannels = savedOrder?.dm ? applyOrder(dmChannels, savedOrder.dm) : sortByLatest(dmChannels, lastMsgTs);
+  const sortedProjectChannels = savedOrder?.project ? applyOrder(projectChannels, savedOrder.project) : sortByLatest(projectChannels, lastMsgTs);
 
   /* ── Render ── */
 
@@ -555,8 +684,7 @@ export default function ChatPage() {
               <div className="p-4 text-sm text-muted-foreground">Loading…</div>
             ) : (
               <>
-                {/* ── Chat Channels ── */}
-                {sortedChannels.length === 0 && sortedProjectChannels.length === 0 ? (
+                {sortedChannels.length === 0 && sortedDmChannels.length === 0 && sortedProjectChannels.length === 0 ? (
                   <div className="p-4 text-center text-sm text-muted-foreground">
                     <div className="text-3xl mb-2">💬</div>
                     <p>No conversations yet</p>
@@ -566,6 +694,7 @@ export default function ChatPage() {
                   </div>
                 ) : (
                   <>
+                    {/* ── Chat Channels ── */}
                     {sortedChannels.length > 0 && (
                       <div className="py-1">
                         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 pt-2 pb-1">
@@ -574,14 +703,24 @@ export default function ChatPage() {
                         {sortedChannels.map((ch) => (
                           <div
                             key={ch.id}
-                            className={`group relative flex items-center gap-2 px-3 py-2.5 text-sm cursor-pointer transition-colors ${activeChannel?.id === ch.id
+                            draggable
+                            onDragStart={onChDragStart("chat", ch.id)}
+                            onDragOver={onChDragOver("chat", ch.id)}
+                            onDrop={onChDrop("chat", ch.id)}
+                            onDragEnd={onChDragEnd}
+                            className={`group relative flex items-center gap-2 px-3 py-2.5 text-sm cursor-pointer transition-colors ${
+                              dragCh?.id === ch.id ? "opacity-30" : ""
+                            } ${
+                              dropChTarget?.id === ch.id && dropChTarget.section === "chat" ? "border-t-2 border-amber-500/50" : ""
+                            } ${activeChannel?.id === ch.id
                               ? "bg-amber-500/10 border-r-2 border-amber-500 text-amber-600 dark:text-amber-400"
                               : "text-muted-foreground hover:bg-card hover:text-foreground"
-                              }`}
+                            }`}
                             onClick={() => {
                               if (renamingId !== ch.id) setActiveChannel(ch);
                             }}
                           >
+                            <GripVertical className="h-3 w-3 text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
                             <span className="text-base shrink-0">{ch.name === "Agent Hub" ? "🤖" : "💬"}</span>
 
                             {renamingId === ch.id ? (
@@ -611,7 +750,6 @@ export default function ChatPage() {
                               </span>
                             )}
 
-                            {/* Delete button — visible on hover */}
                             {renamingId !== ch.id && (
                               <button
                                 className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-400 text-xs shrink-0 p-1"
@@ -629,6 +767,59 @@ export default function ChatPage() {
                       </div>
                     )}
 
+                    {/* ── Direct Messages ── */}
+                    {sortedDmChannels.length > 0 && (
+                      <div className="py-1">
+                        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 pt-2 pb-1">
+                          Direct Messages
+                        </p>
+                        {sortedDmChannels.map((ch) => {
+                          const agent = agents.find(a => a.id === ch.agentId);
+                          return (
+                            <div
+                              key={ch.id}
+                              draggable
+                              onDragStart={onChDragStart("dm", ch.id)}
+                              onDragOver={onChDragOver("dm", ch.id)}
+                              onDrop={onChDrop("dm", ch.id)}
+                              onDragEnd={onChDragEnd}
+                              className={`group relative flex items-center gap-2 px-3 py-2.5 text-sm cursor-pointer transition-colors ${
+                                dragCh?.id === ch.id ? "opacity-30" : ""
+                              } ${
+                                dropChTarget?.id === ch.id && dropChTarget.section === "dm" ? "border-t-2 border-amber-500/50" : ""
+                              } ${activeChannel?.id === ch.id
+                                ? "bg-amber-500/10 border-r-2 border-amber-500 text-amber-600 dark:text-amber-400"
+                                : "text-muted-foreground hover:bg-card hover:text-foreground"
+                              }`}
+                              onClick={() => setActiveChannel(ch)}
+                            >
+                              <GripVertical className="h-3 w-3 text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
+                              <div className="relative shrink-0">
+                                <span className="text-base">🤖</span>
+                                {agent && (
+                                  <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-card ${
+                                    agent.status === "online" ? "bg-emerald-400" : agent.status === "busy" ? "bg-amber-400" : "bg-gray-500"
+                                  }`} />
+                                )}
+                              </div>
+                              <span className="flex-1 truncate">{ch.name}</span>
+                              {agent && (
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded-full shrink-0 ${
+                                  agent.status === "online"
+                                    ? "bg-emerald-500/10 text-emerald-400"
+                                    : agent.status === "busy"
+                                    ? "bg-amber-500/10 text-amber-400"
+                                    : "bg-muted text-muted-foreground"
+                                }`}>
+                                  {agent.status}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     {/* ── Project Channels ── */}
                     {sortedProjectChannels.length > 0 && (
                       <div className="py-1">
@@ -638,12 +829,22 @@ export default function ChatPage() {
                         {sortedProjectChannels.map((ch) => (
                           <div
                             key={ch.id}
-                            className={`group relative flex items-center gap-2 px-3 py-2.5 text-sm cursor-pointer transition-colors ${activeChannel?.id === ch.id
+                            draggable
+                            onDragStart={onChDragStart("project", ch.id)}
+                            onDragOver={onChDragOver("project", ch.id)}
+                            onDrop={onChDrop("project", ch.id)}
+                            onDragEnd={onChDragEnd}
+                            className={`group relative flex items-center gap-2 px-3 py-2.5 text-sm cursor-pointer transition-colors ${
+                              dragCh?.id === ch.id ? "opacity-30" : ""
+                            } ${
+                              dropChTarget?.id === ch.id && dropChTarget.section === "project" ? "border-t-2 border-amber-500/50" : ""
+                            } ${activeChannel?.id === ch.id
                               ? "bg-amber-500/10 border-r-2 border-amber-500 text-amber-600 dark:text-amber-400"
                               : "text-muted-foreground hover:bg-card hover:text-foreground"
-                              }`}
+                            }`}
                             onClick={() => setActiveChannel(ch)}
                           >
+                            <GripVertical className="h-3 w-3 text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
                             <span className="text-base shrink-0">#</span>
                             <span className="flex-1 truncate">{ch.name}</span>
                           </div>

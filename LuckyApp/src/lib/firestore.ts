@@ -110,6 +110,7 @@ export interface Channel {
   id: string;
   orgId: string;
   projectId?: string;
+  agentId?: string;
   name: string;
   createdAt: unknown;
 }
@@ -767,6 +768,38 @@ export async function ensureAgentGroupChat(orgId: string): Promise<Channel> {
   });
 
   return { id, orgId, name: AGENT_GROUP_CHAT_NAME, createdAt: new Date() };
+}
+
+/** Ensure a private DM channel exists for an agent (deduplicates if race created extras) */
+export async function ensureAgentPrivateChannel(
+  agentId: string,
+  orgId: string,
+  agentName: string,
+): Promise<Channel> {
+  const q = query(
+    collection(db, "channels"),
+    where("orgId", "==", orgId),
+    where("agentId", "==", agentId),
+  );
+  const snap = await getDocs(q);
+
+  if (!snap.empty) {
+    const primary = snap.docs[0];
+    if (snap.docs.length > 1) {
+      const extras = snap.docs.slice(1);
+      await Promise.all(extras.map(d => deleteDoc(doc(db, "channels", d.id))));
+    }
+    return { id: primary.id, ...primary.data() } as Channel;
+  }
+
+  const id = await createChannel({
+    orgId,
+    agentId,
+    name: agentName,
+    createdAt: new Date(),
+  });
+
+  return { id, orgId, agentId, name: agentName, createdAt: new Date() };
 }
 
 /** Agent check-in: posts a status message to the agent group chat, stores reported skills/bio, and logs an AgentComm */
