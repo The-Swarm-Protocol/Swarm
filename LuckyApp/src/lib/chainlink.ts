@@ -5,6 +5,9 @@
  * Imported by skills.ts (registry) and the /chainlink page (UI).
  */
 import type { ModManifest, ModTool, ModWorkflow, ModExample, ModAgentSkill } from "./skills";
+import { ethers } from "ethers";
+import { CONTRACTS, AGENT_REGISTRY_ABI, HEDERA_GAS_LIMIT } from "./swarm-contracts";
+import { shortAddress, toNative } from "./chains";
 
 // ═══════════════════════════════════════════════════════════════
 // ASN — Agent Social Number Types + Constants
@@ -1239,6 +1242,456 @@ export interface MockPlaygroundResponse {
     response: string;
     latency: string;
     status: "success" | "error";
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Playground Execution Engine — Real wallet + Hedera Testnet
+// ═══════════════════════════════════════════════════════════════
+
+declare global {
+    interface Window { ethereum?: ethers.Eip1193Provider; }
+}
+
+const HEDERA_TESTNET_RPC = "https://testnet.hashio.io/api";
+
+export type ToolTier = "pure" | "read" | "write" | "enhanced-sim";
+
+export interface ToolExecutionMeta {
+    tier: ToolTier;
+    requiresWallet: boolean;
+    description: string;
+}
+
+export const TOOL_EXECUTION_META: Record<string, ToolExecutionMeta> = {
+    fetch_price:        { tier: "read",         requiresWallet: false, description: "Live oracle API call" },
+    generate_asn:       { tier: "pure",         requiresWallet: false, description: "Local computation" },
+    register_identity:  { tier: "write",        requiresWallet: true,  description: "AgentRegistry.registerAgent() tx" },
+    lookup_asn:         { tier: "read",         requiresWallet: false, description: "AgentRegistry.getAgent() read" },
+    freeze_identity:    { tier: "write",        requiresWallet: true,  description: "AgentRegistry.deactivateAgent() tx" },
+    collect_multichain: { tier: "read",         requiresWallet: false, description: "RPC balance query" },
+    compute_score:      { tier: "read",         requiresWallet: false, description: "Compute from on-chain data" },
+    publish_attestation:{ tier: "write",        requiresWallet: true,  description: "Raw attestation tx" },
+    ccip_propagate:     { tier: "enhanced-sim", requiresWallet: false, description: "Enhanced simulation" },
+    trigger_risk_policy:{ tier: "pure",         requiresWallet: false, description: "Local policy computation" },
+    execute_cre:        { tier: "enhanced-sim", requiresWallet: false, description: "Enhanced simulation" },
+    verify_data:        { tier: "enhanced-sim", requiresWallet: false, description: "Enhanced simulation" },
+    start_automation:   { tier: "enhanced-sim", requiresWallet: false, description: "Enhanced simulation" },
+};
+
+export interface PlaygroundExecutionResult {
+    response: string;
+    latency: string;
+    txHash?: string;
+    blockNumber?: number;
+    gasUsed?: string;
+    explorerUrl?: string;
+    isLive: boolean;
+    walletUsed?: string;
+}
+
+// ── Helpers ──
+
+let _readProvider: ethers.JsonRpcProvider | null = null;
+function getHederaTestnetProvider(): ethers.JsonRpcProvider {
+    if (!_readProvider) _readProvider = new ethers.JsonRpcProvider(HEDERA_TESTNET_RPC);
+    return _readProvider;
+}
+
+async function getWalletSigner(): Promise<ethers.Signer> {
+    if (typeof window === "undefined" || !window.ethereum)
+        throw new Error("No wallet detected. Connect your wallet first.");
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    return provider.getSigner();
+}
+
+async function getWalletAddress(): Promise<string | null> {
+    if (typeof window === "undefined" || !window.ethereum) return null;
+    try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        return await signer.getAddress();
+    } catch { return null; }
+}
+
+async function getHbarBalance(address: string): Promise<{ raw: bigint; formatted: number }> {
+    const provider = getHederaTestnetProvider();
+    const raw = await provider.getBalance(address);
+    return { raw, formatted: toNative(raw, 296) };
+}
+
+// ── Executors ──
+
+export async function executeGenerateAsn(): Promise<PlaygroundExecutionResult> {
+    const start = performance.now();
+    const walletAddr = await getWalletAddress();
+    const asn = generateASN();
+    const elapsed = Math.round(performance.now() - start);
+    return {
+        response: JSON.stringify({
+            asn,
+            generatedAt: new Date().toISOString(),
+            format: "ASN-SWM-YYYY-XXXX-XXXX-XX",
+            status: "pending_registration",
+            ...(walletAddr ? { creatorWallet: walletAddr } : {}),
+        }, null, 2),
+        latency: `${elapsed}ms`,
+        isLive: true,
+        walletUsed: walletAddr ?? undefined,
+    };
+}
+
+export async function executeRegisterIdentity(): Promise<PlaygroundExecutionResult> {
+    const start = performance.now();
+    const signer = await getWalletSigner();
+    const address = await signer.getAddress();
+    const name = `Agent-${shortAddress(address)}`;
+    const skills = "chainlink.fetch_price,chainlink.compute_agent_score";
+
+    const registry = new ethers.Contract(CONTRACTS.AGENT_REGISTRY, AGENT_REGISTRY_ABI, signer);
+    const tx = await registry.registerAgent(name, skills, 500, { gasLimit: HEDERA_GAS_LIMIT, type: 0 });
+    const receipt = await tx.wait();
+    const elapsed = Math.round(performance.now() - start);
+    const explorerUrl = `https://hashscan.io/testnet/transaction/${receipt.hash}`;
+    const asn = generateASN();
+
+    return {
+        response: JSON.stringify({
+            success: true,
+            asn,
+            agentAddress: address,
+            agentName: name,
+            skills,
+            txHash: receipt.hash,
+            blockNumber: receipt.blockNumber,
+            gasUsed: receipt.gasUsed?.toString(),
+            explorerUrl,
+            creditScore: 680, trustScore: 50, fraudRiskScore: 25,
+            band: "acceptable",
+            policy: getDefaultPolicy(680),
+            registeredAt: new Date().toISOString(),
+        }, null, 2),
+        latency: `${elapsed}ms`,
+        txHash: receipt.hash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed?.toString(),
+        explorerUrl,
+        isLive: true,
+        walletUsed: address,
+    };
+}
+
+export async function executeLookupAsn(queryAddress?: string): Promise<PlaygroundExecutionResult> {
+    const start = performance.now();
+    const provider = getHederaTestnetProvider();
+    const walletAddr = await getWalletAddress();
+    const lookupAddr = queryAddress || walletAddr;
+    if (!lookupAddr) throw new Error("No address to look up. Connect wallet or provide an address.");
+
+    const registry = new ethers.Contract(CONTRACTS.AGENT_REGISTRY, AGENT_REGISTRY_ABI, provider);
+    const [isReg, agentData] = await Promise.all([
+        registry.isRegistered(lookupAddr).catch(() => false),
+        registry.getAgent(lookupAddr).catch(() => null),
+    ]);
+    const elapsed = Math.round(performance.now() - start);
+
+    if (!isReg || !agentData) {
+        return {
+            response: JSON.stringify({ address: lookupAddr, registered: false, message: "No agent registered at this address on Hedera Testnet" }, null, 2),
+            latency: `${elapsed}ms`, isLive: true, walletUsed: walletAddr ?? undefined,
+        };
+    }
+
+    const registeredAt = Number(agentData[5]);
+    const ageDays = Math.floor((Date.now() / 1000 - registeredAt) / 86400);
+    const baseScore = Math.min(680 + ageDays * 2, 870);
+    const band = getScoreBand(baseScore);
+
+    return {
+        response: JSON.stringify({
+            registered: true,
+            agentAddress: agentData[0],
+            agentName: agentData[1],
+            skills: agentData[2],
+            feeRate: Number(agentData[3]),
+            active: Boolean(agentData[4]),
+            registeredAt: new Date(registeredAt * 1000).toISOString(),
+            registrationAgeDays: ageDays,
+            syntheticASN: generateASN(),
+            creditScore: baseScore, band: band.label,
+            trustScore: Math.min(50 + ageDays, 95),
+            fraudRiskScore: Math.max(25 - Math.floor(ageDays / 10), 5),
+            policy: getDefaultPolicy(baseScore),
+            contractAddress: CONTRACTS.AGENT_REGISTRY,
+            network: "Hedera Testnet",
+        }, null, 2),
+        latency: `${elapsed}ms`, isLive: true, walletUsed: walletAddr ?? undefined,
+    };
+}
+
+export async function executeFreezeIdentity(): Promise<PlaygroundExecutionResult> {
+    const start = performance.now();
+    const signer = await getWalletSigner();
+    const address = await signer.getAddress();
+
+    const provider = getHederaTestnetProvider();
+    const registryRead = new ethers.Contract(CONTRACTS.AGENT_REGISTRY, AGENT_REGISTRY_ABI, provider);
+    const isReg = await registryRead.isRegistered(address);
+    if (!isReg) throw new Error("Your wallet has no registered agent to deactivate. Register first.");
+    const agentBefore = await registryRead.getAgent(address);
+
+    const registryWrite = new ethers.Contract(CONTRACTS.AGENT_REGISTRY, AGENT_REGISTRY_ABI, signer);
+    const tx = await registryWrite.deactivateAgent({ gasLimit: HEDERA_GAS_LIMIT, type: 0 });
+    const receipt = await tx.wait();
+    const elapsed = Math.round(performance.now() - start);
+    const explorerUrl = `https://hashscan.io/testnet/transaction/${receipt.hash}`;
+
+    return {
+        response: JSON.stringify({
+            success: true,
+            agentAddress: address, agentName: agentBefore[1],
+            previousStatus: "active", newStatus: "suspended",
+            reason: "Manual deactivation via playground",
+            txHash: receipt.hash, blockNumber: receipt.blockNumber,
+            gasUsed: receipt.gasUsed?.toString(), explorerUrl,
+            frozenAt: new Date().toISOString(),
+        }, null, 2),
+        latency: `${elapsed}ms`,
+        txHash: receipt.hash, blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed?.toString(), explorerUrl,
+        isLive: true, walletUsed: address,
+    };
+}
+
+export async function executeCollectMultichain(): Promise<PlaygroundExecutionResult> {
+    const start = performance.now();
+    const walletAddr = await getWalletAddress();
+    if (!walletAddr) throw new Error("Connect wallet to query multichain data.");
+
+    const provider = getHederaTestnetProvider();
+    const registry = new ethers.Contract(CONTRACTS.AGENT_REGISTRY, AGENT_REGISTRY_ABI, provider);
+    const [balance, isReg, agentCount] = await Promise.all([
+        getHbarBalance(walletAddr),
+        registry.isRegistered(walletAddr).catch(() => false),
+        registry.agentCount().catch(() => BigInt(0)),
+    ]);
+    const elapsed = Math.round(performance.now() - start);
+
+    return {
+        response: JSON.stringify({
+            agentId: `agent-${walletAddr}`,
+            walletAddress: walletAddr,
+            network: "Hedera Testnet",
+            chainsScanned: 1,
+            nativeBalance: { raw: balance.raw.toString(), formatted: balance.formatted, symbol: "HBAR" },
+            isRegisteredAgent: isReg,
+            totalAgentsOnChain: Number(agentCount),
+            taskCompletionRate: isReg ? 0.85 : 0,
+            repaymentRate: isReg ? 0.95 : 0,
+            protocolsUsed: isReg ? 3 : 0,
+            collectedAt: new Date().toISOString(),
+        }, null, 2),
+        latency: `${elapsed}ms`, isLive: true, walletUsed: walletAddr,
+    };
+}
+
+export async function executeComputeScore(): Promise<PlaygroundExecutionResult> {
+    const start = performance.now();
+    const walletAddr = await getWalletAddress();
+    if (!walletAddr) throw new Error("Connect wallet to compute agent score.");
+
+    const provider = getHederaTestnetProvider();
+    const registry = new ethers.Contract(CONTRACTS.AGENT_REGISTRY, AGENT_REGISTRY_ABI, provider);
+    const [balance, isReg, agentData] = await Promise.all([
+        getHbarBalance(walletAddr),
+        registry.isRegistered(walletAddr).catch(() => false),
+        registry.getAgent(walletAddr).catch(() => null),
+    ]);
+
+    const breakdown = { registration: 0, balance: 0, accountAge: 0, skillDiversity: 0, networkActivity: 0, endorsements: 30 };
+    let baseScore = 580;
+
+    if (isReg && agentData) {
+        const ageDays = Math.floor((Date.now() / 1000 - Number(agentData[5])) / 86400);
+        const skills = (agentData[2] as string).split(",").length;
+        breakdown.registration = 90;
+        breakdown.balance = Math.min(Math.floor(balance.formatted * 2), 95);
+        breakdown.accountAge = Math.min(50 + ageDays * 3, 95);
+        breakdown.skillDiversity = Math.min(skills * 15, 90);
+        breakdown.networkActivity = Math.min(60 + ageDays, 85);
+        const weighted = breakdown.registration * 0.15 + breakdown.balance * 0.20 + breakdown.accountAge * 0.20 + breakdown.skillDiversity * 0.15 + breakdown.networkActivity * 0.15 + breakdown.endorsements * 0.15;
+        baseScore = Math.min(Math.round(300 + (weighted / 100) * 600), 900);
+    }
+
+    const band = getScoreBand(baseScore);
+    const policy = getDefaultPolicy(baseScore);
+    const tier = baseScore >= 850 ? "A" : baseScore >= 750 ? "B" : baseScore >= 650 ? "C" : baseScore >= 550 ? "D" : "F";
+    const elapsed = Math.round(performance.now() - start);
+
+    return {
+        response: JSON.stringify({
+            agentId: `agent-${walletAddr}`, walletAddress: walletAddr,
+            isRegistered: isReg, score: baseScore, tier, band: band.label,
+            confidence: isReg ? 0.87 : 0.45, breakdown, model: "swarm-trust-v1",
+            inputs: { hbarBalance: balance.formatted, registered: isReg, agentName: agentData ? agentData[1] : null, skills: agentData ? agentData[2] : null },
+            policy, computedAt: new Date().toISOString(),
+        }, null, 2),
+        latency: `${elapsed}ms`, isLive: true, walletUsed: walletAddr,
+    };
+}
+
+export async function executePublishAttestation(): Promise<PlaygroundExecutionResult> {
+    const start = performance.now();
+    const signer = await getWalletSigner();
+    const address = await signer.getAddress();
+
+    const attestation = {
+        type: "SwarmScoreAttestation", subject: address,
+        score: 680, tier: "C", timestamp: Math.floor(Date.now() / 1000), issuer: "chainlink-playground",
+    };
+    const encodedData = ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(attestation)));
+
+    const tx = await signer.sendTransaction({ to: address, value: 0, data: encodedData, gasLimit: HEDERA_GAS_LIMIT, type: 0 });
+    const receipt = await tx.wait();
+    const elapsed = Math.round(performance.now() - start);
+    const explorerUrl = `https://hashscan.io/testnet/transaction/${receipt!.hash}`;
+
+    return {
+        response: JSON.stringify({
+            success: true,
+            attestationId: `att-${receipt!.hash.slice(2, 10)}`,
+            txHash: receipt!.hash, blockNumber: receipt!.blockNumber,
+            gasUsed: receipt!.gasUsed?.toString(), explorerUrl,
+            attestationPayload: attestation, encodedDataHex: encodedData,
+            chain: "hedera-testnet", publishedAt: new Date().toISOString(),
+        }, null, 2),
+        latency: `${elapsed}ms`,
+        txHash: receipt!.hash, blockNumber: receipt!.blockNumber,
+        gasUsed: receipt!.gasUsed?.toString(), explorerUrl,
+        isLive: true, walletUsed: address,
+    };
+}
+
+export async function executeCcipPropagate(): Promise<PlaygroundExecutionResult> {
+    const start = performance.now();
+    const walletAddr = await getWalletAddress();
+    const agentAddr = walletAddr || "0x0000000000000000000000000000000000000000";
+    const messageId = "0xccip-" + Math.random().toString(16).substring(2, 14);
+    await new Promise(r => setTimeout(r, 800));
+    const elapsed = Math.round(performance.now() - start);
+
+    return {
+        response: JSON.stringify({
+            messageId, status: "simulated",
+            note: "CCIP not available on Hedera Testnet. Enhanced simulation with real wallet context.",
+            sourceChain: "hedera-testnet", destChain: "ethereum-sepolia",
+            agentAddress: agentAddr,
+            payload: { agentId: `agent-${agentAddr}`, score: 680, tier: "C", action: "update_credit_limit" },
+            fee: "0.15 LINK (estimated)", estimatedArrival: "~2 min",
+            ccipExplorer: `https://ccip.chain.link/msg/${messageId}`,
+            walletConnected: !!walletAddr,
+        }, null, 2),
+        latency: `${elapsed}ms`, isLive: false, walletUsed: walletAddr ?? undefined,
+    };
+}
+
+export async function executeTriggerRiskPolicy(): Promise<PlaygroundExecutionResult> {
+    const start = performance.now();
+    const walletAddr = await getWalletAddress();
+
+    let score = 680;
+    let isReg = false;
+    if (walletAddr) {
+        try {
+            const provider = getHederaTestnetProvider();
+            const registry = new ethers.Contract(CONTRACTS.AGENT_REGISTRY, AGENT_REGISTRY_ABI, provider);
+            isReg = await registry.isRegistered(walletAddr);
+            if (isReg) {
+                const data = await registry.getAgent(walletAddr);
+                const ageDays = Math.floor((Date.now() / 1000 - Number(data[5])) / 86400);
+                score = Math.min(680 + ageDays * 2, 870);
+            }
+        } catch { /* use default */ }
+    }
+
+    const policy = getDefaultPolicy(score);
+    const band = getScoreBand(score);
+    const tier = score >= 850 ? "A" : score >= 750 ? "B" : score >= 650 ? "C" : score >= 550 ? "D" : "F";
+    const rules = [
+        { type: "credit_limit", threshold: 800, action: "increase_to_10000" },
+        { type: "escrow_discount", threshold: 750, action: "reduce_50pct" },
+        { type: "workflow_access", threshold: 700, action: "grant_sensitive" },
+    ];
+    const applied = rules.filter(r => score >= r.threshold).map(r => ({
+        type: r.type,
+        result: r.action === "increase_to_10000" ? "increased to 10,000 USDC" : r.action === "reduce_50pct" ? "reduced by 50%" : "granted sensitive workflow access",
+    }));
+    const elapsed = Math.round(performance.now() - start);
+
+    return {
+        response: JSON.stringify({
+            agentId: walletAddr ? `agent-${walletAddr}` : "agent-demo",
+            isRegistered: isReg, score, band: band.label, tier,
+            applied, policy, policyVersion: "v2.1",
+            appliedAt: new Date().toISOString(), walletConnected: !!walletAddr,
+        }, null, 2),
+        latency: `${elapsed}ms`, isLive: true, walletUsed: walletAddr ?? undefined,
+    };
+}
+
+export async function executeEnhancedSim(toolKey: string): Promise<PlaygroundExecutionResult> {
+    const start = performance.now();
+    const walletAddr = await getWalletAddress();
+    const mock = PLAYGROUND_MOCK_RESPONSES[toolKey];
+    if (!mock) throw new Error(`No configuration for tool: ${toolKey}`);
+
+    await new Promise(r => setTimeout(r, Math.min(parseInt(mock.latency) || 500, 1500)));
+    const parsed = JSON.parse(mock.response);
+    if (walletAddr) parsed._walletContext = { connectedAddress: walletAddr, network: "Hedera Testnet", chainId: 296 };
+    parsed._mode = "enhanced-simulation";
+    const elapsed = Math.round(performance.now() - start);
+
+    return {
+        response: JSON.stringify(parsed, null, 2),
+        latency: `${elapsed}ms`, isLive: false, walletUsed: walletAddr ?? undefined,
+    };
+}
+
+/** Master dispatcher — routes tool key to correct executor */
+export async function executePlaygroundTool(toolKey: string): Promise<PlaygroundExecutionResult> {
+    const meta = TOOL_EXECUTION_META[toolKey];
+    if (meta?.requiresWallet) {
+        const addr = await getWalletAddress();
+        if (!addr) {
+            const mock = PLAYGROUND_MOCK_RESPONSES[toolKey];
+            return {
+                response: JSON.stringify({
+                    _warning: "Wallet not connected. Showing mock response. Connect wallet for real transaction.",
+                    ...JSON.parse(mock?.response || "{}"),
+                }, null, 2),
+                latency: mock?.latency + " (mock)" || "0ms", isLive: false,
+            };
+        }
+    }
+
+    switch (toolKey) {
+        case "generate_asn":        return executeGenerateAsn();
+        case "register_identity":   return executeRegisterIdentity();
+        case "lookup_asn":          return executeLookupAsn();
+        case "freeze_identity":     return executeFreezeIdentity();
+        case "collect_multichain":  return executeCollectMultichain();
+        case "compute_score":       return executeComputeScore();
+        case "publish_attestation": return executePublishAttestation();
+        case "ccip_propagate":      return executeCcipPropagate();
+        case "trigger_risk_policy": return executeTriggerRiskPolicy();
+        case "execute_cre":
+        case "verify_data":
+        case "start_automation":    return executeEnhancedSim(toolKey);
+        default: {
+            const mock = PLAYGROUND_MOCK_RESPONSES[toolKey];
+            if (mock) return { response: mock.response, latency: mock.latency + " (mock)", isLive: false };
+            throw new Error(`Unknown tool: ${toolKey}`);
+        }
+    }
 }
 
 export const PLAYGROUND_MOCK_RESPONSES: Record<string, MockPlaygroundResponse> = {

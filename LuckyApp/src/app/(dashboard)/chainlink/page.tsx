@@ -1,7 +1,9 @@
 /** Chainlink CRE Workspace — Full vendor mod developer toolkit with live oracle data. */
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useActiveAccount, useActiveWalletChain } from "thirdweb/react";
+import { ethers } from "ethers";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +22,7 @@ import {
     FileCode, GraduationCap, Copy, ChevronDown, ChevronRight,
     ArrowRight, Terminal, Clock, Activity, Cpu, Handshake,
     Zap, Shield, Layers, Fingerprint, Scale, AlertTriangle,
-    Search, Eye, Ban,
+    Search, Eye, Ban, Wallet, ExternalLink, AlertCircle, Fuel,
 } from "lucide-react";
 import {
     CHAINLINK_TOOLS,
@@ -38,7 +40,11 @@ import {
     type ASNProfile,
     type ScoreBand,
     type PolicyState,
+    executePlaygroundTool,
+    TOOL_EXECUTION_META,
+    type PlaygroundExecutionResult,
 } from "@/lib/chainlink";
+import { shortAddress } from "@/lib/chains";
 import {
     fetchAllPrices, fetchLivePrices,
     getWorkflows, createWorkflow, deleteWorkflow, toggleWorkflowStatus,
@@ -90,6 +96,8 @@ const WORKFLOW_TYPE_META: Record<WorkflowType, { icon: React.ComponentType<React
 
 export default function ChainlinkPage() {
     const { currentOrg } = useOrg();
+    const account = useActiveAccount();
+    const chain = useActiveWalletChain();
     const [activeTab, setActiveTab] = useState("overview");
     const [expandedWorkflow, setExpandedWorkflow] = useState<string | null>(null);
     const [expandedExample, setExpandedExample] = useState<string | null>(null);
@@ -99,6 +107,15 @@ export default function ChainlinkPage() {
     const [playgroundLatency, setPlaygroundLatency] = useState<string | null>(null);
     const [activeDoc, setActiveDoc] = useState("asn-overview");
     const [copied, setCopied] = useState(false);
+
+    // ─── Playground wallet state ───
+    const [walletBalance, setWalletBalance] = useState<string | null>(null);
+    const [playgroundTxHash, setPlaygroundTxHash] = useState<string | null>(null);
+    const [playgroundExplorerUrl, setPlaygroundExplorerUrl] = useState<string | null>(null);
+    const [playgroundGasUsed, setPlaygroundGasUsed] = useState<string | null>(null);
+    const [playgroundBlockNumber, setPlaygroundBlockNumber] = useState<number | null>(null);
+    const [playgroundIsLive, setPlaygroundIsLive] = useState(false);
+    const [playgroundError, setPlaygroundError] = useState<string | null>(null);
 
     // ─── ASN state ───
     const [asnProfiles, setAsnProfiles] = useState<ASNProfile[]>(MOCK_ASN_PROFILES);
@@ -112,6 +129,33 @@ export default function ChainlinkPage() {
     const [regProvider, setRegProvider] = useState("anthropic");
     const [registering, setRegistering] = useState(false);
     const [policyAgent, setPolicyAgent] = useState<ASNProfile | null>(null);
+
+    // ─── Wallet balance for playground ───
+    useEffect(() => {
+        if (!account?.address) { setWalletBalance(null); return; }
+        const fetchBal = async () => {
+            try {
+                const provider = new ethers.JsonRpcProvider("https://testnet.hashio.io/api");
+                const raw = await provider.getBalance(account.address);
+                setWalletBalance((Number(raw) / 1e8).toFixed(4));
+            } catch { setWalletBalance("—"); }
+        };
+        fetchBal();
+        const iv = setInterval(fetchBal, 30_000);
+        return () => clearInterval(iv);
+    }, [account?.address]);
+
+    /** Dynamic request JSON — injects connected wallet address */
+    const getPlaygroundRequest = useMemo(() => {
+        const mock = PLAYGROUND_MOCK_RESPONSES[playgroundTool];
+        if (!mock) return "{}";
+        if (account?.address) {
+            return mock.request
+                .replace(/"0x1234\.\.\.abcd"/g, `"${account.address}"`)
+                .replace(/"agent-0x1234\.\.\.abcd"/g, `"agent-${account.address}"`);
+        }
+        return mock.request;
+    }, [playgroundTool, account?.address]);
 
     // ─── Live price feeds ───
     const [livePrices, setLivePrices] = useState<PriceFeedResult[]>([]);
@@ -165,9 +209,14 @@ export default function ChainlinkPage() {
         setPlaygroundRunning(true);
         setPlaygroundResult(null);
         setPlaygroundLatency(null);
+        setPlaygroundTxHash(null);
+        setPlaygroundBlockNumber(null);
+        setPlaygroundGasUsed(null);
+        setPlaygroundExplorerUrl(null);
+        setPlaygroundIsLive(false);
+        setPlaygroundError(null);
 
         if (playgroundTool === "fetch_price") {
-            // Real API call
             const start = performance.now();
             try {
                 const results = await fetchLivePrices(["ETH/USD"], "ethereum");
@@ -175,35 +224,36 @@ export default function ChainlinkPage() {
                 if (results.length > 0 && results[0].status === "success") {
                     setPlaygroundResult(JSON.stringify(results[0], null, 2));
                     setPlaygroundLatency(`${elapsed}ms`);
+                    setPlaygroundIsLive(true);
                 } else {
-                    // Fallback: try any available network
                     const all = await fetchAllPrices();
                     const eth = all.find((p) => p.pair === "ETH/USD" && p.status === "success");
                     const finalElapsed = Math.round(performance.now() - start);
-                    if (eth) {
-                        setPlaygroundResult(JSON.stringify(eth, null, 2));
-                        setPlaygroundLatency(`${finalElapsed}ms`);
-                    } else {
-                        setPlaygroundResult(JSON.stringify({ error: "No ETH/USD feed available", results: all }, null, 2));
-                        setPlaygroundLatency(`${finalElapsed}ms`);
-                    }
+                    setPlaygroundResult(JSON.stringify(eth || { error: "No ETH/USD feed available", results: all }, null, 2));
+                    setPlaygroundLatency(`${finalElapsed}ms`);
+                    if (eth) setPlaygroundIsLive(true);
                 }
             } catch (err) {
                 const elapsed = Math.round(performance.now() - start);
                 setPlaygroundResult(JSON.stringify({ error: String(err) }, null, 2));
                 setPlaygroundLatency(`${elapsed}ms`);
+                setPlaygroundError(String(err));
             }
         } else {
-            // Simulated for other tools
-            const mock = PLAYGROUND_MOCK_RESPONSES[playgroundTool];
-            if (!mock) {
-                setPlaygroundResult(JSON.stringify({ error: `No mock data for ${playgroundTool}` }, null, 2));
+            try {
+                const result: PlaygroundExecutionResult = await executePlaygroundTool(playgroundTool);
+                setPlaygroundResult(result.response);
+                setPlaygroundLatency(result.latency);
+                setPlaygroundTxHash(result.txHash ?? null);
+                setPlaygroundBlockNumber(result.blockNumber ?? null);
+                setPlaygroundGasUsed(result.gasUsed ?? null);
+                setPlaygroundExplorerUrl(result.explorerUrl ?? null);
+                setPlaygroundIsLive(result.isLive);
+            } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                setPlaygroundResult(JSON.stringify({ error: msg }, null, 2));
                 setPlaygroundLatency("0ms");
-            } else {
-                const delay = parseInt(mock.latency) || 500;
-                await new Promise((r) => setTimeout(r, Math.min(delay, 2000)));
-                setPlaygroundResult(mock.response);
-                setPlaygroundLatency(mock.latency + " (simulated)");
+                setPlaygroundError(msg);
             }
         }
         setPlaygroundRunning(false);
@@ -1173,77 +1223,210 @@ export default function ChainlinkPage() {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         {/* Main area */}
                         <div className="lg:col-span-2 space-y-4">
-                            {/* Tool selector */}
-                            <div className="flex gap-2 flex-wrap">
-                                {Object.keys(PLAYGROUND_MOCK_RESPONSES).map((key) => (
-                                    <button
-                                        key={key}
-                                        onClick={() => { setPlaygroundTool(key); setPlaygroundResult(null); setPlaygroundLatency(null); }}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                                            playgroundTool === key
-                                                ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                                                : "bg-muted/50 text-muted-foreground hover:bg-muted border border-transparent"
-                                        }`}
-                                    >
-                                        {PLAYGROUND_MOCK_RESPONSES[key].tool}
-                                        {key === "fetch_price" && (
-                                            <span className="ml-1.5 px-1 py-0.5 rounded text-[9px] bg-emerald-500/20 text-emerald-400">LIVE</span>
+
+                            {/* ─── Wallet Status Bar ─── */}
+                            <Card className={`border ${account?.address ? "border-emerald-500/20" : "border-amber-500/20"}`}>
+                                <CardContent className="py-3 px-4">
+                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                        {account?.address ? (
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex items-center gap-1.5">
+                                                    <Wallet className="h-4 w-4 text-emerald-400" />
+                                                    <span className="text-xs font-mono text-emerald-400">{shortAddress(account.address)}</span>
+                                                </div>
+                                                {walletBalance && (
+                                                    <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px]">
+                                                        <Fuel className="h-3 w-3 mr-1" />{walletBalance} HBAR
+                                                    </Badge>
+                                                )}
+                                                <Badge className={`text-[10px] ${chain?.id === 296 ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border-amber-500/20"}`}>
+                                                    {chain?.id === 296 ? "Hedera Testnet" : chain?.id === 295 ? "Hedera Mainnet" : `Chain ${chain?.id ?? "?"}`}
+                                                </Badge>
+                                                {chain?.id && chain.id !== 296 && (
+                                                    <span className="text-[10px] text-amber-400 flex items-center gap-1">
+                                                        <AlertCircle className="h-3 w-3" /> Switch to Hedera Testnet (296) for tx
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <Wallet className="h-4 w-4 text-amber-400" />
+                                                <span className="text-xs text-amber-400">Wallet not connected — connect to run on-chain tools</span>
+                                            </div>
                                         )}
-                                    </button>
-                                ))}
+                                        <a
+                                            href="https://portal.hedera.com/faucet"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                                        >
+                                            Testnet Faucet <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* ─── Tool selector with tier badges ─── */}
+                            <div className="flex gap-2 flex-wrap">
+                                {Object.keys(PLAYGROUND_MOCK_RESPONSES).map((key) => {
+                                    const meta = TOOL_EXECUTION_META[key];
+                                    const tierBadge = (() => {
+                                        if (key === "fetch_price") return { label: "LIVE", cls: "bg-emerald-500/20 text-emerald-400" };
+                                        if (!meta) return null;
+                                        switch (meta.tier) {
+                                            case "pure": return { label: "PURE", cls: "bg-emerald-500/20 text-emerald-400" };
+                                            case "read": return { label: "READ", cls: "bg-blue-500/20 text-blue-400" };
+                                            case "write": return { label: "TX", cls: "bg-amber-500/20 text-amber-400" };
+                                            case "enhanced-sim": return { label: "SIM+", cls: "bg-purple-500/20 text-purple-400" };
+                                            default: return null;
+                                        }
+                                    })();
+                                    return (
+                                        <button
+                                            key={key}
+                                            onClick={() => { setPlaygroundTool(key); setPlaygroundResult(null); setPlaygroundLatency(null); setPlaygroundTxHash(null); setPlaygroundBlockNumber(null); setPlaygroundGasUsed(null); setPlaygroundExplorerUrl(null); setPlaygroundIsLive(false); setPlaygroundError(null); }}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                                playgroundTool === key
+                                                    ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                                                    : "bg-muted/50 text-muted-foreground hover:bg-muted border border-transparent"
+                                            }`}
+                                        >
+                                            {PLAYGROUND_MOCK_RESPONSES[key].tool}
+                                            {tierBadge && (
+                                                <span className={`ml-1.5 px-1 py-0.5 rounded text-[9px] ${tierBadge.cls}`}>{tierBadge.label}</span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
                             </div>
 
-                            {/* Request panel */}
+                            {/* ─── Request panel ─── */}
                             <Card className="border-border">
                                 <CardHeader className="py-3 px-4 border-b border-border">
                                     <div className="flex items-center gap-2">
                                         <Terminal className="h-4 w-4 text-muted-foreground" />
                                         <span className="text-sm font-medium">Request</span>
-                                        {playgroundTool === "fetch_price" ? (
-                                            <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px]">Live Oracle</Badge>
-                                        ) : (
-                                            <Badge variant="outline" className="text-[10px]">Simulated</Badge>
-                                        )}
+                                        {(() => {
+                                            if (playgroundTool === "fetch_price") return <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px]">Live Oracle</Badge>;
+                                            const meta = TOOL_EXECUTION_META[playgroundTool];
+                                            if (!meta) return <Badge variant="outline" className="text-[10px]">Simulated</Badge>;
+                                            switch (meta.tier) {
+                                                case "write": return <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-[10px]">Real Transaction</Badge>;
+                                                case "read": return <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px]">Live Read</Badge>;
+                                                case "pure": return <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px]">Live Compute</Badge>;
+                                                case "enhanced-sim": return <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20 text-[10px]">Enhanced Simulation</Badge>;
+                                                default: return <Badge variant="outline" className="text-[10px]">Simulated</Badge>;
+                                            }
+                                        })()}
                                     </div>
                                 </CardHeader>
                                 <CardContent className="p-0">
                                     <pre className="text-xs p-4 font-mono overflow-x-auto">
-                                        <code>{PLAYGROUND_MOCK_RESPONSES[playgroundTool].request}</code>
+                                        <code>{getPlaygroundRequest}</code>
                                     </pre>
                                 </CardContent>
                             </Card>
 
-                            {/* Run button */}
-                            <Button
-                                onClick={handleRun}
-                                disabled={playgroundRunning}
-                                className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
-                            >
-                                {playgroundRunning
-                                    ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                    : <Play className="h-3.5 w-3.5" />
-                                }
-                                {playgroundRunning ? "Running..." : "Run"}
-                            </Button>
+                            {/* ─── Run button ─── */}
+                            {(() => {
+                                const meta = TOOL_EXECUTION_META[playgroundTool];
+                                const isWrite = meta?.tier === "write";
+                                const needsWallet = meta?.requiresWallet && !account?.address;
+                                return (
+                                    <div className="flex items-center gap-3">
+                                        <Button
+                                            onClick={handleRun}
+                                            disabled={playgroundRunning || (isWrite && !account?.address)}
+                                            className={`gap-1.5 text-white ${isWrite ? "bg-amber-600 hover:bg-amber-700" : "bg-blue-600 hover:bg-blue-700"}`}
+                                        >
+                                            {playgroundRunning
+                                                ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                                : isWrite ? <Wallet className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />
+                                            }
+                                            {playgroundRunning ? "Running..." : isWrite ? "Sign & Send Transaction" : "Run"}
+                                        </Button>
+                                        {needsWallet && (
+                                            <span className="text-[11px] text-amber-400 flex items-center gap-1">
+                                                <AlertCircle className="h-3.5 w-3.5" /> Connect wallet to run this tool
+                                            </span>
+                                        )}
+                                    </div>
+                                );
+                            })()}
 
-                            {/* Response panel */}
+                            {/* ─── Error card ─── */}
+                            {playgroundError && (
+                                <Card className="border-red-500/20">
+                                    <CardContent className="py-3 px-4 flex items-start gap-2">
+                                        <AlertCircle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
+                                        <span className="text-xs text-red-400">{playgroundError}</span>
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            {/* ─── Transaction details card ─── */}
+                            {playgroundTxHash && (
+                                <Card className="border-amber-500/20">
+                                    <CardHeader className="py-3 px-4 border-b border-border">
+                                        <div className="flex items-center gap-2">
+                                            <Fuel className="h-4 w-4 text-amber-400" />
+                                            <span className="text-sm font-medium">Transaction Details</span>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="py-3 px-4 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs text-muted-foreground">Tx Hash</span>
+                                            <span className="text-xs font-mono text-amber-400">{shortAddress(playgroundTxHash)}</span>
+                                        </div>
+                                        {playgroundBlockNumber && (
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs text-muted-foreground">Block</span>
+                                                <span className="text-xs font-mono">{playgroundBlockNumber}</span>
+                                            </div>
+                                        )}
+                                        {playgroundGasUsed && (
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs text-muted-foreground">Gas Used</span>
+                                                <span className="text-xs font-mono">{playgroundGasUsed}</span>
+                                            </div>
+                                        )}
+                                        {playgroundExplorerUrl && (
+                                            <a
+                                                href={playgroundExplorerUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 mt-1"
+                                            >
+                                                View on HashScan <ExternalLink className="h-3 w-3" />
+                                            </a>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            {/* ─── Response panel ─── */}
                             {playgroundResult && (
-                                <Card className="border-emerald-500/20">
+                                <Card className={`border ${playgroundIsLive ? "border-emerald-500/20" : "border-purple-500/20"}`}>
                                     <CardHeader className="py-3 px-4 border-b border-border">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
-                                                <CheckCircle className="h-4 w-4 text-emerald-400" />
+                                                <CheckCircle className={`h-4 w-4 ${playgroundIsLive ? "text-emerald-400" : "text-purple-400"}`} />
                                                 <span className="text-sm font-medium">Response</span>
+                                                {playgroundIsLive ? (
+                                                    <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px]">Live</Badge>
+                                                ) : (
+                                                    <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20 text-[10px]">Enhanced Sim</Badge>
+                                                )}
                                             </div>
                                             {playgroundLatency && (
-                                                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px]">
+                                                <Badge className="bg-muted/50 text-muted-foreground border-border text-[10px]">
                                                     {playgroundLatency}
                                                 </Badge>
                                             )}
                                         </div>
                                     </CardHeader>
                                     <CardContent className="p-0">
-                                        <pre className="text-xs p-4 font-mono overflow-x-auto text-emerald-400/80">
+                                        <pre className={`text-xs p-4 font-mono overflow-x-auto ${playgroundIsLive ? "text-emerald-400/80" : "text-purple-400/80"}`}>
                                             <code>{playgroundResult}</code>
                                         </pre>
                                     </CardContent>

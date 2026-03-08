@@ -113,7 +113,7 @@ const jobStatusLabels: Record<string, string> = {
 
 const WIDGET_ORDER_KEY = "swarm-dashboard-widget-order-v4";
 const ACTIVE_WIDGETS_KEY = "swarm-dashboard-active-widgets-v4";
-const WIDGET_WIDTHS_KEY = "swarm-dashboard-widget-widths-v4";
+const WIDGET_WIDTHS_KEY = "swarm-dashboard-widget-widths-v5";
 
 function loadJSON<T>(key: string): T | null {
   if (typeof window === "undefined") return null;
@@ -223,6 +223,23 @@ function formatRelativeTime(date: Date | null): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
+}
+
+function getColSpanClass(cols: number, isStat: boolean) {
+  if (isStat) {
+    if (cols === 1) return "col-span-1 md:col-span-2 lg:col-span-1";
+    return "col-span-2 md:col-span-2 lg:col-span-2";
+  }
+
+  switch (cols) {
+    case 1: return "col-span-2 md:col-span-2 lg:col-span-1";
+    case 2: return "col-span-2 md:col-span-2 lg:col-span-2";
+    case 3: return "col-span-2 md:col-span-3 lg:col-span-3";
+    case 4: return "col-span-2 md:col-span-4 lg:col-span-4";
+    case 5: return "col-span-2 md:col-span-4 lg:col-span-5";
+    case 6: return "col-span-2 md:col-span-4 lg:col-span-6";
+    default: return "col-span-2 md:col-span-4 lg:col-span-6";
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -514,11 +531,11 @@ export default function DashboardPage() {
   }, []);
 
   /* ── Resize Widget ── */
-  const cycleWidgetWidth = useCallback((id: string, defaultCols: number) => {
+  const cycleWidgetWidth = useCallback((id: string, defaultCols: number, maxCols: number) => {
     setWidgetWidths(prev => {
       const current = prev[id] || defaultCols;
       let next = current + 1;
-      if (next > 3) next = 1; // Cycle 1 -> 2 -> 3 -> 1
+      if (next > maxCols) next = 1;
 
       const newWidths = { ...prev, [id]: next };
       saveJSON(WIDGET_WIDTHS_KEY, newWidths);
@@ -1088,18 +1105,26 @@ export default function DashboardPage() {
 
             {/* ═══ Draggable Main Widgets ═══ */}
             {widgetOrder.length > 0 && (
-              <div className="grid gap-6 lg:grid-cols-3">
+              <div className="grid gap-6 grid-cols-2 md:grid-cols-4 lg:grid-cols-6 grid-flow-row-dense auto-rows-[minmax(120px,auto)]">
                 {widgetOrder.map((id, index) => {
                   const widget = widgetRenderers[id];
                   if (!widget) return null;
                   const isDragging = draggingWidget === id;
                   const isDropTarget = dropTargetWidget === id;
 
-                  // Determine columns
-                  let defaultCols = 1;
-                  if (widget.colSpan.includes("col-span-2")) defaultCols = 2;
-                  if (widget.colSpan.includes("col-span-3")) defaultCols = 3;
+                  const isStatCard = id.startsWith("stat-");
+
+                  // Determine columns in a 6-col grid
+                  let defaultCols = isStatCard ? 1 : 2;
+                  let maxCols = isStatCard ? 2 : 6;
+                  let rowSpan = isStatCard ? 1 : 3;
+
+                  if (widget.colSpan.includes("col-span-2")) { defaultCols = 4; rowSpan = 4; } // 66% width, taller
+                  if (widget.colSpan.includes("col-span-3")) { defaultCols = 6; rowSpan = 5; } // 100% width, tallest
+                  if (id === "widget-quick-actions") rowSpan = 2; // Specific shorter widget
+
                   const effectiveCols = widgetWidths[id] || defaultCols;
+                  const spanClass = getColSpanClass(effectiveCols, isStatCard);
 
                   return (
                     <motion.div
@@ -1114,16 +1139,16 @@ export default function DashboardPage() {
                       onDragEnd={onWidgetDragEnd}
                       onDragLeave={() => setDropTargetWidget(null)}
                       style={{
-                        gridColumn: `span ${effectiveCols} / span ${effectiveCols}`
+                        gridRow: `span ${rowSpan} / span ${rowSpan}`
                       }}
-                      className={`relative group cursor-grab active:cursor-grabbing transition-all duration-200 overflow-hidden rounded-lg ${isDragging ? "opacity-40 scale-[0.98]" : ""
+                      className={`relative group cursor-grab active:cursor-grabbing transition-all duration-200 overflow-hidden rounded-lg ${spanClass} ${isDragging ? "opacity-40 scale-[0.98] z-50" : ""
                         } ${isDropTarget ? "ring-2 ring-amber-500 ring-offset-2 ring-offset-background" : ""}`}
                     >
                       <div className="absolute top-3 right-3 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
-                          onClick={(e) => { e.stopPropagation(); cycleWidgetWidth(id, defaultCols); }}
+                          onClick={(e) => { e.stopPropagation(); cycleWidgetWidth(id, defaultCols, maxCols); }}
                           className="p-0.5 rounded hover:bg-amber-500/20 text-muted-foreground hover:text-amber-400 transition-colors"
-                          title="Resize Widget (1-3 Columns)"
+                          title={`Resize Widget (1-${maxCols} Columns)`}
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg>
                         </button>
