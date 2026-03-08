@@ -1,6 +1,7 @@
 /** Stat Card — Reusable analytics card with title, value, trend indicator, and optional sparkline. */
 "use client";
 
+import React from "react";
 import { cn } from "@/lib/utils";
 import SpotlightCard from "@/components/reactbits/SpotlightCard";
 import CountUp from "@/components/reactbits/CountUp";
@@ -9,13 +10,13 @@ import DecryptedText from "@/components/reactbits/DecryptedText";
 interface StatCardProps {
   title: string;
   value: string;
-  icon: string;
+  icon: string | React.ComponentType<{ className?: string }>;
   change?: number;
   changeLabel?: string;
   prefix?: string;
 }
 
-export function StatCard({ title, value, icon, change, changeLabel, prefix }: StatCardProps) {
+export function StatCard({ title, value, icon: IconOrEmoji, change, changeLabel, prefix }: StatCardProps) {
   const isPositive = change !== undefined && change >= 0;
   const hasChange = change !== undefined;
   const numericValue = parseFloat(value.replace(/[^0-9.-]/g, ''));
@@ -23,10 +24,7 @@ export function StatCard({ title, value, icon, change, changeLabel, prefix }: St
 
   return (
     <div className="gradient-border-spin overflow-hidden rounded-xl">
-      <SpotlightCard
-        className="p-4"
-        spotlightColor="rgba(255, 191, 0, 0.08)"
-      >
+      <SpotlightCard className="p-4">
         <div className="flex items-center justify-between mb-1">
           <DecryptedText
             text={title}
@@ -38,7 +36,11 @@ export function StatCard({ title, value, icon, change, changeLabel, prefix }: St
             sequential
             revealDirection="start"
           />
-          <span className="text-xl animate-icon-pulse">{icon}</span>
+          {typeof IconOrEmoji === "string" ? (
+            <span className="text-xl">{IconOrEmoji}</span>
+          ) : (
+            <IconOrEmoji className="h-5 w-5 text-amber-400" />
+          )}
         </div>
         <div className="text-xl font-bold tracking-tight text-glow-gold">
           {prefix}
@@ -48,7 +50,7 @@ export function StatCard({ title, value, icon, change, changeLabel, prefix }: St
             value
           )}
         </div>
-        {hasChange && (
+        {hasChange && change !== 0 && (
           <div className="flex items-center gap-1 mt-1">
             <span
               className={cn(

@@ -1,10 +1,12 @@
-/** Protected Route — HOC that redirects to landing page if no wallet is connected. */
+/** Protected Route — HOC that redirects to landing page if no wallet is connected.
+ *  Uses contextual AuthState UI instead of generic spinners. */
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useActiveAccount, useActiveWalletConnectionStatus } from 'thirdweb/react';
 import { useOrg } from '@/contexts/OrgContext';
+import { AuthState, ReconnectionBanner, type AuthPhase } from './auth-state';
 
 // Grace period (ms) after first app load before allowing redirects.
 // Must be long enough for AutoConnect to start (connectionStatus → 'connecting').
@@ -27,7 +29,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const account = useActiveAccount();
   const connectionStatus = useActiveWalletConnectionStatus();
   const isConnected = !!account;
-  const { organizations, loading } = useOrg();
+  const { organizations, loading, error: orgError, refreshOrgs } = useOrg();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -99,49 +101,36 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     }
   }, [isConnected, organizations.length, loading, router, pathname, graceOver, isReconnecting]);
 
+  // --- Derive auth phase for contextual UI ---
+  const authPhase = useMemo((): AuthPhase | null => {
+    if (!graceOver) return 'initializing';
+    if (isReconnecting) return everConnected.current ? 'reconnecting' : 'initializing';
+    if (!isConnected) return 'disconnected';
+    if (loading) return 'loading-org';
+    if (orgError && organizations.length === 0) return 'error';
+    if (organizations.length === 0 && pathname !== '/onboarding') return 'no-orgs';
+    return null;
+  }, [graceOver, isReconnecting, isConnected, loading, orgError, organizations.length, pathname]);
+
   // --- Render ---
 
-  // Still settling auth (grace period or reconnecting) — show loading indicator
-  if (!graceOver || isReconnecting) {
+  // Brief reconnection during active session — show children + banner, don't block UI
+  const showReconnectionBanner = graceOver && !isConnected && everConnected.current && isReconnecting;
+
+  if (authPhase && !showReconnectionBanner) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Connecting...</p>
-        </div>
-      </div>
+      <AuthState
+        phase={authPhase}
+        error={orgError}
+        onRetry={orgError ? refreshOrgs : undefined}
+      />
     );
   }
 
-  // Wallet not connected — redirect is pending, show indicator while waiting
-  if (!isConnected) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Connecting wallet...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Wallet is connected but orgs are still loading — show a loading indicator
-  // instead of a blank page (which makes users think they need to login again)
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // If no orgs and not on onboarding page, show nothing (will redirect)
-  if (organizations.length === 0 && pathname !== '/onboarding') {
-    return null;
-  }
-
-  return <>{children}</>;
+  return (
+    <>
+      {showReconnectionBanner && <ReconnectionBanner visible />}
+      {children}
+    </>
+  );
 }

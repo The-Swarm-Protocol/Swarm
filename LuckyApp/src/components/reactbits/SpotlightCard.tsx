@@ -14,7 +14,7 @@ interface SpotlightCardProps extends React.PropsWithChildren, Omit<React.HTMLAtt
 const SpotlightCard: React.FC<SpotlightCardProps> = ({
   children,
   className = '',
-  spotlightColor = 'rgba(255, 255, 255, 0.25)',
+  spotlightColor = 'var(--spotlight-color, rgba(255, 191, 0, 0.06))',
   ...rest
 }) => {
   const divRef = useRef<HTMLDivElement>(null);

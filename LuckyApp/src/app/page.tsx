@@ -70,8 +70,8 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 w-full border-b border-white/5 bg-black/50 backdrop-blur-xl">
         <div className="flex h-20 items-center justify-between px-6 max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
-            <Image src="/lobsterlogo.png" alt="Swarm Logo" width={44} height={44} className="drop-shadow-[0_0_10px_rgba(255,215,0,0.3)]" />
-            <span className="text-2xl font-bold text-[#FFD700] tracking-tight">Swarm</span>
+            <Image src="/lobsterlogo.png" alt="Swarm Logo" width={44} height={44} className="drop-shadow-[0_0_10px_hsl(var(--primary)/0.3)]" />
+            <span className="text-2xl font-bold text-amber-500 tracking-tight">Swarm</span>
           </div>
           <div className="flex items-center gap-4">
             {mounted && (
