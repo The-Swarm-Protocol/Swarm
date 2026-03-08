@@ -1,4 +1,4 @@
-/** Sidebar — Draggable navigation with sections (Core/Operations/Intelligence/System/Modifications). */
+/** Sidebar — Draggable navigation with collapsible sections (Navigate/Operate/Observe/Platform/Modifications). */
 "use client";
 
 import { useState, useEffect, useCallback, useRef, type DragEvent } from "react";
@@ -11,7 +11,7 @@ import { getOwnedItems, SKILL_REGISTRY } from "@/lib/skills";
 import {
   LayoutDashboard, FolderKanban, Users, Briefcase, MessageSquare,
   LayoutGrid, Shield, Clock, Activity, BarChart3, Settings,
-  Map, Calendar, Radio, FileText, ChevronLeft, ChevronRight, GripVertical,
+  Map, FileText, ChevronLeft, ChevronRight, ChevronDown, GripVertical,
   Command, Coins, Stethoscope, Brain, UserCog, Network, HardDrive, BookOpen, Store, Building2,
   Link as LinkIcon, Zap,
 } from "lucide-react";
@@ -39,6 +39,8 @@ export interface NavSection {
   label: string;
   items: NavItem[];
   accentColor?: "amber" | "cyan";
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
 }
 
 const SECTION_COLORS: Record<string, { activeBg: string; activeText: string; activeBorder: string; activeBar: string; badgeBg: string; badgeText: string; dropIndicator: string; headerText: string }> = {
@@ -66,50 +68,52 @@ const SECTION_COLORS: Record<string, { activeBg: string; activeText: string; act
 
 const DEFAULT_SECTIONS: NavSection[] = [
   {
-    id: "core",
-    label: "Core",
+    id: "navigate",
+    label: "Navigate",
     items: [
       { id: "dashboard", href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { id: "organizations", href: "/organizations", label: "Orgs", icon: Building2 },
       { id: "projects", href: "/swarms", label: "Projects", icon: FolderKanban },
       { id: "agents", href: "/agents", label: "Agents", icon: Users },
-      { id: "board", href: "/kanban", label: "Boards", icon: LayoutGrid },
+      { id: "channels", href: "/chat", label: "Channels", icon: MessageSquare },
+      { id: "jobs", href: "/jobs", label: "Jobs", icon: Briefcase },
     ],
   },
   {
-    id: "operations",
-    label: "Operations",
+    id: "operate",
+    label: "Operate",
+    collapsible: true,
     items: [
-      { id: "jobs", href: "/jobs", label: "Jobs", icon: Briefcase },
-      { id: "channels", href: "/chat", label: "Channels", icon: MessageSquare },
+      { id: "board", href: "/kanban", label: "Boards", icon: LayoutGrid },
       { id: "approvals", href: "/approvals", label: "Approvals", icon: Shield },
       { id: "operators", href: "/operators", label: "Operators", icon: UserCog },
       { id: "cron", href: "/cron", label: "Scheduler", icon: Clock },
+      { id: "market", href: "/market", label: "Market", icon: Store, badge: "NEW" },
     ],
   },
   {
-    id: "intelligence",
-    label: "Intelligence",
+    id: "observe",
+    label: "Observe",
+    collapsible: true,
     items: [
       { id: "activity", href: "/activity", label: "Activity", icon: Activity },
-      { id: "cerebro", href: "/cerebro", label: "Cerebro", icon: Brain },
-      { id: "memory", href: "/memory", label: "Memory", icon: HardDrive },
       { id: "metrics", href: "/metrics", label: "Metrics", icon: BarChart3 },
       { id: "usage", href: "/usage", label: "Usage", icon: Coins },
-      { id: "market", href: "/market", label: "Market", icon: Store, badge: "NEW" },
       { id: "agent-map", href: "/agent-map", label: "Agent Map", icon: Map },
     ],
   },
   {
-    id: "system",
-    label: "System",
+    id: "platform",
+    label: "Platform",
+    collapsible: true,
+    defaultCollapsed: true,
     items: [
+      { id: "organizations", href: "/organizations", label: "Orgs", icon: Building2 },
+      { id: "cerebro", href: "/cerebro", label: "Cerebro", icon: Brain },
+      { id: "memory", href: "/memory", label: "Memory", icon: HardDrive },
       { id: "logs", href: "/logs", label: "Logs", icon: FileText },
       { id: "gateways", href: "/gateways", label: "Gateways", icon: Network },
       { id: "doctor", href: "/doctor", label: "Health", icon: Stethoscope },
       { id: "swarm", href: "/swarm", label: "Swarm", icon: Zap },
-      { id: "docs", href: "/docs", label: "Docs", icon: BookOpen },
-      { id: "settings", href: "/settings", label: "Settings", icon: Settings },
     ],
   },
   {
@@ -117,7 +121,14 @@ const DEFAULT_SECTIONS: NavSection[] = [
     label: "Modifications",
     items: [],
     accentColor: "cyan",
+    collapsible: true,
   },
+];
+
+/** Bottom-pinned items — always visible, not part of draggable sections */
+const PINNED_ITEMS: NavItem[] = [
+  { id: "docs", href: "/docs", label: "Docs", icon: BookOpen },
+  { id: "settings", href: "/settings", label: "Settings", icon: Settings },
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -127,6 +138,7 @@ const DEFAULT_SECTIONS: NavSection[] = [
 const SECTION_ORDER_KEY = "swarm-sidebar-order";
 const ITEM_ORDER_KEY = "swarm-sidebar-items";
 const COLLAPSED_KEY = "swarm-sidebar-collapsed";
+const SECTION_COLLAPSED_KEY = "swarm-sidebar-sections-collapsed";
 
 // ═══════════════════════════════════════════════════════════════
 // Persistence Helpers
@@ -248,6 +260,42 @@ export function Sidebar() {
   const [dragging, setDragging] = useState<DragState | null>(null);
   const [dropTarget, setDropTarget] = useState<{ sectionId: string; itemId?: string } | null>(null);
   const orgIdRef = useRef<string | null>(null);
+
+  // Section collapse state
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
+    const saved = loadJSON<string[]>(SECTION_COLLAPSED_KEY);
+    if (saved) return new Set(saved);
+    return new Set(DEFAULT_SECTIONS.filter(s => s.defaultCollapsed).map(s => s.id));
+  });
+
+  const toggleSection = useCallback((sectionId: string) => {
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
+      saveJSON(SECTION_COLLAPSED_KEY, [...next]);
+      return next;
+    });
+  }, []);
+
+  // Auto-expand section when navigating to a route inside it
+  useEffect(() => {
+    for (const section of sections) {
+      if (!section.collapsible) continue;
+      const hasActive = section.items.some(
+        item => pathname === item.href || pathname.startsWith(item.href + "/")
+      );
+      if (hasActive && collapsedSections.has(section.id)) {
+        setCollapsedSections(prev => {
+          const next = new Set(prev);
+          next.delete(section.id);
+          saveJSON(SECTION_COLLAPSED_KEY, [...next]);
+          return next;
+        });
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   // Fetch installed mods and rebuild sidebar sections
   const refreshModSidebar = useCallback(async (orgId: string) => {
@@ -446,6 +494,7 @@ export function Sidebar() {
           // Only the modifications section keeps its own accent when using classic skin.
           const colorKey = skin === "classic" ? (section.accentColor || "amber") : "amber";
           const colors = SECTION_COLORS[colorKey];
+          const isSectionCollapsed = section.collapsible && collapsedSections.has(section.id);
           return (
           <div
             key={section.id}
@@ -475,68 +524,112 @@ export function Sidebar() {
           >
             {/* Section header */}
             {!collapsed && (
-              <div className="flex items-center gap-1 px-3 pt-2 pb-0.5 group cursor-grab active:cursor-grabbing">
-                <GripVertical className="h-3 w-3 text-muted-foreground/20 group-hover:text-muted-foreground/60 transition-colors shrink-0" />
-                <span className={cn("text-[10px] font-semibold uppercase tracking-wider", colors.headerText)}>
+              <div
+                className={cn(
+                  "flex items-center gap-1 px-3 pt-2 pb-0.5 group select-none",
+                  section.collapsible ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"
+                )}
+                onClick={section.collapsible ? () => toggleSection(section.id) : undefined}
+              >
+                <GripVertical
+                  className="h-3 w-3 text-muted-foreground/20 group-hover:text-muted-foreground/60 transition-colors shrink-0 cursor-grab active:cursor-grabbing"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <span className={cn("text-[10px] font-semibold uppercase tracking-wider flex-1", colors.headerText)}>
                   {section.label}
                 </span>
+                {section.collapsible && (
+                  <ChevronDown className={cn(
+                    "h-3 w-3 text-muted-foreground/40 transition-transform duration-200",
+                    isSectionCollapsed && "-rotate-90"
+                  )} />
+                )}
               </div>
             )}
 
-            {/* Items */}
-            <div className={cn("space-y-0.5", collapsed ? "px-1" : "px-2")}>
-              {section.items.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-                const isBeingDragged = dragging?.kind === "item" && dragging.itemId === item.id;
-                const isDropTarget = dropTarget?.sectionId === section.id && dropTarget?.itemId === item.id;
+            {/* Items — hidden when section is collapsed (but always visible in icon mode) */}
+            {(!isSectionCollapsed || collapsed) && (
+              <div className={cn("space-y-0.5", collapsed ? "px-1" : "px-2")}>
+                {section.items.map((item) => {
+                  const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                  const isBeingDragged = dragging?.kind === "item" && dragging.itemId === item.id;
+                  const isDropTarget = dropTarget?.sectionId === section.id && dropTarget?.itemId === item.id;
 
-                return (
-                  <div
-                    key={item.id}
-                    draggable={!collapsed}
-                    onDragStart={onItemDragStart(section.id, item.id)}
-                    onDragOver={onItemDragOver(section.id, item.id)}
-                    onDrop={onItemDrop(section.id, item.id)}
-                    onDragEnd={onDragEnd}
-                    className={cn(
-                      "relative group/item",
-                      isBeingDragged && "opacity-30",
-                      isDropTarget && `before:absolute before:left-2 before:right-2 before:top-0 before:h-[2px] before:rounded-full ${colors.activeBar}`
-                    )}
-                  >
-                    <Link
-                      href={item.href}
-                      title={collapsed ? item.label : undefined}
+                  return (
+                    <div
+                      key={item.id}
+                      draggable={!collapsed}
+                      onDragStart={onItemDragStart(section.id, item.id)}
+                      onDragOver={onItemDragOver(section.id, item.id)}
+                      onDrop={onItemDrop(section.id, item.id)}
+                      onDragEnd={onDragEnd}
                       className={cn(
-                        "relative flex items-center gap-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-                        collapsed ? "justify-center p-2" : "px-2.5 py-1.5",
-                        isActive
-                          ? `${colors.activeBg} ${colors.activeText} border ${colors.activeBorder}`
-                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent"
+                        "relative group/item",
+                        isBeingDragged && "opacity-30",
+                        isDropTarget && `before:absolute before:left-2 before:right-2 before:top-0 before:h-[2px] before:rounded-full ${colors.activeBar}`
                       )}
                     >
-                      {isActive && (
-                        <span className={cn("absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 rounded-full", colors.activeBar)} />
-                      )}
-                      {!collapsed && (
-                        <GripVertical className="h-2.5 w-2.5 text-muted-foreground/0 group-hover/item:text-muted-foreground/40 transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
-                      )}
-                      <item.icon className={cn("shrink-0", collapsed ? "h-4.5 w-4.5" : "h-4 w-4")} />
-                      {!collapsed && <span className="truncate">{item.label}</span>}
-                      {!collapsed && item.badge && (
-                        <span className={cn("ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-medium", colors.badgeBg, colors.badgeText)}>
-                          {item.badge}
-                        </span>
-                      )}
-                    </Link>
-                  </div>
-                );
-              })}
-            </div>
+                      <Link
+                        href={item.href}
+                        title={collapsed ? item.label : undefined}
+                        className={cn(
+                          "relative flex items-center gap-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                          collapsed ? "justify-center p-2" : "px-2.5 py-1.5",
+                          isActive
+                            ? `${colors.activeBg} ${colors.activeText} border ${colors.activeBorder}`
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent"
+                        )}
+                      >
+                        {isActive && (
+                          <span className={cn("absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 rounded-full", colors.activeBar)} />
+                        )}
+                        {!collapsed && (
+                          <GripVertical className="h-2.5 w-2.5 text-muted-foreground/0 group-hover/item:text-muted-foreground/40 transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
+                        )}
+                        <item.icon className={cn("shrink-0", collapsed ? "h-4.5 w-4.5" : "h-4 w-4")} />
+                        {!collapsed && <span className="truncate">{item.label}</span>}
+                        {!collapsed && item.badge && (
+                          <span className={cn("ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-medium", colors.badgeBg, colors.badgeText)}>
+                            {item.badge}
+                          </span>
+                        )}
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
           );
         })}
       </nav>
+
+      {/* Pinned items — always visible, not part of draggable sections */}
+      <div className={cn("border-t border-border pt-1", collapsed ? "px-1" : "px-2")}>
+        {PINNED_ITEMS.map((item) => {
+          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+          return (
+            <Link
+              key={item.id}
+              href={item.href}
+              title={collapsed ? item.label : undefined}
+              className={cn(
+                "relative flex items-center gap-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                collapsed ? "justify-center p-2" : "px-2.5 py-1.5",
+                isActive
+                  ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent"
+              )}
+            >
+              {isActive && (
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 rounded-full bg-amber-500" />
+              )}
+              <item.icon className={cn("shrink-0", collapsed ? "h-4.5 w-4.5" : "h-4 w-4")} />
+              {!collapsed && <span className="truncate">{item.label}</span>}
+            </Link>
+          );
+        })}
+      </div>
 
       {/* Footer: Collapse + ⌘K hint */}
       <div className={cn(

@@ -3,7 +3,12 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Search, Command, ArrowRight, LayoutGrid, MessageSquare, Users, Briefcase, Settings, Zap, Activity, BarChart3, Shield, Clock, Store } from "lucide-react";
+import {
+  Search, Command, ArrowRight,
+  LayoutDashboard, LayoutGrid, MessageSquare, Users, Briefcase, Settings, Zap,
+  Activity, BarChart3, Shield, Clock, Store, FolderKanban, UserCog, Coins,
+  Map as MapIcon, Building2, Brain, HardDrive, FileText, Network, Stethoscope, BookOpen,
+} from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════
 // Routes & Actions
@@ -20,18 +25,34 @@ interface CommandItem {
 }
 
 const NAV_ITEMS: CommandItem[] = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutGrid, href: "/dashboard", section: "Navigation" },
-    { id: "projects", label: "Projects", icon: Briefcase, href: "/swarms", section: "Navigation" },
-    { id: "agents", label: "Agents", icon: Users, href: "/agents", section: "Navigation" },
-    { id: "jobs", label: "Jobs", icon: Zap, href: "/jobs", section: "Navigation" },
-    { id: "channels", label: "Channels", icon: MessageSquare, href: "/chat", section: "Navigation" },
-    { id: "board", label: "Board (Kanban)", icon: LayoutGrid, href: "/kanban", section: "Navigation" },
-    { id: "approvals", label: "Approvals", icon: Shield, href: "/approvals", section: "Navigation" },
-    { id: "market", label: "Market", icon: Store, href: "/market", section: "Navigation" },
-    { id: "cron", label: "Cron Scheduler", icon: Clock, href: "/cron", section: "Navigation" },
-    { id: "activity", label: "Activity Timeline", icon: Activity, href: "/activity", section: "Navigation" },
-    { id: "metrics", label: "Metrics", icon: BarChart3, href: "/metrics", section: "Navigation" },
-    { id: "settings", label: "Settings", icon: Settings, href: "/settings", section: "Navigation" },
+    // Navigate
+    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, href: "/dashboard", section: "Navigate" },
+    { id: "projects", label: "Projects", icon: FolderKanban, href: "/swarms", section: "Navigate" },
+    { id: "agents", label: "Agents", icon: Users, href: "/agents", section: "Navigate" },
+    { id: "channels", label: "Channels", icon: MessageSquare, href: "/chat", section: "Navigate" },
+    { id: "jobs", label: "Jobs", icon: Briefcase, href: "/jobs", section: "Navigate" },
+    // Operate
+    { id: "board", label: "Boards", icon: LayoutGrid, href: "/kanban", section: "Operate" },
+    { id: "approvals", label: "Approvals", icon: Shield, href: "/approvals", section: "Operate" },
+    { id: "operators", label: "Operators", icon: UserCog, href: "/operators", section: "Operate" },
+    { id: "cron", label: "Scheduler", icon: Clock, href: "/cron", section: "Operate" },
+    { id: "market", label: "Market", icon: Store, href: "/market", section: "Operate" },
+    // Observe
+    { id: "activity", label: "Activity", icon: Activity, href: "/activity", section: "Observe" },
+    { id: "metrics", label: "Metrics", icon: BarChart3, href: "/metrics", section: "Observe" },
+    { id: "usage", label: "Usage", icon: Coins, href: "/usage", section: "Observe" },
+    { id: "agent-map", label: "Agent Map", icon: MapIcon, href: "/agent-map", section: "Observe" },
+    // Platform
+    { id: "organizations", label: "Organizations", icon: Building2, href: "/organizations", section: "Platform" },
+    { id: "cerebro", label: "Cerebro", icon: Brain, href: "/cerebro", section: "Platform" },
+    { id: "memory", label: "Memory", icon: HardDrive, href: "/memory", section: "Platform" },
+    { id: "logs", label: "Logs", icon: FileText, href: "/logs", section: "Platform" },
+    { id: "gateways", label: "Gateways", icon: Network, href: "/gateways", section: "Platform" },
+    { id: "doctor", label: "Health", icon: Stethoscope, href: "/doctor", section: "Platform" },
+    { id: "swarm", label: "Swarm Protocol", icon: Zap, href: "/swarm", section: "Platform" },
+    // Quick
+    { id: "docs", label: "Docs", icon: BookOpen, href: "/docs", section: "Quick" },
+    { id: "settings", label: "Settings", icon: Settings, href: "/settings", section: "Quick" },
 ];
 
 // ═══════════════════════════════════════════════════════════════
@@ -114,11 +135,11 @@ export function CommandBar() {
     if (!open) return null;
 
     // Group by section
-    const sections = new Map<string, CommandItem[]>();
+    const groupedSections = new Map<string, CommandItem[]>();
     for (const item of filtered) {
-        const arr = sections.get(item.section) || [];
+        const arr = groupedSections.get(item.section) || [];
         arr.push(item);
-        sections.set(item.section, arr);
+        groupedSections.set(item.section, arr);
     }
 
     return (
@@ -155,7 +176,7 @@ export function CommandBar() {
                                 No results for &ldquo;{query}&rdquo;
                             </div>
                         ) : (
-                            Array.from(sections.entries()).map(([section, items]) => (
+                            Array.from(groupedSections.entries()).map(([section, items]) => (
                                 <div key={section}>
                                     <div className="px-3 py-1.5">
                                         <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{section}</span>

@@ -45,6 +45,7 @@ import {
     type PlaygroundExecutionResult,
 } from "@/lib/chainlink";
 import { shortAddress } from "@/lib/chains";
+import { getAgentsByOrg, type Agent } from "@/lib/firestore";
 import {
     fetchAllPrices, fetchLivePrices,
     getWorkflows, createWorkflow, deleteWorkflow, toggleWorkflowStatus,
@@ -123,12 +124,32 @@ export default function ChainlinkPage() {
     const [asnBandFilter, setAsnBandFilter] = useState<ScoreBand | "all">("all");
     const [selectedAsn, setSelectedAsn] = useState<ASNProfile | null>(null);
     const [showRegister, setShowRegister] = useState(false);
-    const [regName, setRegName] = useState("");
-    const [regType, setRegType] = useState("Research");
-    const [regWallet, setRegWallet] = useState("");
-    const [regProvider, setRegProvider] = useState("anthropic");
     const [registering, setRegistering] = useState(false);
+    const [orgAgents, setOrgAgents] = useState<Agent[]>([]);
+    const [orgAgentsLoading, setOrgAgentsLoading] = useState(false);
+    const [selectedAgentId, setSelectedAgentId] = useState<string>("");
+    const [registerError, setRegisterError] = useState<string | null>(null);
     const [policyAgent, setPolicyAgent] = useState<ASNProfile | null>(null);
+
+    // ─── Org agents for registration dropdown ───
+    const availableAgents = useMemo(() =>
+        orgAgents.filter(a => !a.linkOnChainRegistered && !a.asnOnChainRegistered),
+        [orgAgents]
+    );
+    const selectedAgent = useMemo(() =>
+        orgAgents.find(a => a.id === selectedAgentId) || null,
+        [selectedAgentId, orgAgents]
+    );
+
+    useEffect(() => {
+        if (!showRegister || !currentOrg) return;
+        setOrgAgentsLoading(true);
+        setRegisterError(null);
+        getAgentsByOrg(currentOrg.id)
+            .then(setOrgAgents)
+            .catch(() => setRegisterError("Failed to load agents"))
+            .finally(() => setOrgAgentsLoading(false));
+    }, [showRegister, currentOrg]);
 
     // ─── Wallet balance for playground ───
     useEffect(() => {
@@ -296,34 +317,49 @@ export default function ChainlinkPage() {
 
     // ─── ASN handlers ───
     const handleRegisterASN = async () => {
-        if (!regName.trim() || !regWallet.trim()) return;
+        if (!selectedAgentId || !currentOrg) return;
         setRegistering(true);
-        await new Promise((r) => setTimeout(r, 1500));
-        const newProfile: ASNProfile = {
-            asn: generateASN(),
-            agentName: regName.trim(),
-            agentType: regType,
-            creatorOrgId: currentOrg?.id || "unknown",
-            creatorWallet: regWallet.trim(),
-            linkedWallets: [regWallet.trim()],
-            deploymentEnvironment: "mainnet",
-            modelProvider: regProvider,
-            skillModules: [],
-            creationTimestamp: new Date().toISOString(),
-            verificationLevel: "basic",
-            status: "active",
-            jurisdictionTag: "US",
-            riskFlags: [],
-            trustScore: 50,
-            fraudRiskScore: 25,
-            creditScore: 680,
-            activitySummary: { totalTasks: 0, completedTasks: 0, totalTransactions: 0, totalVolumeUsd: 0, activeChains: [], firstSeen: new Date().toISOString(), lastActive: new Date().toISOString() },
-            connectionGraphHash: "0x" + Math.random().toString(16).substring(2, 14),
-            attestationRefs: [],
-        };
-        setAsnProfiles((prev) => [newProfile, ...prev]);
-        setRegName(""); setRegWallet(""); setShowRegister(false);
-        setRegistering(false);
+        setRegisterError(null);
+        try {
+            const res = await fetch("/api/v1/agents/link-register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ agentId: selectedAgentId, orgId: currentOrg.id }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Registration failed");
+
+            const newProfile: ASNProfile = {
+                asn: data.asn,
+                agentName: data.agentName,
+                agentType: data.agentType,
+                creatorOrgId: currentOrg.id,
+                creatorWallet: "platform",
+                linkedWallets: [],
+                deploymentEnvironment: "mainnet",
+                modelProvider: "anthropic",
+                skillModules: [],
+                creationTimestamp: new Date().toISOString(),
+                verificationLevel: "basic",
+                status: "active",
+                jurisdictionTag: "US",
+                riskFlags: [],
+                trustScore: data.trustScore ?? 50,
+                fraudRiskScore: 25,
+                creditScore: data.creditScore ?? 680,
+                activitySummary: { totalTasks: 0, completedTasks: 0, totalTransactions: 0, totalVolumeUsd: 0, activeChains: ["sepolia"], firstSeen: new Date().toISOString(), lastActive: new Date().toISOString() },
+                connectionGraphHash: "0x" + Math.random().toString(16).substring(2, 14),
+                attestationRefs: data.onChain.agentTxHash ? [data.onChain.agentTxHash] : [],
+            };
+            setAsnProfiles((prev) => [newProfile, ...prev]);
+            setOrgAgents((prev) => prev.map(a => a.id === selectedAgentId ? { ...a, linkOnChainRegistered: true, asnOnChainRegistered: true } : a));
+            setSelectedAgentId("");
+            setShowRegister(false);
+        } catch (err) {
+            setRegisterError(err instanceof Error ? err.message : "Registration failed");
+        } finally {
+            setRegistering(false);
+        }
     };
 
     const filteredProfiles = asnProfiles.filter((p) => {
@@ -1576,47 +1612,68 @@ export default function ChainlinkPage() {
             </Dialog>
 
             {/* Register ASN Dialog */}
-            <Dialog open={showRegister} onOpenChange={setShowRegister}>
+            <Dialog open={showRegister} onOpenChange={(open) => {
+                setShowRegister(open);
+                if (!open) { setSelectedAgentId(""); setRegisterError(null); }
+            }}>
                 <DialogContent className="max-w-lg">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <Fingerprint className="h-5 w-5 text-purple-400" />
-                            Register Agent Identity
+                            Register Agent On-Chain
                         </DialogTitle>
                     </DialogHeader>
-                    <p className="text-xs text-muted-foreground -mt-2">Generate a unique ASN and create an identity profile with baseline scores.</p>
+                    <p className="text-xs text-muted-foreground -mt-2">Select a connected agent to register on Ethereum Sepolia with a unique ASN.</p>
                     <div className="space-y-4">
                         <div>
-                            <label className="text-sm font-medium mb-1 block">Agent Name</label>
-                            <Input placeholder="e.g. Oracle Prime" value={regName} onChange={(e) => setRegName(e.target.value)} />
+                            <label className="text-sm font-medium mb-1 block">Select Agent</label>
+                            {orgAgentsLoading ? (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                                    <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Loading agents...
+                                </div>
+                            ) : availableAgents.length === 0 ? (
+                                <p className="text-sm text-muted-foreground py-2">No unregistered agents found in this org.</p>
+                            ) : (
+                                <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
+                                    <SelectTrigger><SelectValue placeholder="Choose an agent..." /></SelectTrigger>
+                                    <SelectContent>
+                                        {availableAgents.map((agent) => (
+                                            <SelectItem key={agent.id} value={agent.id}>
+                                                {agent.name} ({agent.type})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
                         </div>
-                        <div>
-                            <label className="text-sm font-medium mb-1 block">Agent Type</label>
-                            <Select value={regType} onValueChange={setRegType}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    {["Research", "Trading", "Operations", "Analytics", "Finance", "Security", "Engineering", "DevOps", "Support"].map((t) => (
-                                        <SelectItem key={t} value={t}>{t}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div>
-                            <label className="text-sm font-medium mb-1 block">Creator Wallet</label>
-                            <Input placeholder="0x..." value={regWallet} onChange={(e) => setRegWallet(e.target.value)} />
-                        </div>
-                        <div>
-                            <label className="text-sm font-medium mb-1 block">Model Provider</label>
-                            <Select value={regProvider} onValueChange={setRegProvider}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="anthropic">Anthropic</SelectItem>
-                                    <SelectItem value="openai">OpenAI</SelectItem>
-                                    <SelectItem value="google">Google</SelectItem>
-                                    <SelectItem value="local">Local / Self-hosted</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
+
+                        {selectedAgent && (
+                            <Card className="border-border bg-muted/30">
+                                <CardContent className="p-3 space-y-2">
+                                    <div className="grid grid-cols-2 gap-2 text-sm">
+                                        <div>
+                                            <p className="text-[10px] text-muted-foreground uppercase">Name</p>
+                                            <p className="font-medium">{selectedAgent.name}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] text-muted-foreground uppercase">Type</p>
+                                            <p className="font-medium">{selectedAgent.type}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] text-muted-foreground uppercase">ASN</p>
+                                            <p className="font-mono text-xs text-purple-400">{selectedAgent.asn || "Will be generated"}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] text-muted-foreground uppercase">Status</p>
+                                            <Badge variant="outline" className={`text-[10px] ${selectedAgent.status === "online" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-muted text-muted-foreground"}`}>
+                                                {selectedAgent.status}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+
                         <Card className="border-border bg-muted/30">
                             <CardContent className="p-3">
                                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Initial Scores</p>
@@ -1636,14 +1693,20 @@ export default function ChainlinkPage() {
                                 </div>
                             </CardContent>
                         </Card>
+
+                        {registerError && (
+                            <div className="flex items-center gap-2 text-red-400 text-sm">
+                                <AlertCircle className="h-4 w-4" /> {registerError}
+                            </div>
+                        )}
                     </div>
                     <div className="flex gap-2 justify-end pt-2">
                         <Button variant="outline" onClick={() => setShowRegister(false)}>Cancel</Button>
-                        <Button onClick={handleRegisterASN} disabled={registering || !regName.trim() || !regWallet.trim()} className="bg-purple-600 hover:bg-purple-700 text-white gap-1.5">
+                        <Button onClick={handleRegisterASN} disabled={registering || !selectedAgentId} className="bg-purple-600 hover:bg-purple-700 text-white gap-1.5">
                             {registering ? (
                                 <>
                                     <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                    Generating ASN...
+                                    Registering on-chain...
                                 </>
                             ) : (
                                 <>

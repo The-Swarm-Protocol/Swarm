@@ -17,7 +17,7 @@ import ShinyText from "@/components/reactbits/ShinyText";
 import DecryptedText from "@/components/reactbits/DecryptedText";
 import { VitalsWidget } from "@/components/vitals-widget";
 import { useActiveAccount } from "thirdweb/react";
-import { GripVertical, RotateCcw, Plus, X, Check } from "lucide-react";
+import { GripVertical, RotateCcw, Plus, X, Check, FolderKanban, Bot, Target, CheckCircle2, Briefcase, ListTodo, BarChart3, Handshake, Users } from "lucide-react";
 import {
   getOrgStats,
   getTasksByOrg,
@@ -141,41 +141,43 @@ interface WidgetCatalogEntry {
   label: string;
   description: string;
   colSpan?: string;
+  category: "widgets" | "stats" | "integrations";
 }
 
 const ALL_WIDGET_CATALOG: WidgetCatalogEntry[] = [
-  { id: "widget-recent-tasks", icon: "📋", label: "Recent Tasks", description: "Latest tasks with status and assignee", colSpan: "lg:col-span-2" },
-  { id: "widget-recent-jobs", icon: "💼", label: "Recent Jobs", description: "Latest posted jobs with rewards", colSpan: "lg:col-span-2" },
-  { id: "widget-quick-actions", icon: "⚡", label: "Quick Actions", description: "Shortcuts to common operations", colSpan: "" },
-  { id: "widget-org-info", icon: "🏢", label: "Organization", description: "Organization profile and details", colSpan: "" },
-  { id: "widget-activity-feed", icon: "📜", label: "Activity Feed", description: "Recent system events and audit log", colSpan: "lg:col-span-3" },
-  { id: "widget-system-vitals", icon: "🖥️", label: "System Vitals", description: "CPU, memory, and disk usage gauges", colSpan: "" },
-  { id: "widget-agent-status", icon: "🟢", label: "Agent Status", description: "Online, offline, and busy agent breakdown", colSpan: "" },
-  { id: "widget-task-breakdown", icon: "📈", label: "Task Breakdown", description: "Visual breakdown of task statuses", colSpan: "" },
-  { id: "widget-llm-usage", icon: "💰", label: "API Usage & Costs", description: "Live tracking of LLM token costs & rate limits", colSpan: "lg:col-span-2" },
-  { id: "widget-live-stream", icon: "Terminal", label: "Live Feed Stream", description: "Raw I/O stream of agent messages", colSpan: "lg:col-span-2" },
-  { id: "widget-cron-jobs", icon: "🕒", label: "Cron Jobs", description: "Manage background scheduled agent tasks", colSpan: "lg:col-span-2" },
-  { id: "widget-daily-briefing", icon: "📋", label: "Daily Briefing", description: "Daily org summary from your briefing agent", colSpan: "lg:col-span-3" },
-  { id: "stat-projects", icon: "📁", label: "Projects", description: "Total active projects", colSpan: "" },
-  { id: "stat-agents", icon: "🤖", label: "Agents", description: "Total registered agents", colSpan: "" },
-  { id: "stat-active-tasks", icon: "🎯", label: "Active Tasks", description: "Tasks currently in progress", colSpan: "" },
-  { id: "stat-completed-tasks", icon: "✅", label: "Completed Tasks", description: "Total finished tasks", colSpan: "" },
-  { id: "stat-open-jobs", icon: "💼", label: "Open Jobs", description: "Total open jobs", colSpan: "" },
-  { id: "stat-todo-tasks", icon: "📝", label: "Todo Tasks", description: "Pending tasks pipeline", colSpan: "" },
-  { id: "stat-total-tasks", icon: "📊", label: "Total Tasks", description: "All tasks", colSpan: "" },
-  { id: "stat-claimed-jobs", icon: "🤝", label: "Claimed Jobs", description: "Currently claimed jobs", colSpan: "" },
-  { id: "stat-members", icon: "👥", label: "Members", description: "Registered org members", colSpan: "" },
+  // Widgets
+  { id: "widget-daily-briefing", icon: "📋", label: "Daily Briefing", description: "Daily org summary from your briefing agent", colSpan: "lg:col-span-3", category: "widgets" },
+  { id: "widget-recent-tasks", icon: "📋", label: "Recent Tasks", description: "Latest tasks with status and assignee", colSpan: "lg:col-span-2", category: "widgets" },
+  { id: "widget-recent-jobs", icon: "💼", label: "Recent Jobs", description: "Latest posted jobs with rewards", colSpan: "lg:col-span-2", category: "widgets" },
+  { id: "widget-quick-actions", icon: "⚡", label: "Quick Actions", description: "Shortcuts to common operations", colSpan: "", category: "widgets" },
+  { id: "widget-org-info", icon: "🏢", label: "Organization", description: "Organization profile and details", colSpan: "", category: "widgets" },
+  { id: "widget-activity-feed", icon: "📜", label: "Activity Feed", description: "Recent system events and audit log", colSpan: "lg:col-span-3", category: "widgets" },
+  { id: "widget-agent-status", icon: "🟢", label: "Agent Status", description: "Online, offline, and busy agent breakdown", colSpan: "", category: "widgets" },
+  { id: "widget-task-breakdown", icon: "📈", label: "Task Breakdown", description: "Visual breakdown of task statuses", colSpan: "", category: "widgets" },
+  { id: "widget-system-vitals", icon: "🖥️", label: "System Vitals", description: "CPU, memory, and disk usage gauges", colSpan: "", category: "widgets" },
+  // Stats
+  { id: "stat-projects", icon: "📁", label: "Projects", description: "Total active projects", colSpan: "", category: "stats" },
+  { id: "stat-agents", icon: "🤖", label: "Agents", description: "Total registered agents", colSpan: "", category: "stats" },
+  { id: "stat-active-tasks", icon: "🎯", label: "Active Tasks", description: "Tasks currently in progress", colSpan: "", category: "stats" },
+  { id: "stat-completed-tasks", icon: "✅", label: "Completed Tasks", description: "Total finished tasks", colSpan: "", category: "stats" },
+  { id: "stat-open-jobs", icon: "💼", label: "Open Jobs", description: "Total open jobs", colSpan: "", category: "stats" },
+  { id: "stat-todo-tasks", icon: "📝", label: "Todo Tasks", description: "Pending tasks pipeline", colSpan: "", category: "stats" },
+  { id: "stat-total-tasks", icon: "📊", label: "Total Tasks", description: "All tasks", colSpan: "", category: "stats" },
+  { id: "stat-claimed-jobs", icon: "🤝", label: "Claimed Jobs", description: "Currently claimed jobs", colSpan: "", category: "stats" },
+  { id: "stat-members", icon: "👥", label: "Members", description: "Registered org members", colSpan: "", category: "stats" },
+  // Integrations
+  { id: "widget-llm-usage", icon: "💰", label: "API Usage & Costs", description: "Live tracking of LLM token costs & rate limits", colSpan: "lg:col-span-2", category: "integrations" },
+  { id: "widget-live-stream", icon: "Terminal", label: "Live Feed Stream", description: "Raw I/O stream of agent messages", colSpan: "lg:col-span-2", category: "integrations" },
+  { id: "widget-cron-jobs", icon: "🕒", label: "Cron Jobs", description: "Manage background scheduled agent tasks", colSpan: "lg:col-span-2", category: "integrations" },
 ];
 
 const DEFAULT_ACTIVE_WIDGETS = [
   "widget-daily-briefing",
-  "stat-projects", "stat-agents", "stat-active-tasks", "stat-completed-tasks", "stat-open-jobs", "stat-todo-tasks",
+  "stat-projects", "stat-agents", "stat-active-tasks", "stat-open-jobs",
   "widget-recent-tasks", "widget-quick-actions",
   "widget-recent-jobs", "widget-org-info",
-  "widget-llm-usage", "widget-system-vitals",
-  "widget-live-stream", "widget-agent-status",
-  "widget-cron-jobs", "widget-task-breakdown",
-  "widget-activity-feed"
+  "widget-agent-status", "widget-task-breakdown",
+  "widget-activity-feed",
 ];
 
 /* ------------------------------------------------------------------ */
@@ -264,6 +266,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [dispatching, setDispatching] = useState(false);
   const [dashTab, setDashTab] = useState("overview");
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // Active widget sets (which widgets are visible)
   const [activeWidgetIds, setActiveWidgetIds] = useState<string[]>(DEFAULT_ACTIVE_WIDGETS);
@@ -373,12 +376,22 @@ export default function DashboardPage() {
       setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
     } finally {
       if (isInitial) setLoading(false);
+      setLastUpdated(new Date());
     }
   }, [currentOrg]);
 
   useEffect(() => {
     loadDashboardData(true);
   }, [loadDashboardData]);
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    if (!currentOrg) return;
+    const interval = setInterval(() => {
+      loadDashboardData();
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [currentOrg, loadDashboardData]);
 
   // ── Dispatch handler — creates job, assigns agents, refreshes data ──
   const handleDispatch = useCallback(async (payload: DispatchPayload) => {
@@ -554,7 +567,7 @@ export default function DashboardPage() {
       label: "Recent Tasks",
       colSpan: "lg:col-span-2",
       render: () => (
-        <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden" spotlightColor="rgba(255, 191, 0, 0.06)">
+        <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between px-6 pt-6">
             <CardTitle className="text-lg">
               📋 <DecryptedText text="Recent Tasks" speed={30} maxIterations={6} animateOn="view" sequential className="text-lg font-semibold" encryptedClassName="text-lg font-semibold text-amber-500/40" />
@@ -598,7 +611,7 @@ export default function DashboardPage() {
       label: "Recent Jobs",
       colSpan: "lg:col-span-2",
       render: () => (
-        <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden" spotlightColor="rgba(255, 191, 0, 0.06)">
+        <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between px-6 pt-6">
             <CardTitle className="text-lg">
               💼 <DecryptedText text="Recent Jobs" speed={30} maxIterations={6} animateOn="view" sequential className="text-lg font-semibold" encryptedClassName="text-lg font-semibold text-amber-500/40" />
@@ -643,7 +656,7 @@ export default function DashboardPage() {
       label: "Quick Actions",
       colSpan: "",
       render: () => (
-        <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden" spotlightColor="rgba(255, 191, 0, 0.06)">
+        <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden">
           <CardHeader>
             <CardTitle className="text-lg">
               ⚡ <DecryptedText text="Quick Actions" speed={30} maxIterations={6} animateOn="view" sequential className="text-lg font-semibold" encryptedClassName="text-lg font-semibold text-amber-500/40" />
@@ -673,7 +686,7 @@ export default function DashboardPage() {
       label: "Organization",
       colSpan: "",
       render: () => (
-        <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden" spotlightColor="rgba(255, 191, 0, 0.06)">
+        <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden">
           <CardHeader>
             <CardTitle className="text-lg">
               🏢 <DecryptedText text="Organization" speed={30} maxIterations={6} animateOn="view" sequential className="text-lg font-semibold" encryptedClassName="text-lg font-semibold text-amber-500/40" />
@@ -705,7 +718,7 @@ export default function DashboardPage() {
       label: "Activity Feed",
       colSpan: "lg:col-span-3",
       render: () => (
-        <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden" spotlightColor="rgba(255, 191, 0, 0.06)">
+        <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between px-6 pt-6">
             <CardTitle className="text-lg">
               📜 <DecryptedText text="Activity Feed" speed={30} maxIterations={6} animateOn="view" sequential className="text-lg font-semibold" encryptedClassName="text-lg font-semibold text-amber-500/40" />
@@ -761,7 +774,7 @@ export default function DashboardPage() {
       render: () => {
         const total = agents.length;
         return (
-          <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden" spotlightColor="rgba(255, 191, 0, 0.06)">
+          <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden">
             <CardHeader>
               <CardTitle className="text-lg">
                 🟢 <DecryptedText text="Agent Status" speed={30} maxIterations={6} animateOn="view" sequential className="text-lg font-semibold" encryptedClassName="text-lg font-semibold text-amber-500/40" />
@@ -817,7 +830,7 @@ export default function DashboardPage() {
         const total = todo + inProgress + done;
 
         return (
-          <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden" spotlightColor="rgba(255, 191, 0, 0.06)">
+          <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden">
             <CardHeader>
               <CardTitle className="text-lg">
                 📈 <DecryptedText text="Task Breakdown" speed={30} maxIterations={6} animateOn="view" sequential className="text-lg font-semibold" encryptedClassName="text-lg font-semibold text-amber-500/40" />
@@ -912,7 +925,7 @@ export default function DashboardPage() {
 
         if (!briefingAgent) {
           return (
-            <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden" spotlightColor="rgba(245, 158, 11, 0.06)">
+            <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden">
               <CardHeader>
                 <CardTitle className="text-lg">
                   📋 <DecryptedText text="Daily Briefing" speed={30} maxIterations={6} animateOn="view" sequential className="text-lg font-semibold" encryptedClassName="text-lg font-semibold text-amber-500/40" />
@@ -944,7 +957,7 @@ export default function DashboardPage() {
         const totalAgents = agents.length;
 
         return (
-          <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden" spotlightColor="rgba(245, 158, 11, 0.08)">
+          <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between px-6 pt-6">
               <CardTitle className="text-lg">
                 📋 <DecryptedText text="Daily Briefing" speed={30} maxIterations={6} animateOn="view" sequential className="text-lg font-semibold" encryptedClassName="text-lg font-semibold text-amber-500/40" />
@@ -1017,16 +1030,24 @@ export default function DashboardPage() {
         );
       },
     },
-    "stat-projects": { label: "Projects", colSpan: "", render: () => <StatCard title="Projects" value={String(stats?.projectCount || 0)} icon="📁" changeLabel="active projects" change={0} /> },
-    "stat-agents": { label: "Agents", colSpan: "", render: () => <StatCard title="Agents" value={String(stats?.agentCount || 0)} icon="🤖" changeLabel="registered agents" change={0} /> },
-    "stat-active-tasks": { label: "Active Tasks", colSpan: "", render: () => <StatCard title="Active Tasks" value={String(stats?.activeTasks || 0)} icon="🎯" changeLabel="in progress" change={0} /> },
-    "stat-completed-tasks": { label: "Completed Tasks", colSpan: "", render: () => <StatCard title="Completed Tasks" value={String(stats?.completedTasks || 0)} icon="✅" changeLabel="total completed" change={0} /> },
-    "stat-open-jobs": { label: "Open Jobs", colSpan: "", render: () => <StatCard title="Open Jobs" value={String(stats?.openJobs || 0)} icon="💼" changeLabel={`${stats?.jobCount || 0} total jobs`} change={0} /> },
-    "stat-todo-tasks": { label: "Todo Tasks", colSpan: "", render: () => <StatCard title="Todo Tasks" value={String(stats?.todoTasks || 0)} icon="📝" changeLabel="pending tasks" change={0} /> },
-    "stat-total-tasks": { label: "Total Tasks", colSpan: "", render: () => <StatCard title="Total Tasks" value={String(stats?.taskCount || 0)} icon="📊" changeLabel="all tasks" change={0} /> },
-    "stat-claimed-jobs": { label: "Claimed Jobs", colSpan: "", render: () => <StatCard title="Claimed Jobs" value={String(stats?.claimedJobs || 0)} icon="🤝" changeLabel="jobs in progress" change={0} /> },
-    "stat-members": { label: "Members", colSpan: "", render: () => <StatCard title="Members" value={String(currentOrg?.members.length || 0)} icon="👥" changeLabel="org members" change={0} /> },
+    "stat-projects": { label: "Projects", colSpan: "", render: () => <StatCard title="Projects" value={String(stats?.projectCount || 0)} icon={FolderKanban} changeLabel="active projects" change={0} /> },
+    "stat-agents": { label: "Agents", colSpan: "", render: () => <StatCard title="Agents" value={String(stats?.agentCount || 0)} icon={Bot} changeLabel="registered agents" change={0} /> },
+    "stat-active-tasks": { label: "Active Tasks", colSpan: "", render: () => <StatCard title="Active Tasks" value={String(stats?.activeTasks || 0)} icon={Target} changeLabel="in progress" change={0} /> },
+    "stat-completed-tasks": { label: "Completed Tasks", colSpan: "", render: () => <StatCard title="Completed Tasks" value={String(stats?.completedTasks || 0)} icon={CheckCircle2} changeLabel="total completed" change={0} /> },
+    "stat-open-jobs": { label: "Open Jobs", colSpan: "", render: () => <StatCard title="Open Jobs" value={String(stats?.openJobs || 0)} icon={Briefcase} changeLabel={`${stats?.jobCount || 0} total jobs`} change={0} /> },
+    "stat-todo-tasks": { label: "Todo Tasks", colSpan: "", render: () => <StatCard title="Todo Tasks" value={String(stats?.todoTasks || 0)} icon={ListTodo} changeLabel="pending tasks" change={0} /> },
+    "stat-total-tasks": { label: "Total Tasks", colSpan: "", render: () => <StatCard title="Total Tasks" value={String(stats?.taskCount || 0)} icon={BarChart3} changeLabel="all tasks" change={0} /> },
+    "stat-claimed-jobs": { label: "Claimed Jobs", colSpan: "", render: () => <StatCard title="Claimed Jobs" value={String(stats?.claimedJobs || 0)} icon={Handshake} changeLabel="jobs in progress" change={0} /> },
+    "stat-members": { label: "Members", colSpan: "", render: () => <StatCard title="Members" value={String(currentOrg?.members.length || 0)} icon={Users} changeLabel="org members" change={0} /> },
   };
+
+  /* ── Greeting ── */
+  const greeting = useMemo(() => {
+    const h = new Date().getHours();
+    if (h < 12) return "Good morning";
+    if (h < 18) return "Good afternoon";
+    return "Good evening";
+  }, []);
 
   /* ── Guards ── */
 
@@ -1045,8 +1066,22 @@ export default function DashboardPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Loading...</p>
+          <h1 className="text-3xl font-bold tracking-tight">{greeting}</h1>
+          <p className="text-muted-foreground mt-1">{currentOrg.name}</p>
+        </div>
+        {/* Skeleton grid matching widget layout */}
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-4 lg:grid-cols-6 grid-flow-row-dense auto-rows-auto">
+          {/* Briefing skeleton — 3 cols */}
+          <div className="col-span-2 md:col-span-3 lg:col-span-3 h-40 rounded-lg bg-muted/30 animate-pulse" />
+          {/* 6 stat card skeletons */}
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={`sk-stat-${i}`} className="col-span-1 md:col-span-2 lg:col-span-1 h-24 rounded-lg bg-muted/30 animate-pulse" />
+          ))}
+          {/* 2 panel skeletons — 2 cols each */}
+          <div className="col-span-2 md:col-span-2 lg:col-span-2 h-52 rounded-lg bg-muted/30 animate-pulse" />
+          <div className="col-span-2 md:col-span-2 lg:col-span-1 h-52 rounded-lg bg-muted/30 animate-pulse" />
+          <div className="col-span-2 md:col-span-2 lg:col-span-2 h-52 rounded-lg bg-muted/30 animate-pulse" />
+          <div className="col-span-2 md:col-span-2 lg:col-span-1 h-52 rounded-lg bg-muted/30 animate-pulse" />
         </div>
       </div>
     );
@@ -1056,8 +1091,25 @@ export default function DashboardPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-red-500 mt-1">Error: {error}</p>
+          <h1 className="text-3xl font-bold tracking-tight">{greeting}</h1>
+          <p className="text-muted-foreground mt-1">{currentOrg.name}</p>
+        </div>
+        <div className="flex items-center justify-center py-16">
+          <div className="text-center max-w-sm">
+            <div className="p-3 rounded-full bg-red-500/10 inline-flex mb-4">
+              <X className="h-6 w-6 text-red-400" />
+            </div>
+            <h2 className="text-lg font-semibold mb-1">Failed to load dashboard</h2>
+            <p className="text-sm text-muted-foreground mb-4">{error}</p>
+            <Button
+              onClick={() => loadDashboardData(true)}
+              variant="outline"
+              className="gap-2"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Try again
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -1073,26 +1125,53 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {dashTab === "overview" && (
-        <div className="flex items-center justify-end gap-2">
-          {isCustomized && (
-            <Button variant="ghost" size="sm" onClick={resetLayout} className="text-muted-foreground hover:text-foreground gap-1.5">
-              <RotateCcw className="w-3.5 h-3.5" />
-              Reset
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={() => setShowCatalog(true)} className="gap-1.5">
-            <Plus className="w-3.5 h-3.5" />
-            Add Widget
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/swarms">Create Project</Link>
-          </Button>
-          <Button asChild className="bg-amber-600 hover:bg-amber-700 text-black">
-            <Link href="/agents">Register Agent</Link>
-          </Button>
+      {/* Dashboard header */}
+      <div className="space-y-4">
+        <div className="flex items-end justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">{greeting}</h1>
+            <p className="text-muted-foreground mt-1">{currentOrg.name}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {lastUpdated && (
+              <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+                Updated {formatRelativeTime(lastUpdated)}
+              </span>
+            )}
+            {dashTab === "overview" && (
+              <div className="flex items-center gap-2">
+                {isCustomized && (
+                  <Button variant="ghost" size="sm" onClick={resetLayout} className="text-muted-foreground hover:text-foreground gap-1.5">
+                    <RotateCcw className="w-3.5 h-3.5" /> Reset
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={() => setShowCatalog(true)} className="gap-1.5">
+                  <Plus className="w-3.5 h-3.5" /> Widgets
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
-      )}
+
+        {/* Summary stats bar */}
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: "Agents Online", value: `${onlineAgents.length}/${agents.length}`, color: onlineAgents.length > 0 ? "text-emerald-400" : "text-muted-foreground" },
+              { label: "Active Tasks", value: String(stats.activeTasks), color: stats.activeTasks > 0 ? "text-amber-400" : "text-muted-foreground" },
+              { label: "Open Jobs", value: String(stats.openJobs), color: stats.openJobs > 0 ? "text-amber-400" : "text-muted-foreground" },
+              { label: "Completion", value: `${stats.taskCount > 0 ? Math.round((stats.completedTasks / stats.taskCount) * 100) : 0}%`, color: "text-emerald-400" },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-card/50 border border-border">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{item.label}</p>
+                  <p className={`text-lg font-bold tabular-nums ${item.color}`}>{item.value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <Tabs value={dashTab} onValueChange={setDashTab}>
         <TabsList>
@@ -1213,35 +1292,39 @@ export default function DashboardPage() {
           </DialogHeader>
 
           <div className="space-y-6 pt-2">
-
-            {/* Main Widgets */}
-            <div>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Widgets</h3>
-              <div className="space-y-1">
-                {ALL_WIDGET_CATALOG.map((entry) => {
-                  const isActive = activeWidgetIds.includes(entry.id);
-                  return (
-                    <button
-                      key={entry.id}
-                      onClick={() => toggleWidget(entry.id)}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${isActive
-                        ? "bg-amber-500/10 text-foreground"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                        }`}
-                    >
-                      <span className="text-base shrink-0">{entry.icon}</span>
-                      <div className="flex-1 text-left">
-                        <p className="font-medium">{entry.label}</p>
-                        <p className="text-xs text-muted-foreground">{entry.description}</p>
-                      </div>
-                      {isActive && (
-                        <Check className="w-4 h-4 text-amber-500 shrink-0" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            {(["widgets", "stats", "integrations"] as const).map((cat) => {
+              const label = { widgets: "Widgets", stats: "Stat Cards", integrations: "Integrations" }[cat];
+              const items = ALL_WIDGET_CATALOG.filter(e => e.category === cat);
+              return (
+                <div key={cat}>
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">{label}</h3>
+                  <div className="space-y-1">
+                    {items.map((entry) => {
+                      const isActive = activeWidgetIds.includes(entry.id);
+                      return (
+                        <button
+                          key={entry.id}
+                          onClick={() => toggleWidget(entry.id)}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${isActive
+                            ? "bg-amber-500/10 text-foreground"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                            }`}
+                        >
+                          <span className="text-base shrink-0">{entry.icon}</span>
+                          <div className="flex-1 text-left">
+                            <p className="font-medium">{entry.label}</p>
+                            <p className="text-xs text-muted-foreground">{entry.description}</p>
+                          </div>
+                          {isActive && (
+                            <Check className="w-4 h-4 text-amber-500 shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </DialogContent>
       </Dialog>
