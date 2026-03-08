@@ -9,7 +9,7 @@ export default function DashboardAppLayout({ children }: { children: React.React
         <ProtectedRoute>
             <div className="min-h-screen relative bg-background">
                 <DashboardBackground />
-                <div className="relative z-10 flex flex-col min-h-screen">
+                <div className="relative z-10 flex flex-col h-screen">
                     <Header />
                     <div className="flex flex-1 overflow-hidden">
                         <Sidebar />

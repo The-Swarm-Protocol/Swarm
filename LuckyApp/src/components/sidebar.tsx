@@ -243,8 +243,8 @@ export function Sidebar() {
   const pathname = usePathname();
   const { currentOrg } = useOrg();
   const { skin } = useSkin();
-  const [collapsed, setCollapsed] = useState(false);
-  const [sections, setSections] = useState<NavSection[]>(DEFAULT_SECTIONS);
+  const [collapsed, setCollapsed] = useState(() => loadCollapsed());
+  const [sections, setSections] = useState<NavSection[]>(() => applySavedState());
   const [dragging, setDragging] = useState<DragState | null>(null);
   const [dropTarget, setDropTarget] = useState<{ sectionId: string; itemId?: string } | null>(null);
   const orgIdRef = useRef<string | null>(null);
@@ -291,7 +291,6 @@ export function Sidebar() {
   useEffect(() => {
     const orgId = currentOrg?.id ?? null;
     orgIdRef.current = orgId;
-    setCollapsed(loadCollapsed());
 
     if (!orgId) {
       setSections(applySavedState());
