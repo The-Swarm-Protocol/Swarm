@@ -27,9 +27,9 @@ import { HBAR_MANIFEST } from "./hbar";
 // Types
 // ═══════════════════════════════════════════════════════════════
 
-export type MarketItemType = "mod" | "plugin" | "skill" | "skin";
+export type MarketItemType = "mod" | "plugin" | "skill" | "skin" | "agent";
 export type MarketItemSource = "verified" | "community";
-export type PricingModel = "free" | "subscription";
+export type PricingModel = "free" | "subscription" | "purchase" | "rental" | "hire";
 export type SubscriptionPlan = "monthly" | "yearly" | "lifetime";
 
 export interface PricingTier {
@@ -237,6 +237,161 @@ export interface ResolvedCapability {
     modName: string;
     permissionScopes: PermissionScope[];
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Agent Package Standard (SAP) — Swarm Agent Package
+// ═══════════════════════════════════════════════════════════════
+
+export type AgentCategory =
+    | "trading" | "research" | "customer-support" | "governance"
+    | "security" | "compliance" | "creative" | "engineering"
+    | "analytics" | "operations" | "general";
+
+export type AgentListingStatus = "draft" | "review" | "approved" | "rejected" | "disabled";
+export type AgentDistribution = "config" | "rental" | "hire";
+export type RentalModel = "monthly" | "usage" | "performance";
+
+/** Pricing for agent marketplace — supports sale + rental + hire */
+export interface AgentPricing {
+    configPurchase?: number;
+    rentalMonthly?: number;
+    rentalUsage?: number;
+    rentalPerformance?: number;
+    hirePerTask?: number;
+    currency: "USD" | "HBAR";
+}
+
+/** Identity config — who the agent is (identity.json) */
+export interface AgentIdentityConfig {
+    agentType: string;
+    persona: string;
+    personality?: string[];
+    rules?: string[];
+    systemPrompt?: string;
+}
+
+/** Workflow definition (workflow/) */
+export interface AgentWorkflowDef {
+    id: string;
+    name: string;
+    description: string;
+    trigger: "manual" | "scheduled" | "event";
+    steps: string[];
+    cronExpression?: string;
+}
+
+/** Policy/risk config (policies/) */
+export interface AgentPolicyConfig {
+    riskLevel: "low" | "medium" | "high";
+    requiresApproval?: boolean;
+    approvalGates?: string[];
+    maxConcurrentTasks?: number;
+    spendingCapUsd?: number;
+    taskLimit?: number;
+    allowedChains?: number[];
+    allowedContracts?: string[];
+}
+
+/** Memory config (memory/) */
+export interface AgentMemoryConfig {
+    longTermMemory: boolean;
+    conversationHistory: boolean;
+    vectorStore?: boolean;
+}
+
+/** The Swarm Agent Package — full publishable agent definition */
+export interface AgentPackage {
+    id: string;
+    slug: string;
+    name: string;
+    version: string;
+    description: string;
+    longDescription?: string;
+    author: string;
+    authorWallet: string;
+    icon: string;
+    category: AgentCategory;
+    tags: string[];
+    distributions: AgentDistribution[];
+    pricing: AgentPricing;
+    identity: AgentIdentityConfig;
+    requiredSkills: string[];
+    requiredMods?: string[];
+    requiredKeys?: string[];
+    workflows?: AgentWorkflowDef[];
+    policy?: AgentPolicyConfig;
+    memory?: AgentMemoryConfig;
+    status: AgentListingStatus;
+    source: MarketItemSource;
+    publishedAt?: Date | null;
+    updatedAt?: Date | null;
+    installCount: number;
+    rentalCount: number;
+    hireCount: number;
+    avgRating: number;
+    ratingCount: number;
+    ain?: string;
+    trustScore?: number;
+    creditScore?: number;
+    fraudRisk?: "low" | "medium" | "high";
+    jobsCompleted?: number;
+    creatorRevShare: number;
+}
+
+/** Tracks a marketplace agent installation */
+export interface AgentInstall {
+    id: string;
+    packageId: string;
+    packageSlug: string;
+    orgId: string;
+    agentId: string;
+    version: string;
+    distribution: AgentDistribution;
+    installedBy: string;
+    installedAt: Date | null;
+    onChainTxHash?: string;
+    onChainRegistered: boolean;
+    ain?: string;
+    status: "active" | "stopped" | "uninstalled";
+    rentalModel?: RentalModel;
+    spendingCap?: number;
+    taskLimit?: number;
+    allowedChains?: number[];
+}
+
+/** A user review/rating */
+export interface AgentRating {
+    id: string;
+    packageId: string;
+    orgId: string;
+    reviewerWallet: string;
+    rating: number;
+    review?: string;
+    createdAt: Date | null;
+}
+
+/** Creator profile for the marketplace */
+export interface CreatorProfile {
+    id: string;
+    walletAddress: string;
+    displayName: string;
+    bio?: string;
+    avatarUrl?: string;
+    website?: string;
+    twitter?: string;
+    publishedCount: number;
+    totalInstalls: number;
+    totalRentals: number;
+    totalRevenue: number;
+    revShareRate: number;
+    createdAt: Date | null;
+}
+
+export const AGENT_CATEGORIES = [
+    "All", "Analytics", "Compliance", "Creative", "Customer Support",
+    "Engineering", "General", "Governance", "Operations", "Research",
+    "Security", "Trading",
+];
 
 // ═══════════════════════════════════════════════════════════════
 // Marketplace Registry (static — would come from API in prod)
@@ -516,6 +671,97 @@ export const SKILL_REGISTRY: Skill[] = [
         version: "1.0.0",
         author: "Swarm Core",
         tags: ["skin", "theme", "hacker", "green", "matrix", "terminal", "monochrome"],
+        pricing: { model: "free" },
+    },
+
+    // ── Agents ──
+    {
+        id: "agent-research-analyst",
+        name: "Research Analyst",
+        description: "Autonomous research agent that monitors markets, reads PDFs, searches the web, and produces structured reports with source citations.",
+        type: "agent",
+        source: "verified",
+        category: "Research",
+        icon: "🔬",
+        version: "1.2.0",
+        author: "Swarm Labs",
+        requiredKeys: ["TAVILY_API_KEY"],
+        tags: ["research", "analysis", "reports", "markets", "autonomous", "web-search"],
+        pricing: { model: "purchase" },
+    },
+    {
+        id: "agent-trading-bot",
+        name: "Trading Bot",
+        description: "DeFi trading agent with configurable strategies, risk limits, and portfolio management. Supports Hedera, Ethereum, and Base chains.",
+        type: "agent",
+        source: "verified",
+        category: "Trading",
+        icon: "📈",
+        version: "2.1.0",
+        author: "Swarm Labs",
+        requiredKeys: ["HEDERA_PRIVATE_KEY"],
+        tags: ["trading", "defi", "strategy", "portfolio", "automation", "web3"],
+        pricing: { model: "subscription", tiers: [
+            { plan: "monthly", price: 120, currency: "USD" },
+            { plan: "yearly", price: 999, currency: "USD" },
+        ]},
+    },
+    {
+        id: "agent-support",
+        name: "Support Agent",
+        description: "Customer support agent with conversation memory, ticket management, escalation workflows, and Slack integration.",
+        type: "agent",
+        source: "verified",
+        category: "Customer Support",
+        icon: "💬",
+        version: "1.0.0",
+        author: "Swarm Labs",
+        requiredKeys: ["SLACK_BOT_TOKEN"],
+        tags: ["support", "customer", "tickets", "helpdesk", "chat", "slack"],
+        pricing: { model: "subscription", tiers: [
+            { plan: "monthly", price: 9, currency: "USD" },
+        ]},
+    },
+    {
+        id: "agent-compliance",
+        name: "Compliance Monitor",
+        description: "Monitors agent activity for policy violations, spending limits, and risk flags. Integrates with ASN credit scoring and governance workflows.",
+        type: "agent",
+        source: "verified",
+        category: "Compliance",
+        icon: "🛡️",
+        version: "1.1.0",
+        author: "Swarm Labs",
+        tags: ["compliance", "risk", "policy", "monitoring", "governance", "audit"],
+        pricing: { model: "free" },
+    },
+    {
+        id: "agent-defi-arb",
+        name: "DeFi Arbitrage Agent",
+        description: "Cross-chain arbitrage agent that identifies price discrepancies across DEXs and executes profitable trades with configurable profit-share model.",
+        type: "agent",
+        source: "verified",
+        category: "Trading",
+        icon: "⚡",
+        version: "1.5.0",
+        author: "Swarm Labs",
+        requiredKeys: ["HEDERA_PRIVATE_KEY"],
+        tags: ["arbitrage", "defi", "trading", "cross-chain", "profit-share", "MEV"],
+        pricing: { model: "subscription", tiers: [
+            { plan: "monthly", price: 99, currency: "USD" },
+        ]},
+    },
+    {
+        id: "agent-security",
+        name: "Security Sentinel",
+        description: "Security monitoring agent that scans for vulnerabilities, suspicious transactions, wallet drains, and contract exploits across your swarm.",
+        type: "agent",
+        source: "verified",
+        category: "Security",
+        icon: "🔒",
+        version: "1.0.0",
+        author: "Swarm Labs",
+        tags: ["security", "monitoring", "vulnerabilities", "alerts", "protection"],
         pricing: { model: "free" },
     },
 ];
