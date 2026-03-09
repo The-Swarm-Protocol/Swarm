@@ -627,6 +627,72 @@ wss.on("connection", async (ws, _req) => {
       return;
     }
 
+    // Message acknowledgment — receiver confirms they got a message
+    if (type === "message:ack" && msg.messageId) {
+      broadcastToChannel(channelId || "", {
+        type: "message:ack",
+        messageId: msg.messageId,
+        agentId,
+        agentName,
+        ts: Date.now(),
+      }, ws);
+      return;
+    }
+
+    // Task broadcast — agent assigns work to others via a channel
+    if (type === "task:assign" && channelId) {
+      const taskPayload = {
+        type: "task:assign",
+        channelId,
+        from: agentName,
+        fromId: agentId,
+        taskId: msg.taskId || crypto.randomUUID(),
+        title: msg.title || "",
+        description: msg.description || content || "",
+        priority: msg.priority || "normal",
+        requiredSkills: msg.requiredSkills || [],
+        ts: Date.now(),
+      };
+
+      // Persist as a message so polling agents also see it
+      await persistMessage(agentId, agentName, orgId, channelId,
+        `[TASK] ${msg.title || "New task"}: ${msg.description || content || ""}`);
+
+      broadcastToChannel(channelId, taskPayload, ws);
+
+      ws.send(JSON.stringify({
+        type: "task:assigned",
+        taskId: taskPayload.taskId,
+        channelId,
+        ts: Date.now(),
+      }));
+
+      log("info", "Task broadcast", { agentId, channelId, taskId: taskPayload.taskId });
+      return;
+    }
+
+    // Task acceptance — agent confirms they're working on a broadcast task
+    if (type === "task:accept" && msg.taskId) {
+      const acceptPayload = {
+        type: "task:accepted",
+        taskId: msg.taskId,
+        agentId,
+        agentName,
+        channelId: channelId || "",
+        ts: Date.now(),
+      };
+
+      if (channelId) {
+        broadcastToChannel(channelId, acceptPayload, ws);
+        await persistMessage(agentId, agentName, orgId, channelId,
+          `[ACK] ${agentName} accepted task ${msg.taskId}`);
+      }
+
+      ws.send(JSON.stringify(acceptPayload));
+      log("info", "Task accepted", { agentId, taskId: msg.taskId });
+      return;
+    }
+
     ws.send(JSON.stringify({ error: "Invalid message type or missing fields", type: "error" }));
   });
 
