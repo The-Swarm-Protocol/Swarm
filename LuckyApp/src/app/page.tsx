@@ -1,18 +1,19 @@
 /** Landing Page — Hero section with 3D Spline robots, wallet connect CTA, and feature showcase.
- *  After wallet connection, triggers the challenge/sign flow to create a durable server session. */
+ *  Uses thirdweb's built-in ConnectButton auth prop for SIWE sign-in. */
 "use client";
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ConnectButton, useActiveAccount } from "thirdweb/react";
+import { ConnectButton } from "thirdweb/react";
 import { createThirdwebClient } from "thirdweb";
 import { WALLET_CHAINS } from "@/lib/chains";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect, Suspense, lazy, useRef, useCallback } from "react";
+import { useState, useEffect, Suspense, lazy, useRef } from "react";
 import Image from "next/image";
-import { ArrowRight, Sun, Moon, Loader2 } from "lucide-react";
+import { ArrowRight, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useSession } from "@/contexts/SessionContext";
+import { useThirdwebAuth } from "@/hooks/useThirdwebAuth";
 
 const Spline = lazy(() => import('@splinetool/react-spline'));
 
@@ -24,18 +25,13 @@ const client = createThirdwebClient({
 const ROBOT_COUNT = 3;
 
 export default function LandingPage() {
-  const account = useActiveAccount();
   const router = useRouter();
   const searchParams = useSearchParams();
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const { authenticated, requestChallenge, verifyChallenge } = useSession();
-  const [signingIn, setSigningIn] = useState(false);
-  const [signError, setSignError] = useState<string | null>(null);
-  const challengeStarted = useRef(false);
-  const accountRef = useRef(account);
-  accountRef.current = account;
+  const { authenticated } = useSession();
+  const authConfig = useThirdwebAuth();
 
   useEffect(() => setMounted(true), []);
 
@@ -47,82 +43,6 @@ export default function LandingPage() {
       return () => clearTimeout(timer);
     }
   }, [authenticated, router, searchParams]);
-
-  // Trigger wallet challenge flow when wallet connects
-  const startChallengeFlow = useCallback(async (address: string) => {
-    if (challengeStarted.current) return;
-    challengeStarted.current = true;
-    setSigningIn(true);
-    setSignError(null);
-
-    try {
-      // 0. Verify wallet is fully connected and can actually sign
-      const preCheck = accountRef.current;
-      if (!preCheck?.signMessage || !preCheck?.address) {
-        throw new Error("Wallet not fully connected yet. Please try again.");
-      }
-
-      // Double-check the address matches what we expect
-      if (preCheck.address.toLowerCase() !== address.toLowerCase()) {
-        throw new Error("Wallet address changed during connection. Please try again.");
-      }
-
-      // 1. Request nonce from server
-      const { message } = await requestChallenge(address);
-
-      // 2. Sign the message with wallet (read live ref, not stale closure)
-      const liveAccount = accountRef.current;
-      if (!liveAccount?.signMessage) throw new Error("Wallet disconnected during signing");
-
-      const signature = await liveAccount.signMessage({ message });
-
-      // 3. Verify signature on server (creates session + sets cookie)
-      const success = await verifyChallenge(address, signature, message);
-
-      if (!success) {
-        setSignError("Verification failed. Please try again.");
-        challengeStarted.current = false;
-      }
-      // On success, the useEffect above will redirect to dashboard
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Sign-in failed";
-      console.error("[Swarm] Challenge flow error:", msg);
-      if (msg.includes("rejected") || msg.includes("denied") || msg.includes("cancelled")) {
-        setSignError("Signature declined. Click below to try again.");
-      } else {
-        setSignError(msg);
-      }
-      challengeStarted.current = false;
-    } finally {
-      setSigningIn(false);
-    }
-  }, [requestChallenge, verifyChallenge]);
-
-  // When wallet connects, start challenge flow (once).
-  // Debounce by 3s so thirdweb auto-connect can fully settle —
-  // auto-connect flickers the account (appear → disappear → reappear)
-  // as it resolves wallets, especially Coinbase Wallet SDK which throws
-  // "connect() before enable()" during initialization.
-  useEffect(() => {
-    if (!account?.address || authenticated || challengeStarted.current) return;
-
-    const timer = setTimeout(() => {
-      // Re-check after debounce: account might have disappeared during auto-connect flicker
-      const live = accountRef.current;
-      if (live?.address && !challengeStarted.current) {
-        startChallengeFlow(live.address);
-      }
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, [account?.address, authenticated, startChallengeFlow]);
-
-  // Reset when wallet disconnects so reconnecting works
-  useEffect(() => {
-    if (!account) {
-      challengeStarted.current = false;
-    }
-  }, [account]);
 
   const handleRobotLoad = (index: number) => (spline: any) => {
     canvasRefs.current[index] = spline.canvas ?? spline._canvas ?? null;
@@ -169,7 +89,7 @@ export default function LandingPage() {
                 {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </button>
             )}
-            <ConnectButton client={client} chains={WALLET_CHAINS} />
+            <ConnectButton client={client} chains={WALLET_CHAINS} auth={authConfig} />
           </div>
         </div>
       </header>
@@ -237,14 +157,7 @@ export default function LandingPage() {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6 animate-in delay-300 pointer-events-auto">
-              {signingIn ? (
-                <div className="flex items-center gap-3 px-6 py-3 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm font-medium">Verifying wallet...</span>
-                </div>
-              ) : (
-                <ConnectButton client={client} chains={WALLET_CHAINS} />
-              )}
+              <ConnectButton client={client} chains={WALLET_CHAINS} auth={authConfig} />
               <Link href="/docs">
                 <Button variant="outline" size="lg" className="h-12 px-8 rounded-full border-white/10 hover:bg-white/5 group bg-black/20">
                   Read the Docs
@@ -252,22 +165,6 @@ export default function LandingPage() {
                 </Button>
               </Link>
             </div>
-
-            {signError && (
-              <div className="mt-4 pointer-events-auto">
-                <p className="text-sm text-red-400">{signError}</p>
-                <button
-                  onClick={() => {
-                    setSignError(null);
-                    challengeStarted.current = false;
-                    if (account?.address) startChallengeFlow(account.address);
-                  }}
-                  className="mt-2 text-xs text-amber-400 hover:text-amber-300 underline"
-                >
-                  Try again
-                </button>
-              </div>
-            )}
           </div>
         </section>
 
@@ -276,7 +173,7 @@ export default function LandingPage() {
           <div className="max-w-4xl mx-auto px-6 text-center">
             <h2 className="text-4xl font-bold text-white mb-6 tracking-tight">Ready to orchestrate your fleet?</h2>
             <div className="flex justify-center">
-              <ConnectButton client={client} chains={WALLET_CHAINS} />
+              <ConnectButton client={client} chains={WALLET_CHAINS} auth={authConfig} />
             </div>
           </div>
         </section>

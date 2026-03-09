@@ -1,19 +1,16 @@
 /**
  * POST /api/auth/verify
- * Verifies a signed wallet challenge and creates a session.
- * Body: { address: string, signature: string, message: string }
+ * Verifies a signed thirdweb SIWE login payload and creates a session.
+ * Body: { payload: LoginPayload, signature: string }
  * Returns: { success: true, session: { address, role } }
  * Sets: httpOnly cookie `swarm_session`
  *
- * Uses viem for signature verification — same library thirdweb v5 uses
- * internally, ensuring compatibility across all wallet types (EOA,
- * in-app, smart account).
+ * Called by ConnectButton's auth.doLogin callback.
+ * Uses thirdweb's verifyPayload which handles both EOA and smart account
+ * signatures (EIP-1271) automatically.
  */
-import { NextRequest } from "next/server";
-import { verifyMessage } from "viem";
-import { getAddress } from "viem";
+import { thirdwebAuth } from "../thirdweb-auth";
 import {
-  consumeNonce,
   resolveRole,
   createSession,
   signSessionJWT,
@@ -21,82 +18,44 @@ import {
 } from "@/lib/session";
 import { getOrganizationsByWallet } from "@/lib/firestore";
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { address, signature, message } = body;
+    const { payload, signature } = body;
 
-    if (!address || !signature || !message) {
+    if (!payload || !signature) {
       return Response.json(
-        { error: "address, signature, and message are required" },
+        { error: "payload and signature are required" },
         { status: 400 }
       );
     }
 
-    // 1. Verify the nonce hasn't expired and exists
-    let storedNonce: string | null;
+    // 1. Verify the signed payload using thirdweb auth
+    //    This checks: domain, statement, nonce, expiration, and signature
+    let result;
     try {
-      storedNonce = await consumeNonce(address);
+      result = await thirdwebAuth.verifyPayload({ payload, signature });
     } catch (err) {
-      console.error("[auth/verify] consumeNonce error:", err);
+      console.error("[auth/verify] verifyPayload error:", err);
       return Response.json(
-        { error: "Failed to validate nonce. Please try again." },
-        { status: 500 }
-      );
-    }
-
-    if (!storedNonce) {
-      return Response.json(
-        { error: "Nonce expired or invalid. Request a new challenge." },
+        { error: "Signature verification failed" },
         { status: 401 }
       );
     }
 
-    // 2. Verify the signed message contains the correct nonce
-    if (!message.includes(storedNonce)) {
+    if (!result.valid) {
       return Response.json(
-        { error: "Message does not match the issued challenge" },
+        { error: result.error || "Invalid signature" },
         { status: 401 }
       );
     }
 
-    // 3. Verify signature using viem (matches thirdweb's signing)
-    let checksummed: string;
-    try {
-      checksummed = getAddress(address);
-    } catch {
-      return Response.json(
-        { error: "Invalid wallet address format" },
-        { status: 400 }
-      );
-    }
+    const address = result.payload.address;
 
-    let valid: boolean;
-    try {
-      valid = await verifyMessage({
-        address: checksummed as `0x${string}`,
-        message,
-        signature: signature as `0x${string}`,
-      });
-    } catch (err) {
-      console.error("[auth/verify] Signature verification error:", err);
-      return Response.json(
-        { error: "Invalid signature format" },
-        { status: 401 }
-      );
-    }
-
-    if (!valid) {
-      return Response.json(
-        { error: "Signature does not match the claimed address" },
-        { status: 401 }
-      );
-    }
-
-    // 4. Determine role based on org ownership
+    // 2. Determine role based on org ownership
     let orgs;
     try {
-      orgs = await getOrganizationsByWallet(checksummed);
+      orgs = await getOrganizationsByWallet(address);
     } catch (err) {
       console.error("[auth/verify] getOrganizationsByWallet error:", err);
       return Response.json(
@@ -107,16 +66,16 @@ export async function POST(req: NextRequest) {
 
     const ownedOrgIds = orgs
       .filter(
-        (o) => o.ownerAddress.toLowerCase() === checksummed.toLowerCase()
+        (o) => o.ownerAddress.toLowerCase() === address.toLowerCase()
       )
       .map((o) => o.id);
 
-    const role = resolveRole(checksummed, ownedOrgIds);
+    const role = resolveRole(address, ownedOrgIds);
 
-    // 5. Create Firestore session + JWT
+    // 3. Create Firestore session + JWT
     let sessionId: string;
     try {
-      sessionId = await createSession(checksummed, role);
+      sessionId = await createSession(address, role);
     } catch (err) {
       console.error("[auth/verify] createSession error:", err);
       return Response.json(
@@ -127,7 +86,7 @@ export async function POST(req: NextRequest) {
 
     let token: string;
     try {
-      token = await signSessionJWT(checksummed, sessionId, role);
+      token = await signSessionJWT(address, sessionId, role);
     } catch (err) {
       console.error("[auth/verify] signSessionJWT error:", err);
       return Response.json(
@@ -136,19 +95,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 6. Set httpOnly cookie
+    // 4. Set httpOnly cookie
     try {
       await setSessionCookie(token);
     } catch (err) {
       console.error("[auth/verify] setSessionCookie error:", err);
-      // Cookie setting failed but session exists — return success anyway
-      // so the client can retry with a session refresh
+      // Cookie setting failed but session exists — still return success
     }
 
     return Response.json({
       success: true,
       session: {
-        address: checksummed,
+        address,
         role,
       },
     });
