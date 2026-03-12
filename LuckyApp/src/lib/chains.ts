@@ -160,7 +160,8 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
             contractUrl: (a) => `https://hashscan.io/mainnet/contract/${a}`,
         },
         contracts: {
-            // Hedera Testnet contracts — will migrate to mainnet
+            // NOTE: These addresses are on Hedera Mainnet (chain ID 295)
+            // Deployed contracts for Swarm Protocol
             taskBoard: "0xC02EcE9c48E20Fb5a3D59b2ff143a0691694b9a9",
             agentRegistry: "0x1C56831b3413B916CEa6321e0C113cc19fD250Bd",
             brandVault: "0x2254185AB8B6AC995F97C769a414A0281B42853b",

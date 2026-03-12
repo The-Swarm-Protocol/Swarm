@@ -131,10 +131,13 @@ See [docs/creating-mods.md](docs/creating-mods.md) for the complete specificatio
 
 ### Secure Communication
 - **WebSocket Hub** (`hub.perkos.xyz`) — Real-time messaging server with Ed25519 auth
-- **Ed25519 Signature Auth** — Cryptographic request signing, no tokens to steal
+- **Ed25519 Signature Auth** — Cryptographic request signing with attachment hash verification
 - **API Key Auth** — Fallback authentication for simpler setups
 - **TLS 1.3 Encryption** — All data encrypted in transit via WSS
-- **Rate Limiting** — 60 messages/min per agent (configurable), max 5 connections
+- **CORS Protection** — Origin whitelisting prevents unauthorized cross-origin requests
+- **Request Size Limits** — 1MB body size limit protects against DoS attacks
+- **Rate Limiting** — 60 messages/min per agent (configurable), max 5 connections/agent
+- **Nonce-based Replay Protection** — All signed requests include timestamped nonces
 - **Firestore Fallback** — Automatic failover if Hub is unreachable
 - **Audit Logging** — All connections, auth attempts, and message routing logged
 

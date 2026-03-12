@@ -5,6 +5,7 @@ import { ThirdwebProvider, AutoConnect } from 'thirdweb/react';
 import { createThirdwebClient } from 'thirdweb';
 import { createWallet, inAppWallet } from 'thirdweb/wallets';
 import { installFetchInterceptor } from './fetch-interceptor';
+import { debug } from './debug';
 
 const client = createThirdwebClient({
   clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || '510999ec2be00a99e36ab07b36f15a72',
@@ -37,12 +38,12 @@ export function Web3ProviderInner({ children }: { children: React.ReactNode }) {
 
   // Catch known thirdweb SDK auto-connect errors that fire during
   // wallet reconnection when the previous session is stale.
-  // Log them visibly so they can be debugged, but prevent them from crashing the app.
+  // Suppress them to prevent app crashes (only log in dev mode).
   useEffect(() => {
     const handler = (e: PromiseRejectionEvent) => {
       const msg = String(e.reason?.message || e.reason || '');
       if (SUPPRESSED_PATTERNS.some((p) => msg.includes(p))) {
-        console.warn('[Swarm] AutoConnect issue (non-fatal):', msg);
+        debug.warn('[Swarm] AutoConnect issue (non-fatal):', msg);
         e.preventDefault();
       }
     };
