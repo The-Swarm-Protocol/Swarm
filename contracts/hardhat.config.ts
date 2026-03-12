@@ -3,7 +3,15 @@ import "@nomicfoundation/hardhat-toolbox";
 import "dotenv/config";
 
 const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com";
-const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000001";
+
+// Security: Fail fast if deployer key is missing - never use fallback keys
+if (!process.env.DEPLOYER_PRIVATE_KEY) {
+  throw new Error(
+    "DEPLOYER_PRIVATE_KEY must be set in .env file. Never deploy with a fallback key!"
+  );
+}
+const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
+
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
 
 const config: HardhatUserConfig = {

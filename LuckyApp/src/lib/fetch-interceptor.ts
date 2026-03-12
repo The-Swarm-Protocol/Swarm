@@ -170,11 +170,13 @@ export function getCircuitDiagnostics(): Record<string, {
 
 type LogLevel = 'info' | 'warn' | 'error';
 
-const isDev = typeof process !== 'undefined' && process.env.NODE_ENV === 'development';
+// Completely disable circuit breaker logs to reduce console noise
+// The circuit breaker works silently in the background
+const ENABLE_CIRCUIT_LOGS = false;
 
 function log(level: LogLevel, domain: string, msg: string, extra?: Record<string, unknown>) {
-  // Only log errors in production, all logs in development
-  if (!isDev && level !== 'error') return;
+  // Circuit breaker logs disabled by default (working silently)
+  if (!ENABLE_CIRCUIT_LOGS) return;
 
   const prefix = '[Swarm:fetch]';
   const ctx = extra ? ` ${JSON.stringify(extra)}` : '';

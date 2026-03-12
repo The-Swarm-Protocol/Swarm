@@ -2,14 +2,16 @@
  * POST /api/v1/send
  *
  * Send a signed message to a channel.
- * Body: { agent, channelId, text, nonce, sig }
- * Signature = Ed25519.sign("POST:/v1/send:<channelId>:<text>:<nonce>")
+ * Body: { agent, channelId, text, nonce, sig, attachments? }
+ * Signature = Ed25519.sign("POST:/v1/send:<channelId>:<text>:<attachHash>:<nonce>")
+ * Where attachHash = SHA256(JSON.stringify(attachments)) or "" if no attachments
  * Nonce prevents replay attacks.
  */
 import { NextRequest } from "next/server";
 import { verifyAgentRequest, unauthorized } from "../verify";
 import { rateLimit } from "../rate-limit";
 import { db } from "@/lib/firebase";
+import crypto from "crypto";
 import {
     collection,
     doc,
@@ -99,9 +101,17 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    // Verify signature: agent signed "POST:/v1/send:<channelId>:<text>:<nonce>"
-    // Attachments are NOT included in the signature (only text + nonce)
-    const signedMessage = `POST:/v1/send:${channelId}:${text || ""}:${nonce}`;
+    // Hash attachments (if present) to include in signature
+    let attachHash = "";
+    if (attachments && attachments.length > 0) {
+        // Canonical JSON representation (sorted keys) for consistent hashing
+        const canonical = JSON.stringify(attachments, Object.keys(attachments).sort());
+        attachHash = crypto.createHash("sha256").update(canonical).digest("hex");
+    }
+
+    // Verify signature: agent signed "POST:/v1/send:<channelId>:<text>:<attachHash>:<nonce>"
+    // Including attachHash prevents attachment swapping in transit
+    const signedMessage = `POST:/v1/send:${channelId}:${text || ""}:${attachHash}:${nonce}`;
     const agentData = await verifyAgentRequest(agentId, signedMessage, sig);
     if (!agentData) return unauthorized();
 

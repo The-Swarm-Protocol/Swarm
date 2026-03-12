@@ -4,6 +4,18 @@ import http from "http";
 import { WebSocketServer } from "ws";
 import cors from "cors";
 import crypto from "crypto";
+
+/**
+ * SECURITY NOTE: This hub currently uses the Firebase client SDK instead of
+ * the Firebase Admin SDK. For production deployments, migrate to firebase-admin
+ * to avoid exposing API keys and to get better server-side performance.
+ *
+ * Migration steps:
+ * 1. npm install firebase-admin
+ * 2. Replace these imports with: import admin from 'firebase-admin';
+ * 3. Add FIREBASE_SERVICE_ACCOUNT env var (base64 JSON service account key)
+ * 4. Initialize with: admin.initializeApp({ credential: admin.credential.cert(...) })
+ */
 import { initializeApp } from "firebase/app";
 import {
   getFirestore,
@@ -373,8 +385,29 @@ async function replayChannel(ws, channelId, channelName, agentId, sinceMs) {
 
 // ── Express ─────────────────────────────────────────────────────────────────
 const app = express();
-app.use(cors());
-app.use(express.json());
+
+// Security: Lock down CORS to only allow requests from the main app
+const ALLOWED_ORIGINS = optionalEnv("ALLOWED_ORIGINS", "https://swarm.perkos.xyz,http://localhost:3000")
+  .split(",")
+  .map(o => o.trim());
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+
+    if (ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      log("warn", "CORS blocked origin", { origin });
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+}));
+
+// Security: Limit request body size to prevent DoS attacks (1MB max)
+app.use(express.json({ limit: "1mb" }));
 
 // GET /health
 app.get("/health", (_req, res) => {

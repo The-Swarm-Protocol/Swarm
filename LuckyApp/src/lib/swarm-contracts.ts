@@ -1,13 +1,11 @@
 /**
- * BrandMover Swarm Contracts — Multi-Chain
+ * Swarm Protocol Contracts — Multi-Chain
  *
  * Contract addresses, ABIs, types, and helpers for interacting
  * with the SwarmTaskBoard and SwarmAgentRegistry.
  *
  * Chain config is centralized in @/lib/chains.ts.
  * This file re-exports contract-specific helpers.
- *
- * Playbook API: https://frontend-blue-one-76.vercel.app/api/agent-playbook
  */
 
 import {
@@ -21,7 +19,7 @@ import {
 } from "./chains";
 
 // ============================================================
-// Network Config — defaults to Ethereum Mainnet
+// Default Config — used for on-chain agent registration
 // ============================================================
 
 export const DEFAULT_RPC_URL = "https://ethereum-rpc.publicnode.com";
@@ -29,9 +27,7 @@ export const DEFAULT_CHAIN_ID = 1;
 export const EXPLORER_BASE = "https://etherscan.io";
 export const DEFAULT_GAS_LIMIT = 3_000_000;
 
-// Backwards-compat aliases
-export const HEDERA_RPC_URL = DEFAULT_RPC_URL;
-export const HEDERA_CHAIN_ID = DEFAULT_CHAIN_ID;
+// Hedera-specific gas limit for agent registration (high gas due to on-chain storage)
 export const HEDERA_GAS_LIMIT = DEFAULT_GAS_LIMIT;
 
 // ============================================================

@@ -11,6 +11,7 @@
  */
 import { NextRequest } from "next/server";
 import { ethers } from "ethers";
+import crypto from "crypto";
 import { PLATFORM_BRIEFING } from "../briefing";
 import { getAgentAvatarUrl } from "@/lib/agent-avatar";
 import { agentCheckIn, getOrganization, type Agent } from "@/lib/firestore";
@@ -36,11 +37,31 @@ import {
 
 const HEDERA_TESTNET_RPC = "https://testnet.hashio.io/api";
 
+/**
+ * Derive a deterministic Ethereum address from an Ed25519 public key.
+ * This ensures each agent gets a unique on-chain identity.
+ */
+function deriveAgentAddress(publicKeyPem: string): string {
+    // Extract the raw key bytes from PEM format
+    const pemContent = publicKeyPem
+        .replace(/-----BEGIN PUBLIC KEY-----/, '')
+        .replace(/-----END PUBLIC KEY-----/, '')
+        .replace(/\s/g, '');
+    const keyBytes = Buffer.from(pemContent, 'base64');
+
+    // Hash the public key with keccak256
+    const hash = ethers.keccak256(keyBytes);
+
+    // Take last 20 bytes as Ethereum address
+    return ethers.getAddress('0x' + hash.slice(-40));
+}
+
 /** Attempt on-chain registration on Hedera Testnet using platform wallet */
 async function registerOnChain(
     agentName: string,
     asn: string,
     skills: string,
+    publicKey: string,
 ): Promise<{ txHash: string } | null> {
     const privateKey = process.env.HEDERA_PLATFORM_KEY;
     if (!privateKey) return null;
@@ -48,8 +69,15 @@ async function registerOnChain(
         const provider = new ethers.JsonRpcProvider(HEDERA_TESTNET_RPC);
         const wallet = new ethers.Wallet(privateKey, provider);
         const registry = new ethers.Contract(CONTRACTS.AGENT_REGISTRY, AGENT_REGISTRY_ABI, wallet);
+
+        // Derive unique agent address from public key
+        const agentAddress = deriveAgentAddress(publicKey);
+
+        // Note: Hedera AgentRegistry.registerAgent uses msg.sender, so we register
+        // with agent metadata but the platform wallet will be recorded as owner.
+        // To fix this properly, the contract would need a registerAgentFor method.
         const tx = await registry.registerAgent(
-            `${agentName} | ${asn}`,
+            `${agentName} | ${asn} | ${agentAddress}`,
             skills,
             0,
             { gasLimit: HEDERA_GAS_LIMIT, type: 0 },
@@ -67,6 +95,7 @@ async function registerOnChainLink(
     agentName: string,
     asn: string,
     skills: string,
+    publicKey: string,
 ): Promise<{ txHash: string } | null> {
     const privateKey = process.env.SEPOLIA_PLATFORM_KEY;
     if (!privateKey || !LINK_CONTRACTS.AGENT_REGISTRY) return null;
@@ -78,8 +107,13 @@ async function registerOnChainLink(
             LINK_AGENT_REGISTRY_ABI,
             wallet,
         );
+
+        // Derive unique agent address from public key
+        const agentAddress = deriveAgentAddress(publicKey);
+
+        // Register agent with unique derived address instead of platform wallet
         const tx = await registry.registerAgentFor(
-            wallet.address,
+            agentAddress,
             `${agentName} | ${asn}`,
             skills,
             asn,
@@ -98,6 +132,7 @@ async function registerASNOnChain(
     asn: string,
     agentName: string,
     agentType: string,
+    publicKey: string,
 ): Promise<{ txHash: string } | null> {
     const privateKey = process.env.SEPOLIA_PLATFORM_KEY;
     if (!privateKey || !LINK_CONTRACTS.ASN_REGISTRY) return null;
@@ -109,8 +144,13 @@ async function registerASNOnChain(
             LINK_ASN_REGISTRY_ABI,
             wallet,
         );
+
+        // Derive unique agent address from public key
+        const agentAddress = deriveAgentAddress(publicKey);
+
+        // Register ASN with unique derived address instead of platform wallet
         const tx = await asnRegistry.registerASNFor(
-            wallet.address,
+            agentAddress,
             asn,
             agentName,
             agentType,
@@ -201,6 +241,10 @@ export async function POST(request: NextRequest) {
 
             // Backfill ASN if agent doesn't have one yet
             const existingAsn = existingData.asn || generateASN();
+
+            // Derive agent address from public key (or backfill if missing)
+            const agentAddress = existingData.agentAddress || deriveAgentAddress(publicKey);
+
             const updates: Record<string, unknown> = {
                 status: "online",
                 lastSeen: serverTimestamp(),
@@ -213,6 +257,9 @@ export async function POST(request: NextRequest) {
                 updates.creditScore = existingData.creditScore ?? 680;
                 updates.trustScore = existingData.trustScore ?? 50;
             }
+            if (!existingData.agentAddress) {
+                updates.agentAddress = agentAddress;
+            }
             await updateDoc(doc(db, "agents", existingDoc.id), updates);
 
             // Post check-in greeting to Agent Hub
@@ -222,6 +269,7 @@ export async function POST(request: NextRequest) {
             return Response.json({
                 agentId: existingDoc.id,
                 agentName: existingData.name || agentName,
+                agentAddress,
                 asn: existingAsn,
                 registered: true,
                 existing: true,
@@ -246,8 +294,13 @@ export async function POST(request: NextRequest) {
 
             // Backfill ASN if agent doesn't have one yet
             const matchedAsn = matchedData.asn || generateASN();
+
+            // Derive new agent address from updated public key
+            const agentAddress = deriveAgentAddress(publicKey);
+
             const nameUpdates: Record<string, unknown> = {
                 publicKey,
+                agentAddress, // Update address when key changes
                 status: "online",
                 lastSeen: serverTimestamp(),
                 connectionType: "ed25519",
@@ -268,6 +321,7 @@ export async function POST(request: NextRequest) {
             return Response.json({
                 agentId: matchedDoc.id,
                 agentName: matchedData.name || agentName,
+                agentAddress,
                 asn: matchedAsn,
                 registered: true,
                 existing: true,
@@ -280,12 +334,16 @@ export async function POST(request: NextRequest) {
         const asn = generateASN();
         const skillStr = skills.map(s => s.name).join(",") || "general";
 
+        // Derive unique on-chain address from public key
+        const agentAddress = deriveAgentAddress(publicKey);
+
         const ref = await addDoc(collection(db, "agents"), {
             name: agentName,
             type: agentType || "agent",
             orgId,
             organizationId: orgId,
             publicKey,
+            agentAddress, // Derived Ethereum address for on-chain identity
             status: "online",
             connectionType: "ed25519",
             capabilities: [],
@@ -303,7 +361,7 @@ export async function POST(request: NextRequest) {
         });
 
         // Attempt on-chain registration on Hedera Testnet (non-blocking)
-        registerOnChain(agentName, asn, skillStr).then(async (result) => {
+        registerOnChain(agentName, asn, skillStr, publicKey).then(async (result) => {
             if (result) {
                 await updateDoc(doc(db, "agents", ref.id), {
                     onChainTxHash: result.txHash,
@@ -313,7 +371,7 @@ export async function POST(request: NextRequest) {
         }).catch(() => {});
 
         // Attempt on-chain registration on Ethereum Sepolia / LINK (non-blocking)
-        registerOnChainLink(agentName, asn, skillStr).then(async (result) => {
+        registerOnChainLink(agentName, asn, skillStr, publicKey).then(async (result) => {
             if (result) {
                 await updateDoc(doc(db, "agents", ref.id), {
                     linkOnChainTxHash: result.txHash,
@@ -323,7 +381,7 @@ export async function POST(request: NextRequest) {
         }).catch(() => {});
 
         // Register ASN on-chain via SwarmASNRegistry on Sepolia (non-blocking)
-        registerASNOnChain(asn, agentName, agentType || "agent").then(async (result) => {
+        registerASNOnChain(asn, agentName, agentType || "agent", publicKey).then(async (result) => {
             if (result) {
                 await updateDoc(doc(db, "agents", ref.id), {
                     asnOnChainTxHash: result.txHash,
@@ -339,6 +397,7 @@ export async function POST(request: NextRequest) {
         return Response.json({
             agentId: ref.id,
             agentName,
+            agentAddress,
             asn,
             registered: true,
             existing: false,
