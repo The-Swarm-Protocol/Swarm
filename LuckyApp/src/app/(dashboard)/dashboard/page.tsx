@@ -179,7 +179,6 @@ const ALL_WIDGET_CATALOG: WidgetCatalogEntry[] = [
 
 const DEFAULT_ACTIVE_WIDGETS = [
   "widget-daily-briefing",
-  "stat-projects", "stat-agents", "stat-active-tasks", "stat-open-jobs",
   "widget-recent-tasks", "widget-quick-actions",
   "widget-recent-jobs", "widget-org-info",
   "widget-agent-status", "widget-task-breakdown",
