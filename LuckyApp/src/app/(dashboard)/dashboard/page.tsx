@@ -134,6 +134,9 @@ function saveJSON(key: string, val: unknown) {
 import { UsageWidget } from "@/components/usage-widget";
 import { LiveFeedWidget } from "@/components/live-feed-widget";
 import { CronWidget } from "@/components/cron-widget";
+import AgentMessagesWidget from "@/components/agent-messages-widget";
+import AgentSessionsWidget from "@/components/agent-sessions-widget";
+import CoordinatorDashboardWidget from "@/components/coordinator-dashboard-widget";
 
 interface WidgetCatalogEntry {
   id: string;
@@ -169,6 +172,9 @@ const ALL_WIDGET_CATALOG: WidgetCatalogEntry[] = [
   { id: "widget-llm-usage", icon: "💰", label: "API Usage & Costs", description: "Live tracking of LLM token costs & rate limits", colSpan: "lg:col-span-2", category: "integrations" },
   { id: "widget-live-stream", icon: "Terminal", label: "Live Feed Stream", description: "Raw I/O stream of agent messages", colSpan: "lg:col-span-2", category: "integrations" },
   { id: "widget-cron-jobs", icon: "🕒", label: "Cron Jobs", description: "Manage background scheduled agent tasks", colSpan: "lg:col-span-2", category: "integrations" },
+  { id: "widget-agent-messages", icon: "💬", label: "Agent Messages", description: "Structured agent-to-agent messages (a2a, coord, session)", colSpan: "lg:col-span-2", category: "integrations" },
+  { id: "widget-agent-sessions", icon: "🔄", label: "Agent Sessions", description: "Active workflow sessions with multi-agent coordination", colSpan: "lg:col-span-2", category: "integrations" },
+  { id: "widget-coordinators", icon: "🎯", label: "Coordinators", description: "Registered coordinator agents and their load status", colSpan: "lg:col-span-2", category: "integrations" },
 ];
 
 const DEFAULT_ACTIVE_WIDGETS = [
@@ -915,6 +921,65 @@ export default function DashboardPage() {
       label: "Cron Jobs",
       colSpan: "lg:col-span-2",
       render: () => <CronWidget />,
+    },
+    "widget-agent-messages": {
+      label: "Agent Messages",
+      colSpan: "lg:col-span-2",
+      render: () => {
+        // Get current user's agent (if any)
+        const userAgent = agents.find(a => a.walletAddress === account?.address);
+        if (!userAgent || !currentOrg) {
+          return (
+            <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden">
+              <CardHeader className="px-4 pt-4 pb-2">
+                <CardTitle className="text-sm">💬 Agent Messages</CardTitle>
+              </CardHeader>
+              <CardContent className="px-3 pb-3">
+                <div className="text-center py-4 text-muted-foreground">
+                  <p className="text-sm">Register as an agent to view messages</p>
+                  <Button asChild variant="outline" size="sm" className="mt-2">
+                    <Link href="/agents">Register Agent</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </SpotlightCard>
+          );
+        }
+        return <AgentMessagesWidget agentId={userAgent.id} orgId={currentOrg.id} />;
+      },
+    },
+    "widget-agent-sessions": {
+      label: "Agent Sessions",
+      colSpan: "lg:col-span-2",
+      render: () => {
+        const userAgent = agents.find(a => a.walletAddress === account?.address);
+        if (!userAgent || !currentOrg) {
+          return (
+            <SpotlightCard className="p-0 glass-card-enhanced h-full overflow-hidden">
+              <CardHeader className="px-4 pt-4 pb-2">
+                <CardTitle className="text-sm">🔄 Agent Sessions</CardTitle>
+              </CardHeader>
+              <CardContent className="px-3 pb-3">
+                <div className="text-center py-4 text-muted-foreground">
+                  <p className="text-sm">Register as an agent to view sessions</p>
+                  <Button asChild variant="outline" size="sm" className="mt-2">
+                    <Link href="/agents">Register Agent</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </SpotlightCard>
+          );
+        }
+        return <AgentSessionsWidget agentId={userAgent.id} orgId={currentOrg.id} />;
+      },
+    },
+    "widget-coordinators": {
+      label: "Coordinators",
+      colSpan: "lg:col-span-2",
+      render: () => {
+        if (!currentOrg) return null;
+        return <CoordinatorDashboardWidget orgId={currentOrg.id} />;
+      },
     },
     "widget-daily-briefing": {
       label: "Daily Briefing",
