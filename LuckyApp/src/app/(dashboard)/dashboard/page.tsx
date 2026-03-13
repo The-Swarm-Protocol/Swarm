@@ -1228,7 +1228,7 @@ export default function DashboardPage() {
 
             {/* ═══ Draggable Main Widgets ═══ */}
             {widgetOrder.length > 0 && (
-              <div className="grid gap-1 grid-cols-2 md:grid-cols-4 lg:grid-cols-6 grid-flow-dense" style={{ gridAutoRows: '120px' }}>
+              <div className="grid gap-1 grid-cols-2 md:grid-cols-4 lg:grid-cols-6 grid-flow-row-dense auto-rows-auto">
                 {widgetOrder.map((id, index) => {
                   const widget = widgetRenderers[id];
                   if (!widget) return null;
