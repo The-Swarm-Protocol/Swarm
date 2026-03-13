@@ -1,7 +1,7 @@
 /**
  * POST /api/auth/verify
- * Creates a session for the given wallet address.
- * Body: { address: string }
+ * Verifies a signed SIWE payload and creates an authenticated session.
+ * Body: { payload: LoginPayload, signature: string }
  * Returns: { success: true, session: { address, role } }
  * Sets: httpOnly cookie `swarm_session`
  */
@@ -14,6 +14,7 @@ import {
 import { getOrganizationsByWallet } from "@/lib/firestore";
 import { getCachedOrgs, cacheOrgs } from "@/lib/org-cache";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit-firestore";
+import { getThirdwebAuth, getDomainFromRequest } from "../thirdweb-auth";
 
 export async function POST(req: Request) {
   try {
@@ -43,14 +44,41 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const address = (body.address ?? body.payload?.address ?? "").trim();
+    const { payload, signature } = body;
 
-    if (!address || typeof address !== "string") {
+    if (!payload) {
       return Response.json(
-        { error: "address is required" },
+        { error: "payload is required" },
         { status: 400 }
       );
     }
+
+    if (!signature || typeof signature !== "string") {
+      return Response.json(
+        { error: "signature is required" },
+        { status: 400 }
+      );
+    }
+
+    // Verify the SIWE signature
+    console.log("[auth/verify] Verifying SIWE signature...");
+    const domain = getDomainFromRequest(req);
+    const auth = getThirdwebAuth(domain);
+
+    let verifiedPayload;
+    try {
+      verifiedPayload = await auth.verifyPayload({ payload, signature });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[auth/verify] Signature verification failed:", msg);
+      return Response.json(
+        { error: "Invalid signature. Please try again." },
+        { status: 401 }
+      );
+    }
+
+    const address = verifiedPayload.address;
+    console.log("[auth/verify] ✅ Signature verified for:", address);
 
     // 1. Determine role based on org ownership
     let orgs;

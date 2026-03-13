@@ -1,28 +1,11 @@
 /** Dynamic Inner — Internal component loaded by the dynamic wrapper after code splitting. */
 'use client';
 import { useEffect } from 'react';
-import { ThirdwebProvider, AutoConnect } from 'thirdweb/react';
-import { createThirdwebClient } from 'thirdweb';
-import { createWallet, inAppWallet } from 'thirdweb/wallets';
+import { ThirdwebProvider } from 'thirdweb/react';
 import { installFetchInterceptor } from './fetch-interceptor';
 import { debug } from './debug';
 
-const client = createThirdwebClient({
-  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || '510999ec2be00a99e36ab07b36f15a72',
-});
-
-// Wallets used in the app — must match what ConnectButton offers
-// so AutoConnect can find and reconnect the last-used wallet.
-const wallets = [
-  inAppWallet(),
-  createWallet('io.metamask'),
-  createWallet('com.coinbase.wallet'),
-  createWallet('me.rainbow'),
-  createWallet('io.rabby'),
-  createWallet('app.phantom'),
-];
-
-/** Known non-fatal thirdweb auto-connect errors — log them instead of crashing */
+/** Known non-fatal thirdweb errors — log them instead of crashing */
 const SUPPRESSED_PATTERNS = [
   'connect() before enable()',
   'Cannot set a wallet without an account as active',
@@ -36,14 +19,13 @@ export function Web3ProviderInner({ children }: { children: React.ReactNode }) {
     installFetchInterceptor();
   }, []);
 
-  // Catch known thirdweb SDK auto-connect errors that fire during
-  // wallet reconnection when the previous session is stale.
+  // Catch known thirdweb SDK errors that might occur during wallet operations.
   // Suppress them to prevent app crashes (only log in dev mode).
   useEffect(() => {
     const handler = (e: PromiseRejectionEvent) => {
       const msg = String(e.reason?.message || e.reason || '');
       if (SUPPRESSED_PATTERNS.some((p) => msg.includes(p))) {
-        debug.warn('[Swarm] AutoConnect issue (non-fatal):', msg);
+        debug.warn('[Swarm] Thirdweb warning (non-fatal):', msg);
         e.preventDefault();
       }
     };
@@ -53,7 +35,6 @@ export function Web3ProviderInner({ children }: { children: React.ReactNode }) {
 
   return (
     <ThirdwebProvider>
-      <AutoConnect client={client} wallets={wallets} timeout={5_000} />
       {children}
     </ThirdwebProvider>
   );
