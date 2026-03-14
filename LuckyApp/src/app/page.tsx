@@ -39,9 +39,6 @@ function LandingPageContent() {
   const authConfig = useThirdwebAuth();
   // Staggered loading: center first, then flanks after delay
   const [robotsReady, setRobotsReady] = useState<boolean[]>([false, false, false]);
-  // Track whether user was already authenticated when the page first loaded.
-  // This distinguishes "returning visitor with stale cookie" from "just logged in".
-  const wasAuthOnMount = useRef<boolean | null>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -49,30 +46,31 @@ function LandingPageContent() {
   const redirectTarget = redirectParam || '/dashboard';
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || !authenticated) return;
 
-    // Capture initial auth state on first non-loading render
-    if (wasAuthOnMount.current === null) {
-      wasAuthOnMount.current = authenticated;
-      debug.log("[Swarm:Landing] Initial auth state:", { authenticated, redirectParam });
-
-      // If user was bounced here from a protected route (?redirect=), let them
-      // through immediately since they already have a valid session.
-      if (authenticated && redirectParam) {
-        debug.log("[Swarm:Landing] Bounced from protected route, redirecting to:", redirectParam);
-        router.push(redirectParam);
-      }
-      // If authenticated but NO redirect param, they navigated to "/" directly.
-      // Show the landing page — don't auto-redirect (prevents instant-login).
+    // Case 1: User was bounced here from a protected route by middleware
+    // e.g. /dashboard → /?redirect=/dashboard — redirect back immediately.
+    if (redirectParam) {
+      debug.log("[Swarm:Landing] Bounced from protected route, redirecting to:", redirectParam);
+      router.push(redirectParam);
       return;
     }
 
-    // After mount: if auth transitions false → true, the user just completed
-    // a fresh login via ConnectButton. Redirect them to the dashboard.
-    if (authenticated && !wasAuthOnMount.current) {
-      debug.log("[Swarm:Landing] Fresh login detected! Redirecting to:", redirectTarget);
-      router.push(redirectTarget);
-    }
+    // Case 2: User just completed a fresh login via ConnectButton/SIWE.
+    // The doLogin callback sets a sessionStorage flag so we can detect this
+    // even when auth was already true from a stale cookie.
+    try {
+      if (sessionStorage.getItem("swarm_just_logged_in") === "1") {
+        sessionStorage.removeItem("swarm_just_logged_in");
+        debug.log("[Swarm:Landing] Fresh login detected! Redirecting to:", redirectTarget);
+        router.push(redirectTarget);
+        return;
+      }
+    } catch {}
+
+    // Case 3: User navigated to "/" directly with a valid session cookie.
+    // Show the landing page — don't auto-redirect.
+    debug.log("[Swarm:Landing] Authenticated but no redirect trigger, showing landing page");
   }, [authenticated, loading, router, redirectParam, redirectTarget]);
 
   // Stagger robot loading: center immediately, left at 4s, right at 8s
