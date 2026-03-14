@@ -4,7 +4,7 @@
  * Provides the frontend with durable session info (address, role, authenticated status)
  * fetched from the httpOnly cookie via /api/auth/session.
  *
- * This replaces reliance on `useActiveAccount()` as the sole source of truth.
+ * Auth flow: ConnectButton (thirdweb) → SIWE sign → POST /api/auth/verify → session cookie.
  * The wallet connection is still used for signing transactions, but the *session*
  * is what determines auth state.
  */
@@ -35,14 +35,6 @@ interface SessionContextValue extends Session {
   loading: boolean;
   /** Re-fetch session from server */
   refresh: () => Promise<void>;
-  /** Request a challenge nonce for a wallet address */
-  requestChallenge: (address: string) => Promise<{ nonce: string; message: string }>;
-  /** Sign and verify the challenge, creating a session */
-  verifyChallenge: (
-    address: string,
-    signature: string,
-    message: string
-  ) => Promise<boolean>;
   /** Destroy the current session */
   logout: () => Promise<void>;
 }
@@ -54,8 +46,6 @@ const SessionContext = createContext<SessionContextValue>({
   sessionId: null,
   loading: true,
   refresh: async () => {},
-  requestChallenge: async () => ({ nonce: "", message: "" }),
-  verifyChallenge: async () => false,
   logout: async () => {},
 });
 
@@ -126,55 +116,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, [fetchSession]);
 
-  const requestChallenge = useCallback(
-    async (address: string): Promise<{ nonce: string; message: string }> => {
-      const res = await fetch("/api/auth/nonce", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(err.error || "Failed to get challenge");
-      }
-
-      return res.json();
-    },
-    []
-  );
-
-  const verifyChallenge = useCallback(
-    async (
-      address: string,
-      signature: string,
-      message: string
-    ): Promise<boolean> => {
-      const res = await fetch("/api/auth/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ address, signature, message }),
-      });
-
-      const data = await res.json().catch(() => ({ error: "Unknown error" }));
-
-      if (!res.ok) {
-        debug.error("[Swarm] /api/auth/verify failed:", res.status, data);
-        throw new Error(data.error || `Verification failed (${res.status})`);
-      }
-
-      if (data.success) {
-        // Refresh session state from server
-        await fetchSession();
-        return true;
-      }
-
-      return false;
-    },
-    [fetchSession]
-  );
-
   const logout = useCallback(async () => {
     try {
       await fetch("/api/auth/logout", {
@@ -182,8 +123,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         credentials: "include",
       });
     } finally {
-      // Flag explicit logout so landing page won't auto-redirect
-      try { sessionStorage.setItem("swarm_explicit_logout", "1"); } catch {}
       setSession({
         authenticated: false,
         address: null,
@@ -199,8 +138,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         ...session,
         loading,
         refresh: fetchSession,
-        requestChallenge,
-        verifyChallenge,
         logout,
       }}
     >

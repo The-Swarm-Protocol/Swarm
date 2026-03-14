@@ -156,7 +156,7 @@ export default function DebugAuthPage() {
                 This means either:
               </p>
               <ul className="list-disc list-inside text-sm text-gray-300 mt-1">
-                <li>useAutoSiwe hook didn't trigger</li>
+                <li>ConnectButton auth flow didn't complete SIWE</li>
                 <li>/api/auth/verify failed</li>
                 <li>Cookie wasn't set</li>
                 <li>SessionContext didn't update</li>

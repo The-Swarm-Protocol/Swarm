@@ -9,10 +9,10 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useActiveAccount, useActiveWalletConnectionStatus } from 'thirdweb/react';
 import { useOrg } from '@/contexts/OrgContext';
 import { useSession } from '@/contexts/SessionContext';
-import { AuthState, ReconnectionBanner, DegradedServiceBanner, type AuthPhase } from './auth-state';
+import { AuthState, ReconnectionBanner, type AuthPhase } from './auth-state';
 
 // Grace period (ms) after first app load before allowing redirects.
-// Must be long enough for AutoConnect + session check to complete.
+// Must be long enough for session check to complete.
 const AUTH_GRACE_MS = 4_000;
 
 // Delay before redirecting to onboarding when no orgs found.
@@ -129,7 +129,6 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return (
     <>
       {showReconnectionBanner && <ReconnectionBanner visible />}
-      <DegradedServiceBanner />
       {children}
     </>
   );

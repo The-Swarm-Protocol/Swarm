@@ -1,11 +1,11 @@
 /** Landing Page — Hero section with 3D Spline robots, wallet connect CTA, and feature showcase.
- *  SIWE sign-in is handled automatically by the global AutoSiwe component. */
+ *  SIWE sign-in is handled by thirdweb's ConnectButton auth prop (see useThirdwebAuth). */
 "use client";
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ConnectButton } from "thirdweb/react";
-import { createThirdwebClient } from "thirdweb";
+import { thirdwebClient } from "@/lib/thirdweb-client";
 import { WALLET_CHAINS } from "@/lib/chains";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, Suspense, lazy, useRef } from "react";
@@ -17,10 +17,6 @@ import { debug } from "@/lib/debug";
 import { useThirdwebAuth } from "@/hooks/useThirdwebAuth";
 
 const Spline = lazy(() => import('@splinetool/react-spline'));
-
-const client = createThirdwebClient({
-  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || '510999ec2be00a99e36ab07b36f15a72',
-});
 
 // 3 robots — staggered loading to avoid WebGL context exhaustion
 const ROBOT_CONFIGS = [
@@ -43,35 +39,19 @@ function LandingPageContent() {
   useEffect(() => setMounted(true), []);
 
   const redirectParam = searchParams.get('redirect');
-  const redirectTarget = redirectParam || '/dashboard';
 
+  // Auto-redirect only when middleware bounced user here with ?redirect=
   useEffect(() => {
     if (loading || !authenticated) return;
 
-    // Case 1: User was bounced here from a protected route by middleware
-    // e.g. /dashboard → /?redirect=/dashboard — redirect back immediately.
     if (redirectParam) {
       debug.log("[Swarm:Landing] Bounced from protected route, redirecting to:", redirectParam);
-      router.push(redirectParam);
+      router.replace(redirectParam);
       return;
     }
 
-    // Case 2: User just completed a fresh login via ConnectButton/SIWE.
-    // The doLogin callback sets a sessionStorage flag so we can detect this
-    // even when auth was already true from a stale cookie.
-    try {
-      if (sessionStorage.getItem("swarm_just_logged_in") === "1") {
-        sessionStorage.removeItem("swarm_just_logged_in");
-        debug.log("[Swarm:Landing] Fresh login detected! Redirecting to:", redirectTarget);
-        router.push(redirectTarget);
-        return;
-      }
-    } catch {}
-
-    // Case 3: User navigated to "/" directly with a valid session cookie.
-    // Show the landing page — don't auto-redirect.
-    debug.log("[Swarm:Landing] Authenticated but no redirect trigger, showing landing page");
-  }, [authenticated, loading, router, redirectParam, redirectTarget]);
+    debug.log("[Swarm:Landing] Authenticated, showing landing page");
+  }, [authenticated, loading, router, redirectParam]);
 
   // Stagger robot loading: center immediately, left at 4s, right at 8s
   useEffect(() => {
@@ -141,7 +121,7 @@ function LandingPageContent() {
                 </Button>
               </Link>
             ) : (
-              <ConnectButton client={client} chains={WALLET_CHAINS} auth={authConfig} autoConnect={false} />
+              <ConnectButton client={thirdwebClient} chains={WALLET_CHAINS} auth={authConfig} autoConnect={false} />
             )}
           </div>
         </div>
@@ -210,7 +190,7 @@ function LandingPageContent() {
                   </Button>
                 </Link>
               ) : (
-                <ConnectButton client={client} chains={WALLET_CHAINS} auth={authConfig} autoConnect={false} />
+                <ConnectButton client={thirdwebClient} chains={WALLET_CHAINS} auth={authConfig} autoConnect={false} />
               )}
               <Link href="/docs">
                 <Button variant="outline" size="lg" className="h-12 px-8 rounded-full border-white/10 hover:bg-white/5 group bg-black/20">
@@ -235,7 +215,7 @@ function LandingPageContent() {
                   </Button>
                 </Link>
               ) : (
-                <ConnectButton client={client} chains={WALLET_CHAINS} auth={authConfig} autoConnect={false} />
+                <ConnectButton client={thirdwebClient} chains={WALLET_CHAINS} auth={authConfig} autoConnect={false} />
               )}
             </div>
           </div>

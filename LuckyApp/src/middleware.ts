@@ -64,7 +64,7 @@ const PROTECTED_API_PREFIXES = [
 
 /** API routes that should pass through without session check */
 const PUBLIC_API_PREFIXES = [
-  "/api/auth/nonce",
+  "/api/auth/payload",
   "/api/auth/verify",
   "/api/auth/logout",
   "/api/auth/session",

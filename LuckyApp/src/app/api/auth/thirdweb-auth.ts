@@ -14,11 +14,18 @@
 import { createAuth } from "thirdweb/auth";
 import { createThirdwebClient } from "thirdweb";
 
+const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
+if (!clientId && !process.env.THIRDWEB_SECRET_KEY) {
+  throw new Error(
+    "Either THIRDWEB_SECRET_KEY or NEXT_PUBLIC_THIRDWEB_CLIENT_ID must be set."
+  );
+}
+
 const client = createThirdwebClient({
-  // Server-side: use secretKey if available, otherwise clientId for EOA-only verification
+  // Server-side: prefer secretKey, fall back to clientId for EOA-only verification
   ...(process.env.THIRDWEB_SECRET_KEY
     ? { secretKey: process.env.THIRDWEB_SECRET_KEY }
-    : { clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || "510999ec2be00a99e36ab07b36f15a72" }),
+    : { clientId: clientId! }),
 });
 
 const AUTH_OPTIONS = {

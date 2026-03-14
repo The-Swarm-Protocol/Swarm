@@ -1,11 +1,11 @@
 /**
  * Session — Server-side session management.
  *
- * Wallet challenge flow:
- *   1. Client requests a nonce via POST /api/auth/nonce
- *   2. Client signs the nonce with wallet
- *   3. Client sends signature to POST /api/auth/verify
- *   4. Server verifies signature, creates Firestore session, issues JWT cookie
+ * Auth flow (thirdweb SIWE):
+ *   1. ConnectButton calls POST /api/auth/payload → generates SIWE login payload
+ *   2. User signs the payload in their wallet
+ *   3. ConnectButton calls POST /api/auth/verify with { payload, signature }
+ *   4. Server verifies via thirdweb, creates Firestore session, issues JWT cookie
  *
  * JWT is stored in an httpOnly cookie (`swarm_session`).
  * Sessions are persisted in the Firestore `sessions` collection.
@@ -14,7 +14,6 @@ import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 import { cookies } from "next/headers";
 import { db } from "./firebase";
 import {
-  collection,
   doc,
   setDoc,
   getDoc,
@@ -27,7 +26,6 @@ import {
 
 export const SESSION_COOKIE = "swarm_session";
 const SESSION_MAX_AGE = 60 * 60 * 24; // 24 hours in seconds
-const NONCE_TTL = 5 * 60 * 1000; // 5 minutes in ms
 
 /** Roles in ascending privilege order */
 export type UserRole = "operator" | "org_admin" | "platform_admin";
@@ -62,34 +60,6 @@ function getSecret(): Uint8Array {
 
 function isProd(): boolean {
   return process.env.NODE_ENV === "production";
-}
-
-// ─── Nonce store (Firestore `authNonces` collection) ────
-
-export async function createNonce(walletAddress: string): Promise<string> {
-  const nonce = crypto.randomUUID();
-  const addr = walletAddress.toLowerCase();
-  await setDoc(doc(db, "authNonces", addr), {
-    nonce,
-    createdAt: Date.now(),
-    expiresAt: Date.now() + NONCE_TTL,
-  });
-  return nonce;
-}
-
-export async function consumeNonce(
-  walletAddress: string
-): Promise<string | null> {
-  const addr = walletAddress.toLowerCase();
-  const snap = await getDoc(doc(db, "authNonces", addr));
-  if (!snap.exists()) return null;
-
-  const data = snap.data();
-  // Always delete after read (one-time use)
-  await deleteDoc(doc(db, "authNonces", addr));
-
-  if (Date.now() > data.expiresAt) return null;
-  return data.nonce as string;
 }
 
 // ─── Role resolution ────────────────────────────────────
@@ -297,20 +267,3 @@ export class SessionError extends Error {
   }
 }
 
-// ─── Challenge message builder ──────────────────────────
-
-export function buildChallengeMessage(
-  nonce: string,
-  domain: string
-): string {
-  return [
-    `Swarm Login`,
-    ``,
-    `Sign this message to verify your wallet ownership.`,
-    `This does not trigger a blockchain transaction or cost gas.`,
-    ``,
-    `Domain: ${domain}`,
-    `Nonce: ${nonce}`,
-    `Issued At: ${new Date().toISOString()}`,
-  ].join("\n");
-}

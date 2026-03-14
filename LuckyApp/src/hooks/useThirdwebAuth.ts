@@ -41,12 +41,14 @@ export function useThirdwebAuth() {
         console.error("[Swarm] Login failed:", err);
         throw new Error(err.error || "Login failed");
       }
-      // Signal that user just completed a fresh login (landing page listens for this)
-      try {
-        sessionStorage.removeItem("swarm_explicit_logout");
-        sessionStorage.setItem("swarm_just_logged_in", "1");
-      } catch {}
+      // Refresh session state so SessionContext picks up the new cookie
       await refresh();
+      // Redirect: honour ?redirect= param (set by middleware when bouncing
+      // unauthenticated users), otherwise go straight to the dashboard.
+      try {
+        const target = new URLSearchParams(window.location.search).get("redirect") || "/dashboard";
+        window.location.href = target;
+      } catch {}
     },
     isLoggedIn: async () => {
       try {
