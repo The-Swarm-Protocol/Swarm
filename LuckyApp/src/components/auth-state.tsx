@@ -108,7 +108,7 @@ function DisconnectedState() {
           Your wallet was disconnected.
         </p>
       </div>
-      <ConnectButton client={client} chains={WALLET_CHAINS} />
+      <ConnectButton client={client} chains={WALLET_CHAINS} autoConnect={false} />
       <Link
         href="/"
         className="text-xs text-muted-foreground hover:text-foreground transition-colors"

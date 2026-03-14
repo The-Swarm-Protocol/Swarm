@@ -182,6 +182,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         credentials: "include",
       });
     } finally {
+      // Flag explicit logout so landing page won't auto-redirect
+      try { sessionStorage.setItem("swarm_explicit_logout", "1"); } catch {}
       setSession({
         authenticated: false,
         address: null,

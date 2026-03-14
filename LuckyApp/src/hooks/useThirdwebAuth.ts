@@ -41,6 +41,8 @@ export function useThirdwebAuth() {
         console.error("[Swarm] Login failed:", err);
         throw new Error(err.error || "Login failed");
       }
+      // Clear explicit-logout flag on successful login
+      try { sessionStorage.removeItem("swarm_explicit_logout"); } catch {}
       await refresh();
     },
     isLoggedIn: async () => {

@@ -46,9 +46,18 @@ function LandingPageContent() {
   const redirectUrl = searchParams.get('redirect') || '/dashboard';
 
   // If already authenticated, redirect to dashboard (only after loading completes)
+  // Skip redirect if user just explicitly logged out (prevents instant re-login loop)
   useEffect(() => {
     debug.log("[Swarm:Landing] Auth state changed:", { authenticated, loading });
     if (authenticated && !loading) {
+      // Don't auto-redirect if user just logged out
+      try {
+        if (sessionStorage.getItem("swarm_explicit_logout") === "1") {
+          debug.log("[Swarm:Landing] Skipping redirect — user explicitly logged out");
+          sessionStorage.removeItem("swarm_explicit_logout");
+          return;
+        }
+      } catch {}
       debug.log("[Swarm:Landing] Authenticated! Redirecting to:", redirectUrl);
       const timer = setTimeout(() => {
         debug.log("[Swarm:Landing] Executing redirect...");
@@ -119,7 +128,7 @@ function LandingPageContent() {
                 {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </button>
             )}
-            <ConnectButton client={client} chains={WALLET_CHAINS} auth={authConfig} />
+            <ConnectButton client={client} chains={WALLET_CHAINS} auth={authConfig} autoConnect={false} />
           </div>
         </div>
       </header>
@@ -179,7 +188,7 @@ function LandingPageContent() {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6 animate-in delay-300 pointer-events-auto">
-              <ConnectButton client={client} chains={WALLET_CHAINS} auth={authConfig} />
+              <ConnectButton client={client} chains={WALLET_CHAINS} auth={authConfig} autoConnect={false} />
               <Link href="/docs">
                 <Button variant="outline" size="lg" className="h-12 px-8 rounded-full border-white/10 hover:bg-white/5 group bg-black/20">
                   Read the Docs
@@ -195,7 +204,7 @@ function LandingPageContent() {
           <div className="max-w-4xl mx-auto px-6 text-center">
             <h2 className="text-4xl font-bold text-white mb-6 tracking-tight">Ready to orchestrate your fleet?</h2>
             <div className="flex justify-center">
-              <ConnectButton client={client} chains={WALLET_CHAINS} auth={authConfig} />
+              <ConnectButton client={client} chains={WALLET_CHAINS} auth={authConfig} autoConnect={false} />
             </div>
           </div>
         </section>
