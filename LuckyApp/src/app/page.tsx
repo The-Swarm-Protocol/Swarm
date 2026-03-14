@@ -22,8 +22,12 @@ const client = createThirdwebClient({
   clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || '510999ec2be00a99e36ab07b36f15a72',
 });
 
-// Single robot — prevents WebGL context exhaustion (browser limit ~16)
-const ROBOT_COUNT = 1;
+// 3 robots — staggered loading to avoid WebGL context exhaustion
+const ROBOT_CONFIGS = [
+  { x: -20, y: 5, scale: 0.85, opacity: 0.55, z: 0 },  // left flank
+  { x: 5, y: 0, scale: 1, opacity: 0.9, z: 2 },         // center lead
+  { x: 30, y: 5, scale: 0.85, opacity: 0.55, z: 0 },    // right flank
+];
 
 function LandingPageContent() {
   const router = useRouter();
@@ -33,6 +37,8 @@ function LandingPageContent() {
   const [mounted, setMounted] = useState(false);
   const { authenticated, loading } = useSession();
   const authConfig = useThirdwebAuth();
+  // Staggered loading: center first, then flanks after delay
+  const [robotsReady, setRobotsReady] = useState<boolean[]>([false, false, false]);
 
   useEffect(() => setMounted(true), []);
 
@@ -51,6 +57,22 @@ function LandingPageContent() {
       return () => clearTimeout(timer);
     }
   }, [authenticated, loading, router, redirectUrl]);
+
+  // Stagger robot loading: center immediately, left at 4s, right at 8s
+  useEffect(() => {
+    // Center robot loads immediately
+    setRobotsReady(prev => { const n = [...prev]; n[1] = true; return n; });
+
+    const t1 = setTimeout(() => {
+      setRobotsReady(prev => { const n = [...prev]; n[0] = true; return n; });
+    }, 4000);
+
+    const t2 = setTimeout(() => {
+      setRobotsReady(prev => { const n = [...prev]; n[2] = true; return n; });
+    }, 8000);
+
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
 
   const handleRobotLoad = (index: number) => (spline: any) => {
     canvasRefs.current[index] = spline.canvas ?? spline._canvas ?? null;
@@ -105,24 +127,29 @@ function LandingPageContent() {
       <main className="flex-1 overflow-x-hidden">
         {/* Hero Section */}
         <section className="relative pt-24 pb-32 min-h-[95vh] flex items-center justify-center overflow-hidden">
-          {/* Single Spline Robot — avoids WebGL context exhaustion */}
+          {/* 3 Spline Robots — staggered loading to avoid WebGL context exhaustion */}
           <div className="absolute inset-0 z-0 pointer-events-none">
-            <div
-              className="absolute inset-0"
-              style={{
-                transform: 'translateX(5%) scale(1)',
-                opacity: 0.9,
-                zIndex: 2,
-              }}
-            >
-              <Suspense fallback={null}>
-                <Spline
-                  onLoad={handleRobotLoad(0)}
-                  scene="https://prod.spline.design/Apa6K76Zg3Ki-VRj/scene.splinecode"
-                  className="w-full h-full"
-                />
-              </Suspense>
-            </div>
+            {ROBOT_CONFIGS.map((c, i) => (
+              <div
+                key={i}
+                className="absolute inset-0 transition-opacity duration-1000"
+                style={{
+                  transform: `translateX(${c.x}%) translateY(${c.y}%) scale(${c.scale})`,
+                  opacity: robotsReady[i] ? c.opacity : 0,
+                  zIndex: c.z,
+                }}
+              >
+                {robotsReady[i] && (
+                  <Suspense fallback={null}>
+                    <Spline
+                      onLoad={handleRobotLoad(i)}
+                      scene="https://prod.spline.design/Apa6K76Zg3Ki-VRj/scene.splinecode"
+                      className="w-full h-full"
+                    />
+                  </Suspense>
+                )}
+              </div>
+            ))}
 
             {/* Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black pointer-events-none z-[10]" />
