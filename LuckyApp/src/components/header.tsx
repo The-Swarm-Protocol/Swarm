@@ -20,7 +20,57 @@ import { Button } from '@/components/ui/button';
 import { NotificationCenter } from '@/components/notification-center';
 import { useSkin, SKINS } from '@/contexts/SkinContext';
 import { useThirdwebAuth } from '@/hooks/useThirdwebAuth';
+import { useSession } from '@/contexts/SessionContext';
 
+
+/** Shows wallet address (truncated) when session is valid but wallet isn't connected.
+ *  Falls through to full ConnectButton when wallet IS connected. */
+function WalletDisplay({ authConfig }: { authConfig: ReturnType<typeof useThirdwebAuth> }) {
+  const account = useActiveAccount();
+  const { address: sessionAddress, authenticated, logout } = useSession();
+  const [showMenu, setShowMenu] = useState(false);
+
+  // Wallet connected → use thirdweb's ConnectButton (shows address + chain + disconnect)
+  if (account) {
+    return <ConnectButton client={thirdwebClient} wallets={swarmWallets} chains={WALLET_CHAINS} auth={authConfig} autoConnect={false} />;
+  }
+
+  // Session valid but wallet not connected → show truncated address badge
+  if (authenticated && sessionAddress) {
+    const truncated = `${sessionAddress.slice(0, 6)}...${sessionAddress.slice(-4)}`;
+    return (
+      <div className="relative">
+        <button
+          onClick={() => setShowMenu(prev => !prev)}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors text-sm font-mono text-amber-400"
+          title={sessionAddress}
+        >
+          <span className="w-2 h-2 rounded-full bg-green-500" />
+          {truncated}
+        </button>
+        {showMenu && (
+          <div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-lg shadow-lg py-1 z-50 min-w-[160px]">
+            <button
+              onClick={() => { setShowMenu(false); }}
+              className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-muted/50"
+            >
+              <ConnectButton client={thirdwebClient} wallets={swarmWallets} chains={WALLET_CHAINS} auth={authConfig} autoConnect={false} connectButton={{ label: "Connect Wallet" }} />
+            </button>
+            <button
+              onClick={async () => { setShowMenu(false); await logout(); }}
+              className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-muted/50"
+            >
+              Sign Out
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Not authenticated → show Connect button
+  return <ConnectButton client={thirdwebClient} wallets={swarmWallets} chains={WALLET_CHAINS} auth={authConfig} autoConnect={false} connectButton={{ label: "Connect" }} />;
+}
 
 export function Header() {
   const authConfig = useThirdwebAuth();
@@ -167,7 +217,7 @@ export function Header() {
                 {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </button>
             )}
-            <ConnectButton client={thirdwebClient} wallets={swarmWallets} chains={WALLET_CHAINS} auth={authConfig} autoConnect={true} />
+            <WalletDisplay authConfig={authConfig} />
           </div>
         </div>
       </header>
