@@ -33,31 +33,27 @@ const ENV_REQUIREMENTS: EnvRequirement[] = [
     example: "openssl rand -hex 32",
   },
 
-  // Critical - Firebase (Server-side)
+  // Firebase (Server-side) — falls back to NEXT_PUBLIC_ equivalents
   {
     key: "FIREBASE_API_KEY",
-    required: true,
-    description: "Firebase API key (server-side)",
+    required: false,
+    description: "Firebase API key (server-side, falls back to NEXT_PUBLIC_FIREBASE_API_KEY)",
   },
   {
     key: "FIREBASE_AUTH_DOMAIN",
-    required: true,
-    validate: (val) => val.includes("firebaseapp.com"),
-    description: "Firebase auth domain (server-side)",
+    required: false,
+    description: "Firebase auth domain (server-side, falls back to NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN)",
   },
   {
     key: "FIREBASE_PROJECT_ID",
-    required: true,
-    description: "Firebase project ID (server-side)",
+    required: false,
+    description: "Firebase project ID (server-side, falls back to NEXT_PUBLIC_FIREBASE_PROJECT_ID)",
   },
   {
     key: "FIREBASE_APP_ID",
-    required: true,
-    validate: (val) => val.includes(":web:"),
-    description: "Firebase app ID (server-side)",
+    required: false,
+    description: "Firebase app ID (server-side, falls back to NEXT_PUBLIC_FIREBASE_APP_ID)",
   },
-
-  // Optional - Firebase (Server-side)
   {
     key: "FIREBASE_STORAGE_BUCKET",
     required: false,
