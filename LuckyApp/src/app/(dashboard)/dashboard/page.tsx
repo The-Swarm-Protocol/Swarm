@@ -144,7 +144,7 @@ interface WidgetCatalogEntry {
   label: string;
   description: string;
   colSpan?: string;
-  category: "widgets" | "stats" | "integrations";
+  category: "widgets" | "stats" | "analytics" | "operations" | "integrations";
 }
 
 const ALL_WIDGET_CATALOG: WidgetCatalogEntry[] = [
@@ -1767,8 +1767,8 @@ export default function DashboardPage() {
           </DialogHeader>
 
           <div className="space-y-6 pt-2">
-            {(["widgets", "stats", "integrations"] as const).map((cat) => {
-              const label = { widgets: "Widgets", stats: "Stat Cards", integrations: "Integrations" }[cat];
+            {(["widgets", "stats", "analytics", "operations", "integrations"] as const).map((cat) => {
+              const label = { widgets: "Widgets", stats: "Stat Cards", analytics: "Analytics", operations: "Operations", integrations: "Integrations" }[cat];
               const items = ALL_WIDGET_CATALOG.filter(e => e.category === cat);
               return (
                 <div key={cat}>

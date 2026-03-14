@@ -129,6 +129,10 @@ export interface Agent {
   soulVersion?: string;
   /** When SOUL was last updated */
   soulUpdatedAt?: unknown;
+  /** Wallet address that owns/controls this agent */
+  walletAddress?: string;
+  /** Number of completed tasks (denormalized counter) */
+  tasksCompleted?: number;
   createdAt: unknown;
 }
 

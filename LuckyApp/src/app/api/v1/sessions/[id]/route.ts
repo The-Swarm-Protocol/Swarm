@@ -1,13 +1,16 @@
 /**
- * PATCH /api/v1/sessions/:id
+ * GET/PATCH /api/v1/sessions/:id
  *
- * Update session status
+ * Get or update a specific agent session
  * Auth: Ed25519 signature
+ * Signature message: "GET:/v1/sessions:{agentId}:{ts}" or "PATCH:/v1/sessions:{ts}"
  */
 
 import { NextRequest } from 'next/server';
-import { verifyAgentRequest } from '../../verify';
-import { db } from '@/lib/firebase-admin-init';
+import { verifyAgentRequest, unauthorized } from '../../verify';
+import { rateLimit } from '../../rate-limit';
+import { db } from '@/lib/firebase';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 /**
  * PATCH /api/v1/sessions/:id
@@ -15,20 +18,29 @@ import { db } from '@/lib/firebase-admin-init';
  */
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const verification = await verifyAgentRequest(req, 'PATCH:/v1/sessions');
-    if (!verification.valid) {
-      return Response.json({ error: verification.error }, { status: 401 });
+    const { id: sessionId } = await params;
+    const { searchParams } = req.nextUrl;
+    const agentId = searchParams.get('agent');
+    const sig = searchParams.get('sig');
+    const ts = searchParams.get('ts');
+
+    const limited = rateLimit(agentId || 'anon');
+    if (limited) return limited;
+
+    if (!agentId || !sig || !ts) {
+      return unauthorized('agent, sig, and ts parameters are required');
     }
 
-    const { agentId, orgId } = verification;
-    const sessionId = params.id;
+    const signedMessage = `PATCH:/v1/sessions:${ts}`;
+    const agent = await verifyAgentRequest(agentId, signedMessage, sig);
+    if (!agent) return unauthorized();
+
     const body = await req.json();
     const { status, metadata } = body;
 
-    // Validate status
     const validStatuses = ['active', 'completed', 'cancelled', 'expired'];
     if (!status || !validStatuses.includes(status)) {
       return Response.json(
@@ -37,19 +49,18 @@ export async function PATCH(
       );
     }
 
-    // Get session
-    const sessionRef = db.collection('agentSessions').doc(sessionId);
-    const sessionDoc = await sessionRef.get();
+    const sessionRef = doc(db, 'agentSessions', sessionId);
+    const sessionSnap = await getDoc(sessionRef);
 
-    if (!sessionDoc.exists) {
+    if (!sessionSnap.exists()) {
       return Response.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    const session = sessionDoc.data();
+    const session = sessionSnap.data();
 
-    // Verify agent is participant or coordinator creator
-    const isParticipant = session?.participants?.includes(agentId);
-    const isCreator = session?.createdBy === agentId;
+    // Verify agent is participant or creator
+    const isParticipant = session?.participants?.includes(agent.agentId);
+    const isCreator = session?.createdBy === agent.agentId;
 
     if (!isParticipant && !isCreator) {
       return Response.json(
@@ -58,16 +69,15 @@ export async function PATCH(
       );
     }
 
-    // Verify org matches
-    if (session?.orgId !== orgId) {
+    if (session?.orgId !== agent.orgId) {
       return Response.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    // Update session
-    const updateData: any = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updateData: Record<string, any> = {
       status,
       updatedAt: new Date(),
-      updatedBy: agentId,
+      updatedBy: agent.agentId,
     };
 
     if (metadata) {
@@ -76,10 +86,10 @@ export async function PATCH(
 
     if (status === 'completed' || status === 'cancelled') {
       updateData.closedAt = new Date();
-      updateData.closedBy = agentId;
+      updateData.closedBy = agent.agentId;
     }
 
-    await sessionRef.update(updateData);
+    await updateDoc(sessionRef, updateData);
 
     return Response.json({
       success: true,
@@ -102,28 +112,36 @@ export async function PATCH(
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const verification = await verifyAgentRequest(req, 'GET:/v1/sessions');
-    if (!verification.valid) {
-      return Response.json({ error: verification.error }, { status: 401 });
+    const { id: sessionId } = await params;
+    const { searchParams } = req.nextUrl;
+    const agentId = searchParams.get('agent');
+    const sig = searchParams.get('sig');
+    const ts = searchParams.get('ts');
+
+    const limited = rateLimit(agentId || 'anon');
+    if (limited) return limited;
+
+    if (!agentId || !sig || !ts) {
+      return unauthorized('agent, sig, and ts parameters are required');
     }
 
-    const { agentId, orgId } = verification;
-    const sessionId = params.id;
+    const signedMessage = `GET:/v1/sessions:${agentId}:${ts}`;
+    const agent = await verifyAgentRequest(agentId, signedMessage, sig);
+    if (!agent) return unauthorized();
 
-    const sessionDoc = await db.collection('agentSessions').doc(sessionId).get();
+    const sessionSnap = await getDoc(doc(db, 'agentSessions', sessionId));
 
-    if (!sessionDoc.exists) {
+    if (!sessionSnap.exists()) {
       return Response.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    const session = sessionDoc.data();
+    const session = sessionSnap.data();
 
-    // Verify agent is participant
-    const isParticipant = session?.participants?.includes(agentId);
-    const isCreator = session?.createdBy === agentId;
+    const isParticipant = session?.participants?.includes(agent.agentId);
+    const isCreator = session?.createdBy === agent.agentId;
 
     if (!isParticipant && !isCreator) {
       return Response.json(
@@ -132,18 +150,17 @@ export async function GET(
       );
     }
 
-    // Verify org matches
-    if (session?.orgId !== orgId) {
+    if (session?.orgId !== agent.orgId) {
       return Response.json({ error: 'Session not found' }, { status: 404 });
     }
 
     return Response.json({
       session: {
-        id: sessionDoc.id,
+        id: sessionSnap.id,
         ...session,
-        createdAt: session.createdAt?.toMillis(),
-        expiresAt: session.expiresAt?.toMillis(),
-        closedAt: session.closedAt?.toMillis(),
+        createdAt: session.createdAt?.toMillis?.() || null,
+        expiresAt: session.expiresAt?.toMillis?.() || null,
+        closedAt: session.closedAt?.toMillis?.() || null,
       },
     });
   } catch (err) {

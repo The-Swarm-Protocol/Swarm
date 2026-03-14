@@ -4,74 +4,75 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// Mock Firebase Admin
-vi.mock('@/lib/firebase-admin-init', () => ({
-  db: {
-    collection: vi.fn(() => ({
-      add: vi.fn(() => Promise.resolve({ id: 'session_123' })),
-      doc: vi.fn(() => ({
-        get: vi.fn(() =>
-          Promise.resolve({
-            exists: true,
-            id: 'session_123',
-            data: () => ({
-              coordinatorId: 'coord_123',
-              orgId: 'org_123',
-              participants: ['agent_1', 'agent_2'],
-              purpose: 'Test workflow',
-              status: 'active',
-              messageCount: 0,
-              createdBy: 'agent_1',
-              createdAt: { toMillis: () => Date.now() },
-              expiresAt: { toMillis: () => Date.now() + 3600000 },
-            }),
-          })
-        ),
-        update: vi.fn(() => Promise.resolve()),
-      })),
-      where: vi.fn(() => ({
-        where: vi.fn(() => ({
-          where: vi.fn(() => ({
-            orderBy: vi.fn(() => ({
-              limit: vi.fn(() => ({
-                get: vi.fn(() =>
-                  Promise.resolve({
-                    docs: [
-                      {
-                        id: 'session_123',
-                        data: () => ({
-                          coordinatorId: 'coord_123',
-                          orgId: 'org_123',
-                          participants: ['agent_1', 'agent_2'],
-                          purpose: 'Test workflow',
-                          status: 'active',
-                          messageCount: 5,
-                          createdAt: { toMillis: () => Date.now() },
-                          expiresAt: { toMillis: () => Date.now() + 3600000 },
-                        }),
-                      },
-                    ],
-                  })
-                ),
-              })),
-            })),
-          })),
-        })),
-      })),
-    })),
-  },
+// Mock Firebase client SDK
+vi.mock('@/lib/firebase', () => ({
+  db: {},
+}));
+
+vi.mock('firebase/firestore', () => ({
+  collection: vi.fn(),
+  doc: vi.fn(),
+  getDoc: vi.fn(() =>
+    Promise.resolve({
+      exists: () => true,
+      id: 'session_123',
+      data: () => ({
+        coordinatorId: 'coord_123',
+        orgId: 'org_123',
+        participants: ['agent_1', 'agent_2'],
+        purpose: 'Test workflow',
+        status: 'active',
+        messageCount: 0,
+        createdBy: 'agent_1',
+        createdAt: { toMillis: () => Date.now() },
+        expiresAt: { toMillis: () => Date.now() + 3600000 },
+      }),
+    })
+  ),
+  getDocs: vi.fn(() =>
+    Promise.resolve({
+      docs: [
+        {
+          id: 'session_123',
+          data: () => ({
+            coordinatorId: 'coord_123',
+            orgId: 'org_123',
+            participants: ['agent_1', 'agent_2'],
+            purpose: 'Test workflow',
+            status: 'active',
+            messageCount: 5,
+            createdAt: { toMillis: () => Date.now() },
+            expiresAt: { toMillis: () => Date.now() + 3600000 },
+          }),
+        },
+      ],
+    })
+  ),
+  addDoc: vi.fn(() => Promise.resolve({ id: 'session_123' })),
+  updateDoc: vi.fn(() => Promise.resolve()),
+  query: vi.fn(),
+  where: vi.fn(),
+  orderBy: vi.fn(),
+  limit: vi.fn(),
 }));
 
 // Mock Ed25519 verification
 vi.mock('../../verify', () => ({
   verifyAgentRequest: vi.fn(() =>
     Promise.resolve({
-      valid: true,
       agentId: 'agent_1',
       agentName: 'TestAgent',
       orgId: 'org_123',
+      agentType: 'agent',
     })
   ),
+  unauthorized: vi.fn((msg?: string) =>
+    Response.json({ error: msg || 'Invalid or missing signature' }, { status: 401 })
+  ),
+}));
+
+vi.mock('../../rate-limit', () => ({
+  rateLimit: vi.fn(() => null),
 }));
 
 describe('Session Management API', () => {

@@ -6,11 +6,24 @@
  * - POST: Create new session
  *
  * Auth: Ed25519 signature
+ * Signature message: "GET:/v1/sessions:{agentId}:{ts}" or "POST:/v1/sessions:{ts}"
  */
 
 import { NextRequest } from 'next/server';
-import { verifyAgentRequest } from '../verify';
-import { db } from '@/lib/firebase-admin-init';
+import { verifyAgentRequest, unauthorized } from '../verify';
+import { rateLimit } from '../rate-limit';
+import { db } from '@/lib/firebase';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  addDoc,
+  query,
+  where,
+  orderBy,
+  limit as firestoreLimit,
+} from 'firebase/firestore';
 
 /**
  * GET /api/v1/sessions
@@ -18,34 +31,47 @@ import { db } from '@/lib/firebase-admin-init';
  */
 export async function GET(req: NextRequest) {
   try {
-    const verification = await verifyAgentRequest(req, 'GET:/v1/sessions');
-    if (!verification.valid) {
-      return Response.json({ error: verification.error }, { status: 401 });
-    }
-
-    const { agentId, orgId } = verification;
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = req.nextUrl;
+    const agentId = searchParams.get('agent');
+    const sig = searchParams.get('sig');
+    const ts = searchParams.get('ts');
     const status = searchParams.get('status') || 'active';
     const coordinatorId = searchParams.get('coordinatorId');
 
-    let query = db
-      .collection('agentSessions')
-      .where('orgId', '==', orgId)
-      .where('status', '==', status);
+    const limited = rateLimit(agentId || 'anon');
+    if (limited) return limited;
 
-    // Filter by participant
-    if (coordinatorId) {
-      query = query.where('coordinatorId', '==', coordinatorId);
-    } else {
-      query = query.where('participants', 'array-contains', agentId);
+    if (!agentId || !sig || !ts) {
+      return unauthorized('agent, sig, and ts parameters are required');
     }
 
-    const snapshot = await query.orderBy('createdAt', 'desc').limit(50).get();
-    const sessions = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toMillis(),
-      expiresAt: doc.data().expiresAt?.toMillis(),
+    const signedMessage = `GET:/v1/sessions:${agentId}:${ts}`;
+    const agent = await verifyAgentRequest(agentId, signedMessage, sig);
+    if (!agent) return unauthorized();
+
+    const constraints = [
+      where('orgId', '==', agent.orgId),
+      where('status', '==', status),
+    ];
+
+    if (coordinatorId) {
+      constraints.push(where('coordinatorId', '==', coordinatorId));
+    } else {
+      constraints.push(where('participants', 'array-contains', agent.agentId));
+    }
+
+    const q = query(
+      collection(db, 'agentSessions'),
+      ...constraints,
+      orderBy('createdAt', 'desc'),
+      firestoreLimit(50)
+    );
+    const snapshot = await getDocs(q);
+    const sessions = snapshot.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+      createdAt: d.data().createdAt?.toMillis?.() || null,
+      expiresAt: d.data().expiresAt?.toMillis?.() || null,
     }));
 
     return Response.json({ sessions });
@@ -64,17 +90,25 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const verification = await verifyAgentRequest(req, 'POST:/v1/sessions');
-    if (!verification.valid) {
-      return Response.json({ error: verification.error }, { status: 401 });
+    const { searchParams } = req.nextUrl;
+    const agentId = searchParams.get('agent');
+    const sig = searchParams.get('sig');
+    const ts = searchParams.get('ts');
+
+    const limited = rateLimit(agentId || 'anon');
+    if (limited) return limited;
+
+    if (!agentId || !sig || !ts) {
+      return unauthorized('agent, sig, and ts parameters are required');
     }
 
-    const { agentId, agentName, orgId } = verification;
-    const body = await req.json();
+    const signedMessage = `POST:/v1/sessions:${ts}`;
+    const agent = await verifyAgentRequest(agentId, signedMessage, sig);
+    if (!agent) return unauthorized();
 
+    const body = await req.json();
     const { coordinatorId, participants, purpose, metadata, ttlMinutes } = body;
 
-    // Validate
     if (!coordinatorId) {
       return Response.json({ error: 'coordinatorId is required' }, { status: 400 });
     }
@@ -87,25 +121,25 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify coordinator exists
-    const coordDoc = await db.collection('coordinators').doc(coordinatorId).get();
-    if (!coordDoc.exists) {
+    const coordSnap = await getDoc(doc(db, 'coordinators', coordinatorId));
+    if (!coordSnap.exists()) {
       return Response.json({ error: 'Coordinator not found' }, { status: 404 });
     }
 
     // Create session
-    const ttl = ttlMinutes || 60; // Default 1 hour
+    const ttl = ttlMinutes || 60;
     const expiresAt = new Date(Date.now() + ttl * 60 * 1000);
 
-    const sessionRef = await db.collection('agentSessions').add({
+    const sessionRef = await addDoc(collection(db, 'agentSessions'), {
       coordinatorId,
-      orgId,
+      orgId: agent.orgId,
       participants,
       purpose: purpose || 'Multi-step workflow',
       metadata: metadata || {},
       status: 'active',
       messageCount: 0,
-      createdBy: agentId,
-      createdByName: agentName,
+      createdBy: agent.agentId,
+      createdByName: agent.agentName,
       createdAt: new Date(),
       expiresAt,
     });

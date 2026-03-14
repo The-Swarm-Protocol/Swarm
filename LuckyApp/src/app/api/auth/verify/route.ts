@@ -80,8 +80,16 @@ export async function POST(req: Request) {
       );
     }
 
-    // Extract address from verified payload (nested at payload.address)
-    const address = verifiedPayload.payload?.address || verifiedPayload.address;
+    if (!verifiedPayload.valid) {
+      console.error("[auth/verify] Payload validation failed:", verifiedPayload.error);
+      return Response.json(
+        { error: verifiedPayload.error || "Invalid signature" },
+        { status: 401 }
+      );
+    }
+
+    // Extract address from verified payload
+    const address = verifiedPayload.payload?.address;
     console.log("[auth/verify] ✅ Signature verified for:", address);
 
     if (!address) {

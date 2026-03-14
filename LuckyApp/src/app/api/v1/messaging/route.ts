@@ -5,25 +5,41 @@
  * Supports a2a, coord, broadcast, and session message types
  *
  * Auth: Ed25519 signature
- * Signature message: "POST:/v1/messaging:{timestamp_ms}"
+ * Signature message: "POST:/v1/messaging:{ts}"
  */
 
 import { NextRequest } from 'next/server';
-import { verifyAgentRequest } from '../verify';
-import { db } from '@/lib/firebase-admin-init';
-import { createA2AMessage, createCoordMessage, createBroadcastMessage, createSessionMessage, validateAgentMessage } from '@/lib/agent-messaging';
+import { verifyAgentRequest, unauthorized } from '../verify';
+import { rateLimit } from '../rate-limit';
+import { db } from '@/lib/firebase';
+import { collection, addDoc } from 'firebase/firestore';
+import {
+  createA2AMessage,
+  createCoordMessage,
+  createBroadcastMessage,
+  createSessionMessage,
+  validateAgentMessage,
+} from '@/lib/agent-messaging';
 
 export async function POST(req: NextRequest) {
   try {
-    // Verify Ed25519 signature
-    const verification = await verifyAgentRequest(req, 'POST:/v1/messaging');
-    if (!verification.valid) {
-      return Response.json({ error: verification.error }, { status: 401 });
+    const { searchParams } = req.nextUrl;
+    const agentId = searchParams.get('agent');
+    const sig = searchParams.get('sig');
+    const ts = searchParams.get('ts');
+
+    const limited = rateLimit(agentId || 'anon');
+    if (limited) return limited;
+
+    if (!agentId || !sig || !ts) {
+      return unauthorized('agent, sig, and ts parameters are required');
     }
 
-    const { agentId, agentName, orgId } = verification;
-    const body = await req.json();
+    const signedMessage = `POST:/v1/messaging:${ts}`;
+    const agent = await verifyAgentRequest(agentId, signedMessage, sig);
+    if (!agent) return unauthorized();
 
+    const body = await req.json();
     const { messageType, payload } = body;
 
     if (!messageType || !['a2a', 'coord', 'broadcast', 'session'].includes(messageType)) {
@@ -36,15 +52,16 @@ export async function POST(req: NextRequest) {
     let message;
 
     switch (messageType) {
-      case 'a2a':
+      case 'a2a': {
         const { to, toName } = body;
         if (!to) {
           return Response.json({ error: 'Missing required field: to' }, { status: 400 });
         }
-        message = createA2AMessage(agentId, agentName, to, payload, { toName });
+        message = createA2AMessage(agent.agentId, agent.agentName, to, payload, { toName });
         break;
+      }
 
-      case 'coord':
+      case 'coord': {
         const { coordinatorId, action, targetId, targetName, priority } = body;
         if (!coordinatorId || !action) {
           return Response.json(
@@ -52,25 +69,27 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           );
         }
-        message = createCoordMessage(agentId, agentName, coordinatorId, action, payload, {
+        message = createCoordMessage(agent.agentId, agent.agentName, coordinatorId, action, payload, {
           targetId,
           targetName,
           priority,
         });
         break;
+      }
 
-      case 'broadcast':
+      case 'broadcast': {
         const { channelId, channelName, mentions } = body;
         if (!channelId) {
           return Response.json({ error: 'Missing required field: channelId' }, { status: 400 });
         }
-        message = createBroadcastMessage(agentId, agentName, channelId, payload, {
+        message = createBroadcastMessage(agent.agentId, agent.agentName, channelId, payload, {
           channelName,
           mentions,
         });
         break;
+      }
 
-      case 'session':
+      case 'session': {
         const { sessionId, participants, sessionName, step, stepName } = body;
         if (!sessionId || !participants || !Array.isArray(participants)) {
           return Response.json(
@@ -78,12 +97,13 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           );
         }
-        message = createSessionMessage(agentId, agentName, sessionId, participants, payload, {
+        message = createSessionMessage(agent.agentId, agent.agentName, sessionId, participants, payload, {
           sessionName,
           step,
           stepName,
         });
         break;
+      }
     }
 
     // Validate message structure
@@ -92,12 +112,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Add orgId
-    message.metadata = { ...message.metadata, orgId };
+    message.metadata = { ...message.metadata, orgId: agent.orgId };
 
     // Store in Firestore (will be picked up by hub or polling agents)
-    const messageRef = await db.collection('agentMessages').add({
+    const messageRef = await addDoc(collection(db, 'agentMessages'), {
       ...message,
-      orgId,
+      orgId: agent.orgId,
       timestamp: new Date(message.timestamp),
       createdAt: new Date(),
     });
