@@ -24,11 +24,26 @@ import {
 import {
     recordCidLink,
     addArtifactRecord,
+    checkQuota,
 } from "@/lib/storacha/cid-index";
 import type { ArtifactType } from "@/lib/storacha/types";
 
 const VALID_ARTIFACT_TYPES: ArtifactType[] = ["screenshot", "output", "log", "report"];
 const MAX_ARTIFACT_SIZE = 50 * 1024 * 1024; // 50 MB
+
+const ALLOWED_MIME_PREFIXES = [
+    "image/", "text/", "application/json", "application/pdf",
+    "application/octet-stream", "application/zip", "application/gzip",
+];
+
+/** Sanitize filename — strip path traversal and non-ASCII control chars */
+function sanitizeFilename(name: string): string {
+    return name
+        .replace(/[/\\]/g, "_")       // strip path separators
+        .replace(/\.\./g, "_")        // strip directory traversal
+        .replace(/[\x00-\x1f]/g, "")  // strip control chars
+        .slice(0, 255) || "unnamed";
+}
 
 export async function POST(req: NextRequest) {
     // ── Auth ──────────────────────────────────────────────
@@ -91,6 +106,21 @@ export async function POST(req: NextRequest) {
         );
     }
 
+    // ── MIME type validation ──────────────────────────────
+    const mimeType = file.type || "application/octet-stream";
+    if (!ALLOWED_MIME_PREFIXES.some((p) => mimeType.startsWith(p))) {
+        return Response.json(
+            { error: `Unsupported file type: ${mimeType}` },
+            { status: 415 },
+        );
+    }
+
+    // ── Quota check ───────────────────────────────────────
+    const quotaError = await checkQuota(orgId, file.size);
+    if (quotaError) {
+        return Response.json({ error: quotaError }, { status: 413 });
+    }
+
     // Parse optional metadata
     let metadata: Record<string, unknown> | undefined;
     if (metadataStr) {
@@ -103,7 +133,8 @@ export async function POST(req: NextRequest) {
 
     // ── Upload to Storacha ───────────────────────────────
     try {
-        const { cid, sizeBytes } = await uploadContent(file, file.name);
+        const safeFilename = sanitizeFilename(file.name);
+        const { cid, sizeBytes } = await uploadContent(file, safeFilename);
 
         // Record CID link
         await recordCidLink(cid, "default-space", sizeBytes);
@@ -115,8 +146,8 @@ export async function POST(req: NextRequest) {
             agentId,
             artifactType: artifactType as ArtifactType,
             contentCid: cid,
-            filename: file.name || "unnamed",
-            mimeType: file.type || "application/octet-stream",
+            filename: safeFilename,
+            mimeType,
             sizeBytes,
             metadata,
             uploadedBy,
@@ -126,8 +157,8 @@ export async function POST(req: NextRequest) {
             ok: true,
             id,
             cid,
-            filename: file.name || "unnamed",
-            mimeType: file.type || "application/octet-stream",
+            filename: safeFilename,
+            mimeType,
             sizeBytes,
             gatewayUrl: buildRetrievalUrl(cid),
         });

@@ -2,7 +2,7 @@
  * GET /api/v1/memory/read?cid=bafybeig...&orgId=abc123
  *
  * Read memory content by CID from Storacha (IPFS gateway).
- * Optionally verifies org ownership when orgId is provided.
+ * Verifies org ownership to prevent cross-org access.
  *
  * Auth: x-wallet-address (org member) or agent Ed25519/API key
  */
@@ -29,23 +29,21 @@ export async function GET(req: NextRequest) {
     const cid = req.nextUrl.searchParams.get("cid");
     const orgId = req.nextUrl.searchParams.get("orgId");
 
-    if (!cid) {
+    if (!cid || !orgId) {
         return Response.json(
-            { error: "cid query parameter is required" },
+            { error: "cid and orgId query parameters are required" },
             { status: 400 },
         );
     }
 
     // ── Verify org ownership (cross-org access prevention) ─
-    if (orgId) {
-        const entries = await getStorachaMemoryEntries(orgId);
-        const match = entries.find((e) => e.contentCid === cid);
-        if (!match) {
-            return Response.json(
-                { error: "CID not found for this organization" },
-                { status: 404 },
-            );
-        }
+    const entries = await getStorachaMemoryEntries(orgId);
+    const match = entries.find((e) => e.contentCid === cid);
+    if (!match) {
+        return Response.json(
+            { error: "CID not found for this organization" },
+            { status: 404 },
+        );
     }
 
     // ── Retrieve from Storacha gateway ───────────────────

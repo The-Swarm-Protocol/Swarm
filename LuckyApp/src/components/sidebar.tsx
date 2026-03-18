@@ -173,7 +173,7 @@ const PINNED_ITEMS: NavItem[] = [
 // Persistence Keys
 // ═══════════════════════════════════════════════════════════════
 
-const PLATFORM_ADMIN_ADDRESS = "0x723708273e811a07d90d2e81e799b9Ab27F0B549".toLowerCase();
+const PLATFORM_ADMIN_ADDRESS = (process.env.NEXT_PUBLIC_ADMIN_ADDRESS || "").toLowerCase();
 
 const SECTION_ORDER_KEY = "swarm-sidebar-order";
 const ITEM_ORDER_KEY = "swarm-sidebar-items";

@@ -14,7 +14,7 @@ import { PostHogProvider } from "@/components/posthog-provider";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'https://swarmprotocol.fun'),
   title: "Swarm | Enterprise AI Fleet Orchestration",
   description: "Deploy, orchestrate, and scale enterprise-grade AI agent fleets. The ultimate command center for autonomous business operations.",
   icons: {

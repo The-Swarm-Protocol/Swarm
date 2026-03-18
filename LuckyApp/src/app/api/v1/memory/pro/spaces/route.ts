@@ -71,12 +71,14 @@ export async function POST(req: NextRequest) {
         return Response.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    const orgId = body.orgId as string;
-    const name = body.name as string;
-    const description = body.description as string | undefined;
+    const orgId = (body.orgId as string)?.trim();
+    const name = (body.name as string)?.trim().replace(/<[^>]*>/g, "").slice(0, 100);
+    const description = (body.description as string)?.trim().replace(/<[^>]*>/g, "").slice(0, 500) || undefined;
     const visibility = body.visibility as SpaceVisibility;
-    const tags = (body.tags as string[]) || [];
-    const projectId = body.projectId as string | undefined;
+    const tags = Array.isArray(body.tags)
+        ? (body.tags as string[]).map((t) => String(t).trim().replace(/<[^>]*>/g, "").slice(0, 50)).filter(Boolean).slice(0, 20)
+        : [];
+    const projectId = (body.projectId as string)?.trim().slice(0, 100) || undefined;
 
     if (!orgId || !name || !visibility) {
         return Response.json({ error: "Required: orgId, name, visibility" }, { status: 400 });

@@ -248,7 +248,7 @@ export function ArtifactBrowser() {
                                                 <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
                                             </a>
                                             <a
-                                                href={`/api/v1/artifacts/${artifact.contentCid}`}
+                                                href={`/api/v1/artifacts/${artifact.contentCid}?orgId=${encodeURIComponent(currentOrg?.id || "")}`}
                                                 download={artifact.filename}
                                                 className="p-1.5 rounded hover:bg-muted/50 transition-colors"
                                                 title="Download"

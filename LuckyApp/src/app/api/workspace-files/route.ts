@@ -48,9 +48,12 @@ function getFileList(dir: string, baseDir: string = dir): any[] {
 }
 
 function verifyAccess(req: NextRequest): boolean {
-    // Allow local dashboard access, require service auth for remote
-    const host = req.headers.get('host') || '';
-    if (host.startsWith('localhost') || host.startsWith('127.0.0.1')) return true;
+    // Allow local dashboard access in dev only, require service auth for remote
+    const isDev = process.env.NODE_ENV === 'development';
+    if (isDev) {
+        const host = req.headers.get('host') || '';
+        if (host.startsWith('localhost') || host.startsWith('127.0.0.1')) return true;
+    }
     return requireInternalService(req).ok;
 }
 

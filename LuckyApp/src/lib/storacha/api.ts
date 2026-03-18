@@ -131,8 +131,9 @@ export interface ArtifactMetaResult {
 export async function getArtifactMeta(
     cid: string,
     walletAddress: string,
+    orgId: string,
 ): Promise<ArtifactMetaResult> {
-    const res = await fetch(`/api/v1/artifacts/${cid}?meta=true`, {
+    const res = await fetch(`/api/v1/artifacts/${cid}?meta=true&orgId=${encodeURIComponent(orgId)}`, {
         headers: { "x-wallet-address": walletAddress },
     });
     if (!res.ok) {
@@ -142,8 +143,8 @@ export async function getArtifactMeta(
     return res.json();
 }
 
-export function getArtifactDownloadUrl(cid: string): string {
-    return `/api/v1/artifacts/${cid}`;
+export function getArtifactDownloadUrl(cid: string, orgId: string): string {
+    return `/api/v1/artifacts/${cid}?orgId=${encodeURIComponent(orgId)}`;
 }
 
 // ═══════════════════════════════════════════════════════════════

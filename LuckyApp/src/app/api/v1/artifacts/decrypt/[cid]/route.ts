@@ -44,6 +44,18 @@ export async function GET(
         return Response.json({ error: "Artifact not found" }, { status: 404 });
     }
 
+    // Verify org ownership (prevent cross-org decryption)
+    const reqOrgId = req.nextUrl.searchParams.get("orgId");
+    if (!reqOrgId) {
+        return Response.json(
+            { error: "orgId query parameter is required" },
+            { status: 400 },
+        );
+    }
+    if (artifact.orgId !== reqOrgId) {
+        return Response.json({ error: "Artifact not found" }, { status: 404 });
+    }
+
     // Verify the artifact is actually encrypted
     const isEncrypted = artifact.metadata?.encrypted === true;
     if (!isEncrypted) {
@@ -68,7 +80,7 @@ export async function GET(
             status: 200,
             headers: {
                 "Content-Type": artifact.mimeType,
-                "Content-Disposition": `inline; filename="${artifact.filename}"`,
+                "Content-Disposition": `inline; filename="${artifact.filename.replace(/["\r\n]/g, "_")}"`,
                 "X-Content-CID": cid,
                 "X-Encrypted": "true",
                 "Cache-Control": "private, no-cache", // encrypted content shouldn't be cached publicly

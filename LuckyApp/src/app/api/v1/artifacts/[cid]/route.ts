@@ -42,6 +42,18 @@ export async function GET(
         return Response.json({ error: "Artifact not found" }, { status: 404 });
     }
 
+    // ── Verify org ownership (prevent cross-org access) ──
+    const orgId = req.nextUrl.searchParams.get("orgId");
+    if (!orgId) {
+        return Response.json(
+            { error: "orgId query parameter is required" },
+            { status: 400 },
+        );
+    }
+    if (artifact.orgId !== orgId) {
+        return Response.json({ error: "Artifact not found" }, { status: 404 });
+    }
+
     // ── Metadata-only mode ───────────────────────────────
     const metaOnly = req.nextUrl.searchParams.get("meta") === "true";
     if (metaOnly) {
@@ -71,7 +83,7 @@ export async function GET(
             status: 200,
             headers: {
                 "Content-Type": artifact.mimeType,
-                "Content-Disposition": `inline; filename="${artifact.filename}"`,
+                "Content-Disposition": `inline; filename="${artifact.filename.replace(/["\r\n]/g, "_")}"`,
                 "X-Content-CID": cid,
                 "Cache-Control": "public, max-age=31536000, immutable",
             },

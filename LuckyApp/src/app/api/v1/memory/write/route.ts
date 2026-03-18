@@ -19,6 +19,7 @@ import {
 import {
     recordCidLink,
     addStorachaMemoryEntry,
+    checkQuota,
 } from "@/lib/storacha/cid-index";
 import { addMemoryEntry } from "@/lib/memory";
 import type { StorachaMemoryType } from "@/lib/storacha/types";
@@ -87,6 +88,12 @@ export async function POST(req: NextRequest) {
             { error: "Content exceeds 10 MB limit" },
             { status: 413 },
         );
+    }
+
+    // ── Quota check ────────────────────────────────────────
+    const quotaError = await checkQuota(orgId, contentBuffer.byteLength);
+    if (quotaError) {
+        return Response.json({ error: quotaError }, { status: 413 });
     }
 
     // ── Upload to Storacha ───────────────────────────────

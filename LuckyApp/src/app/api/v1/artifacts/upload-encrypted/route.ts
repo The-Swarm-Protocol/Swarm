@@ -23,12 +23,26 @@ import {
 import {
     recordCidLink,
     addArtifactRecord,
+    checkQuota,
 } from "@/lib/storacha/cid-index";
 import { encryptContent, isEncryptionAvailable } from "@/lib/storacha/encryption";
 import type { ArtifactType } from "@/lib/storacha/types";
 
 const VALID_ARTIFACT_TYPES: ArtifactType[] = ["screenshot", "output", "log", "report"];
 const MAX_ARTIFACT_SIZE = 50 * 1024 * 1024; // 50 MB
+
+const ALLOWED_MIME_PREFIXES = [
+    "image/", "text/", "application/json", "application/pdf",
+    "application/octet-stream", "application/zip", "application/gzip",
+];
+
+function sanitizeFilename(name: string): string {
+    return name
+        .replace(/[/\\]/g, "_")
+        .replace(/\.\./g, "_")
+        .replace(/[\x00-\x1f]/g, "")
+        .slice(0, 255) || "unnamed";
+}
 
 export async function POST(req: NextRequest) {
     const wallet = getWalletAddress(req);
@@ -85,6 +99,19 @@ export async function POST(req: NextRequest) {
         return Response.json({ error: "File exceeds 50 MB limit" }, { status: 413 });
     }
 
+    const mimeType = file.type || "application/octet-stream";
+    if (!ALLOWED_MIME_PREFIXES.some((p) => mimeType.startsWith(p))) {
+        return Response.json(
+            { error: `Unsupported file type: ${mimeType}` },
+            { status: 415 },
+        );
+    }
+
+    const quotaError = await checkQuota(orgId, file.size);
+    if (quotaError) {
+        return Response.json({ error: quotaError }, { status: 413 });
+    }
+
     let metadata: Record<string, unknown> | undefined;
     if (metadataStr) {
         try { metadata = JSON.parse(metadataStr); } catch { /* ignore */ }
@@ -99,9 +126,10 @@ export async function POST(req: NextRequest) {
         const encrypted = encryptContent(plaintext, orgId);
 
         // Upload encrypted content to IPFS
+        const safeFilename = sanitizeFilename(file.name);
         const { cid, sizeBytes } = await uploadContent(
             encrypted,
-            `${file.name}.enc`,
+            `${safeFilename}.enc`,
         );
 
         await recordCidLink(cid, "default-space", sizeBytes);
@@ -112,8 +140,8 @@ export async function POST(req: NextRequest) {
             agentId,
             artifactType: artifactType as ArtifactType,
             contentCid: cid,
-            filename: file.name || "unnamed",
-            mimeType: file.type || "application/octet-stream",
+            filename: safeFilename,
+            mimeType,
             sizeBytes: file.size, // original size
             metadata: { ...metadata, encrypted: true, encryptedSizeBytes: sizeBytes },
             uploadedBy,
@@ -124,8 +152,8 @@ export async function POST(req: NextRequest) {
             id,
             cid,
             encrypted: true,
-            filename: file.name || "unnamed",
-            mimeType: file.type || "application/octet-stream",
+            filename: safeFilename,
+            mimeType,
             sizeBytes: file.size,
             gatewayUrl: buildRetrievalUrl(cid),
         });
