@@ -30,6 +30,7 @@ const SECURITY_HEADERS: Record<string, string> = {
     "img-src 'self' data: blob: https: http:",
     "connect-src 'self' https: wss:",
     "frame-src 'self' https://*.thirdweb.com https://accounts.google.com https://embedded-wallet.thirdweb.com",
+    "media-src 'self' data: blob:",
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
