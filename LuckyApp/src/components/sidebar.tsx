@@ -16,7 +16,7 @@ import {
   Command, Coins, Stethoscope, Brain, UserCog, Network, HardDrive, BookOpen, Store, Building2,
   Link as LinkIcon, Zap, Palette, Megaphone, Wrench, Plug, Puzzle, Sparkles,
   Monitor, Globe, Code as CodeIcon, Bot, ShieldAlert, Flag, Package, History,
-  TrendingUp, DollarSign, Settings2,
+  TrendingUp, DollarSign, Settings2, Database,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -366,6 +366,7 @@ export function Sidebar() {
                 { id: "admin-mkt-rankings", href: "/admin/marketplace/rankings", label: "Rankings", icon: TrendingUp },
                 { id: "admin-mkt-revenue", href: "/admin/marketplace/revenue", label: "Revenue", icon: DollarSign },
                 { id: "admin-mkt-settings", href: "/admin/marketplace/settings", label: "Settings", icon: Settings2 },
+                { id: "admin-mkt-registry", href: "/admin/marketplace/registry", label: "Registry", icon: Database },
                 { id: "admin-mkt-audit", href: "/admin/marketplace/audit", label: "Audit Log", icon: FileText },
               ],
             },

@@ -13,7 +13,7 @@ import {
 import { db } from "@/lib/firebase";
 import { requirePlatformAdmin } from "@/lib/auth-guard";
 import { recordAuditEntry } from "@/lib/audit-log";
-import { runSecurityScan, type ReviewEntry } from "@/lib/submission-protocol";
+import { runSecurityScan, type ReviewEntry, type ExtendedScanOptions } from "@/lib/submission-protocol";
 import type { PermissionScope } from "@/lib/skills";
 
 interface FlaggedItem {
@@ -72,11 +72,22 @@ export async function GET(req: NextRequest) {
         const scanEntries = reviewHistory.filter((h) => h.stage === "security_scan");
         if (scanEntries.length > 0) totalScansRun++;
 
-        // Run live security scan
+        // Build extended scan options from available data
+        const extended: ExtendedScanOptions = {};
+        if (data.dependencies) extended.dependencies = data.dependencies;
+        if (data.devDependencies) extended.devDependencies = data.devDependencies;
+        if (data.scripts) extended.scripts = data.scripts;
+        if (data.license) extended.license = data.license;
+        if (data.sourceUrl) extended.sourceUrl = data.sourceUrl;
+        if (data.demoUrl) extended.demoUrl = data.demoUrl;
+        if (typeof data.rejectedCount === "number") extended.publisherRejections = data.rejectedCount;
+
+        // Run live security scan (with extended checks)
         const scanResult = runSecurityScan(
           data.description || "",
           data.modManifest,
           permissions,
+          Object.keys(extended).length > 0 ? extended : undefined,
         );
 
         // Count findings by severity
@@ -183,10 +194,20 @@ export async function POST(req: NextRequest) {
     const data = snap.data();
     const permissions = (data.permissionsRequired || []) as PermissionScope[];
 
+    // Build extended scan options
+    const extended: ExtendedScanOptions = {};
+    if (data.dependencies) extended.dependencies = data.dependencies;
+    if (data.devDependencies) extended.devDependencies = data.devDependencies;
+    if (data.scripts) extended.scripts = data.scripts;
+    if (data.license) extended.license = data.license;
+    if (data.sourceUrl) extended.sourceUrl = data.sourceUrl;
+    if (data.demoUrl) extended.demoUrl = data.demoUrl;
+
     const scanResult = runSecurityScan(
       data.description || "",
       data.modManifest,
       permissions,
+      Object.keys(extended).length > 0 ? extended : undefined,
     );
 
     // Append new ReviewEntry

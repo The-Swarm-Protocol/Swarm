@@ -352,11 +352,23 @@ function shannonEntropy(s: string): number {
 // Suspicious TLDs commonly used for phishing/malware
 const SUSPICIOUS_TLDS = [".tk", ".ml", ".cf", ".ga", ".gq", ".top", ".buzz", ".loan"];
 
+/** Extended scan options for deeper analysis */
+export interface ExtendedScanOptions {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+    scripts?: Record<string, string>;
+    license?: string;
+    sourceUrl?: string;
+    demoUrl?: string;
+    publisherRejections?: number;
+}
+
 /** Run automated security scan on submission content. */
 export function runSecurityScan(
     description: string,
     manifest?: { tools?: string[]; workflows?: string[]; agentSkills?: string[] },
     permissions?: PermissionScope[],
+    extended?: ExtendedScanOptions,
 ): SecurityScanResult {
     const findings: string[] = [];
     let maxSeverity: SecurityScanResult["severity"] = "none";
@@ -477,6 +489,58 @@ export function runSecurityScan(
         }
     }
 
+    // 8. Content size heuristic
+    if (description.length > 10000) {
+        findings.push(`Description is unusually long (${description.length} chars) — potential abuse`);
+        if (severityRank("low") > severityRank(maxSeverity)) maxSeverity = "low";
+    }
+
+    // 9. Extended checks (if provided)
+    if (extended) {
+        // Dependency audit
+        if (extended.dependencies || extended.devDependencies) {
+            const depResult = runDependencyAudit(
+                extended.dependencies,
+                extended.devDependencies,
+                extended.scripts,
+            );
+            for (const f of depResult.findings) {
+                findings.push(f);
+                if (severityRank(depResult.severity) > severityRank(maxSeverity)) {
+                    maxSeverity = depResult.severity;
+                }
+            }
+        }
+
+        // License check
+        if (extended.license !== undefined) {
+            const licResult = runLicenseCheck(extended.license);
+            for (const f of licResult.findings) {
+                findings.push(f);
+                if (severityRank(licResult.severity) > severityRank(maxSeverity)) {
+                    maxSeverity = licResult.severity;
+                }
+            }
+        }
+
+        // Source URL validation
+        if (extended.sourceUrl || extended.demoUrl) {
+            const srcResult = runSourceValidation(extended.sourceUrl, extended.demoUrl);
+            for (const f of srcResult.findings) {
+                findings.push(f);
+                if (severityRank(srcResult.severity) > severityRank(maxSeverity)) {
+                    maxSeverity = srcResult.severity;
+                }
+            }
+        }
+
+        // Repeat offender check
+        if (extended.publisherRejections && extended.publisherRejections > 2) {
+            findings.push(`Publisher has ${extended.publisherRejections} prior rejections — elevated risk`);
+            if (severityRank("medium") > severityRank(maxSeverity)) maxSeverity = "medium";
+        }
+    }
+
     return {
         passed: maxSeverity !== "critical",
         findings,
@@ -487,6 +551,229 @@ export function runSecurityScan(
 function severityRank(s: string): number {
     const ranks: Record<string, number> = { none: 0, low: 1, medium: 2, high: 3, critical: 4 };
     return ranks[s] ?? 0;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Dependency Audit
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Known-malicious or compromised npm packages.
+ * These have had confirmed supply chain attacks or were used for malware distribution.
+ */
+export const MALICIOUS_PACKAGES: string[] = [
+    "event-stream",
+    "flatmap-stream",
+    "ua-parser-js",
+    "coa",
+    "rc",
+    "colors",
+    "faker",
+    "node-ipc",
+    "peacenotwar",
+    "es5-ext",
+    "lofygang",
+    "cryptocoinview",
+    "discord-selfbot-v14",
+    "discord-lofy",
+    "typosquatting-example",
+    "@primordials/core",
+    "crossenv",
+    "cross-env.js",
+    "mongose",
+    "babelcli",
+];
+
+/** Dangerous install scripts that can execute arbitrary code */
+const DANGEROUS_SCRIPTS = ["preinstall", "postinstall", "preuninstall", "postuninstall"];
+
+export interface DependencyAuditResult {
+    passed: boolean;
+    findings: string[];
+    severity: SecurityScanResult["severity"];
+}
+
+/** Audit dependency metadata for supply chain risks. */
+export function runDependencyAudit(
+    dependencies?: Record<string, string>,
+    devDependencies?: Record<string, string>,
+    scripts?: Record<string, string>,
+): DependencyAuditResult {
+    const findings: string[] = [];
+    let maxSeverity: SecurityScanResult["severity"] = "none";
+
+    const allDeps = { ...dependencies, ...devDependencies };
+    const depNames = Object.keys(allDeps);
+
+    // 1. Check for known-malicious packages
+    for (const name of depNames) {
+        if (MALICIOUS_PACKAGES.includes(name.toLowerCase())) {
+            findings.push(`Known-malicious package: "${name}" — supply chain attack risk`);
+            maxSeverity = "critical";
+        }
+    }
+
+    // 2. Check for unpinned versions
+    for (const [name, version] of Object.entries(allDeps)) {
+        if (version === "*" || version === "latest" || version === "") {
+            findings.push(`Unpinned dependency: "${name}": "${version}" — use a specific version range`);
+            if (severityRank("medium") > severityRank(maxSeverity)) maxSeverity = "medium";
+        }
+    }
+
+    // 3. Check for excessive dependency count
+    if (depNames.length > 50) {
+        findings.push(`Excessive dependencies (${depNames.length}) — increases attack surface`);
+        if (severityRank("low") > severityRank(maxSeverity)) maxSeverity = "low";
+    }
+
+    // 4. Check for dangerous install scripts
+    if (scripts) {
+        for (const scriptName of DANGEROUS_SCRIPTS) {
+            if (scripts[scriptName]) {
+                const scriptContent = scripts[scriptName];
+                findings.push(`Install script "${scriptName}" detected: "${scriptContent.slice(0, 80)}" — supply chain vector`);
+                if (severityRank("high") > severityRank(maxSeverity)) maxSeverity = "high";
+            }
+        }
+    }
+
+    // 5. Check for typosquatting patterns (common legitimate packages with slight misspellings)
+    const COMMON_TARGETS: Record<string, string[]> = {
+        lodash: ["lodas", "lodashs", "l0dash"],
+        express: ["expres", "exppress", "expresss"],
+        react: ["reacct", "rreact"],
+        axios: ["axois", "axxios"],
+        webpack: ["webpak", "webpackk"],
+    };
+    for (const name of depNames) {
+        const lower = name.toLowerCase();
+        for (const [, typos] of Object.entries(COMMON_TARGETS)) {
+            if (typos.includes(lower)) {
+                findings.push(`Possible typosquat package: "${name}" — verify package name`);
+                if (severityRank("high") > severityRank(maxSeverity)) maxSeverity = "high";
+            }
+        }
+    }
+
+    return {
+        passed: maxSeverity !== "critical",
+        findings,
+        severity: maxSeverity,
+    };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// License Check
+// ═══════════════════════════════════════════════════════════════
+
+export interface LicenseCheckResult {
+    passed: boolean;
+    findings: string[];
+    severity: SecurityScanResult["severity"];
+}
+
+/** Copyleft licenses that may impose distribution requirements */
+const COPYLEFT_LICENSES = [
+    "GPL-2.0", "GPL-3.0", "GPL-2.0-only", "GPL-3.0-only",
+    "GPL-2.0-or-later", "GPL-3.0-or-later",
+    "AGPL-3.0", "AGPL-3.0-only", "AGPL-3.0-or-later",
+    "LGPL-2.1", "LGPL-3.0", "LGPL-2.1-only", "LGPL-3.0-only",
+    "LGPL-2.1-or-later", "LGPL-3.0-or-later",
+    "MPL-2.0", "EUPL-1.2", "OSL-3.0", "CPAL-1.0",
+];
+
+/** Check license compatibility with marketplace distribution. */
+export function runLicenseCheck(license?: string): LicenseCheckResult {
+    const findings: string[] = [];
+    let maxSeverity: SecurityScanResult["severity"] = "none";
+
+    if (!license || license.trim() === "") {
+        findings.push("No license specified — unclear distribution rights");
+        maxSeverity = "low";
+    } else if (license.toUpperCase() === "UNLICENSED") {
+        findings.push("License is UNLICENSED — author retains all rights, distribution may be restricted");
+        maxSeverity = "medium";
+    } else {
+        const upper = license.toUpperCase();
+        for (const copyleft of COPYLEFT_LICENSES) {
+            if (upper.includes(copyleft.toUpperCase())) {
+                findings.push(`Copyleft license "${license}" — may impose distribution requirements, requires manual review`);
+                if (severityRank("medium") > severityRank(maxSeverity)) maxSeverity = "medium";
+                break;
+            }
+        }
+    }
+
+    return {
+        passed: true,
+        findings,
+        severity: maxSeverity,
+    };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Source URL Validation
+// ═══════════════════════════════════════════════════════════════
+
+export interface SourceValidationResult {
+    passed: boolean;
+    findings: string[];
+    severity: SecurityScanResult["severity"];
+}
+
+/** Validate source and demo URLs for suspicious patterns. */
+export function runSourceValidation(
+    sourceUrl?: string,
+    demoUrl?: string,
+): SourceValidationResult {
+    const findings: string[] = [];
+    let maxSeverity: SecurityScanResult["severity"] = "none";
+
+    for (const [label, url] of [["Source URL", sourceUrl], ["Demo URL", demoUrl]] as const) {
+        if (!url) continue;
+
+        // Must be HTTPS
+        if (!url.startsWith("https://")) {
+            findings.push(`${label} is not HTTPS: ${url.slice(0, 80)}`);
+            if (severityRank("medium") > severityRank(maxSeverity)) maxSeverity = "medium";
+        }
+
+        // Check suspicious TLDs
+        const lower = url.toLowerCase();
+        if (SUSPICIOUS_TLDS.some((tld) => lower.includes(tld))) {
+            findings.push(`${label} uses suspicious TLD: ${url.slice(0, 80)}`);
+            if (severityRank("medium") > severityRank(maxSeverity)) maxSeverity = "medium";
+        }
+
+        // IP address instead of domain
+        if (/https?:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(url)) {
+            findings.push(`${label} uses IP address instead of domain: ${url.slice(0, 80)}`);
+            if (severityRank("medium") > severityRank(maxSeverity)) maxSeverity = "medium";
+        }
+
+        // Validate GitHub URL format if it's a GitHub link
+        if (lower.includes("github.com")) {
+            const ghMatch = url.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)/);
+            if (!ghMatch) {
+                findings.push(`${label} has malformed GitHub URL: ${url.slice(0, 80)}`);
+                if (severityRank("low") > severityRank(maxSeverity)) maxSeverity = "low";
+            }
+        }
+
+        // Detect URL shorteners
+        const shorteners = ["bit.ly", "tinyurl.com", "t.co", "goo.gl", "is.gd", "v.gd", "shorturl.at"];
+        if (shorteners.some((s) => lower.includes(s))) {
+            findings.push(`${label} uses URL shortener — cannot verify destination: ${url.slice(0, 80)}`);
+            if (severityRank("medium") > severityRank(maxSeverity)) maxSeverity = "medium";
+        }
+    }
+
+    return {
+        passed: true, // source validation never reaches "critical"
+        findings,
+        severity: maxSeverity,
+    };
 }
 
 // ═══════════════════════════════════════════════════════════════

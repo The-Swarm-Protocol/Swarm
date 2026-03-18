@@ -2,7 +2,7 @@
  * GET /api/v1/marketplace/items
  *
  * Public browse endpoint for marketplace items.
- * Merges static registry + community items + marketplace agents.
+ * Merges verified registry (Firestore-backed) + community items + marketplace agents.
  *
  * Query params:
  * - type: "mod" | "plugin" | "skill" | "skin" | "agent"
@@ -17,7 +17,7 @@
 import { NextRequest } from "next/server";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { SKILL_REGISTRY } from "@/lib/skills";
+import { getVerifiedItems } from "@/lib/verified-registry";
 import { computeRankingScore } from "@/lib/submission-protocol";
 
 interface BrowseItem {
@@ -52,27 +52,30 @@ export async function GET(req: NextRequest) {
     try {
         const items: BrowseItem[] = [];
 
-        // 1. Static registry items (verified)
-        if (sourceFilter !== "community" && !featuredOnly) {
-            for (const s of SKILL_REGISTRY) {
-                if (typeFilter && s.type !== typeFilter) continue;
-                if (categoryFilter && s.category !== categoryFilter) continue;
+        // 1. Verified items (Firestore-backed, SKILL_REGISTRY fallback)
+        if (sourceFilter !== "community") {
+            const verified = await getVerifiedItems({
+                type: typeFilter,
+                category: categoryFilter,
+                featured: featuredOnly || undefined,
+            });
+            for (const v of verified) {
                 items.push({
-                    id: s.id,
-                    name: s.name,
-                    type: s.type,
-                    category: s.category,
-                    icon: s.icon,
-                    description: s.description,
-                    version: s.version,
+                    id: v.id,
+                    name: v.name,
+                    type: v.type,
+                    category: v.category,
+                    icon: v.icon,
+                    description: v.description,
+                    version: v.version,
                     source: "verified",
-                    author: s.author,
-                    tags: s.tags,
-                    pricing: s.pricing,
-                    installCount: 0,
-                    avgRating: 0,
-                    ratingCount: 0,
-                    featured: false,
+                    author: v.author,
+                    tags: v.tags,
+                    pricing: v.pricing,
+                    installCount: v.installCount,
+                    avgRating: v.avgRating,
+                    ratingCount: v.ratingCount,
+                    featured: v.featured,
                 });
             }
         }
