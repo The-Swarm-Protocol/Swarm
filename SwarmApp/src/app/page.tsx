@@ -41,14 +41,13 @@ function LandingPageContent() {
 
   const redirectParam = searchParams.get('redirect');
 
-  // Only auto-redirect if there's an explicit ?redirect= param
-  // (e.g. from ProtectedRoute sending unauthenticated users here).
-  // Otherwise let the user see the landing page and click "Dashboard" themselves.
+  // Auto-redirect after login: go to ?redirect= target or /dashboard
   useEffect(() => {
-    if (loading || !authenticated || !redirectParam) return;
+    if (loading || !authenticated) return;
 
-    debug.log("[Swarm:Landing] Authenticated with redirect param, navigating to:", redirectParam);
-    router.replace(redirectParam);
+    const target = redirectParam || "/dashboard";
+    debug.log("[Swarm:Landing] Authenticated, navigating to:", target);
+    router.replace(target);
   }, [authenticated, loading, router, redirectParam]);
 
   // Stagger robot loading: center immediately, left at 4s, right at 8s
