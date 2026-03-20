@@ -465,19 +465,9 @@ export default function AgentsPage() {
         createdAt: new Date(),
       });
 
-      // Attempt on-chain registration on Hedera Testnet (non-blocking)
-      if (account?.address) {
-        registerOnChain(`${agentName.trim()} | ${asn}`, TYPE_DESCRIPTIONS[agentType], 0)
-          .then(async (txHash) => {
-            if (txHash) {
-              await updateDoc(doc(db, "agents", newAgentId), {
-                onChainTxHash: txHash,
-                onChainRegistered: true,
-              });
-            }
-          })
-          .catch(() => { });
-      }
+      // On-chain registration is now skipped during initial agent creation 
+      // to avoid interrupting the user with a wallet signature prompt.
+      // Users can register the agent on-chain manually later if desired.
 
       const apiKey = apiKeyForNew;
 
