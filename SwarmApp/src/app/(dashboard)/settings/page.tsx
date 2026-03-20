@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useOrg } from '@/contexts/OrgContext';
 import { useActiveAccount } from 'thirdweb/react';
-import { updateOrganization, getProfile, setProfile } from '@/lib/firestore';
+import { updateOrganization, getProfile, setProfile, removeMemberFromOrganization } from '@/lib/firestore';
+
 import { Badge } from '@/components/ui/badge';
 import { GitHubIcon } from '@/components/github/github-icon';
 import SpotlightCard from "@/components/reactbits/SpotlightCard";
@@ -671,6 +672,14 @@ export default function SettingsPage() {
             <CardDescription>Organization members and their roles</CardDescription>
           </CardHeader>
           <CardContent>
+            {message && message.text.includes('Member') && (
+              <div className={`mb-4 text-sm rounded-md p-3 ${message.type === 'success'
+                ? 'bg-emerald-50 text-emerald-600 border border-green-200'
+                : 'bg-red-50 text-red-600 border border-red-200'
+                }`}>
+                {message.text}
+              </div>
+            )}
             <div className="space-y-3">
               {/* Owner */}
               <div className="flex items-center justify-between p-3 rounded-md bg-amber-50 border border-amber-200">
@@ -696,9 +705,30 @@ export default function SettingsPage() {
                       </p>
                       <p className="text-xs text-muted-foreground">Member</p>
                     </div>
-                    <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full">
-                      Member
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full">
+                        Member
+                      </span>
+                      {address === currentOrg.ownerAddress && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-red-500 hover:text-red-700 hover:bg-red-500/10 h-7 text-xs px-2"
+                          onClick={async () => {
+                            if (!confirm(`Are you sure you want to remove ${member.slice(0, 6)}... from the organization?`)) return;
+                            try {
+                              await removeMemberFromOrganization(currentOrg.id, member);
+                              await refreshOrgs();
+                              setMessage({ type: 'success', text: 'Member removed successfully' });
+                            } catch (err) {
+                              setMessage({ type: 'error', text: 'Failed to remove member' });
+                            }
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))
               }
@@ -708,9 +738,29 @@ export default function SettingsPage() {
               <p>Total members: {currentOrg.members.length}</p>
             </div>
 
-            <Button variant="outline" size="sm" className="mt-4" disabled>
-              + Invite Member (coming soon)
-            </Button>
+            {currentOrg.inviteCode && (
+               <div className="mt-6 p-4 rounded-md border border-amber-500/30 bg-amber-500/5">
+                 <p className="text-sm font-medium mb-2 text-amber-500">Invite New Members</p>
+                 <p className="text-xs text-muted-foreground mb-3">
+                   Share this 6-character code with your team. They can enter it during onboarding to join this organization.
+                 </p>
+                 <div className="flex items-center gap-2">
+                   <code className="flex-1 rounded-md border border-amber-300 bg-black/50 px-3 py-2 text-center text-lg font-mono font-bold tracking-widest text-amber-400">
+                     {currentOrg.inviteCode}
+                   </code>
+                   <Button
+                     type="button"
+                     className="bg-amber-600 hover:bg-amber-700 text-black"
+                     onClick={() => {
+                       navigator.clipboard.writeText(currentOrg.inviteCode || '');
+                       setMessage({ type: 'success', text: 'Invite code copied to clipboard!' });
+                     }}
+                   >
+                     📋 Copy Code
+                   </Button>
+                 </div>
+               </div>
+            )}
           </CardContent>
         </Card>
 
