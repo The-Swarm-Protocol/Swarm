@@ -137,6 +137,13 @@ export async function POST(req: NextRequest) {
     autoStopMinutes: autoStop ?? DEFAULT_AUTO_STOP_MINUTES,
     controllerType: controllerType || "human",
     modelKey: modelKey || null,
+    openclawVariant: body.openclawVariant || null,
+    ownerWallet: wallet,
+    ownerOrgId: ws.orgId,
+    transferable: true,
+    listedForSale: false,
+    listingPriceCents: null,
+    listingDescription: null,
     createdByUserId: wallet,
   });
 

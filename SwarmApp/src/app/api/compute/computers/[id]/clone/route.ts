@@ -46,6 +46,13 @@ export async function POST(
     autoStopMinutes: computer.autoStopMinutes,
     controllerType: computer.controllerType,
     modelKey: computer.modelKey,
+    openclawVariant: computer.openclawVariant,
+    ownerWallet: wallet,
+    ownerOrgId: computer.orgId,
+    transferable: computer.transferable,
+    listedForSale: false,
+    listingPriceCents: null,
+    listingDescription: null,
     createdByUserId: wallet,
   });
 

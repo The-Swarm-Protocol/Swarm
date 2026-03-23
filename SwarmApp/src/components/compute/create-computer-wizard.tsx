@@ -8,6 +8,7 @@ import {
   MODEL_LABELS,
   REGION_LABELS,
   PROVIDER_LABELS,
+  OPENCLAW_VARIANTS,
   DEFAULT_AUTO_STOP_MINUTES,
   DEFAULT_RESOLUTION,
   type ComputerMode,
@@ -17,6 +18,7 @@ import {
   type ModelKey,
   type ProviderKey,
   type Workspace,
+  type OpenClawVariant,
 } from "@/lib/compute/types";
 import { estimateHourlyCost, estimateMonthlyCost } from "@/lib/compute/billing";
 import { trackComputeEvent } from "@/lib/posthog";
@@ -28,8 +30,8 @@ interface CreateComputerWizardProps {
   onCancel: () => void;
 }
 
-type Step = "workspace" | "mode" | "resources" | "controller" | "model" | "review";
-const STEPS: Step[] = ["workspace", "mode", "resources", "controller", "model", "review"];
+type Step = "workspace" | "mode" | "variant" | "resources" | "controller" | "model" | "review";
+const BASE_STEPS: Step[] = ["workspace", "mode", "resources", "controller", "model", "review"];
 
 export function CreateComputerWizard({ workspaces, onCreated, onCancel }: CreateComputerWizardProps) {
   const [step, setStep] = useState<Step>("workspace");
@@ -39,6 +41,7 @@ export function CreateComputerWizard({ workspaces, onCreated, onCancel }: Create
   const [workspaceId, setWorkspaceId] = useState(workspaces[0]?.id || "");
   const [name, setName] = useState("");
   const [mode, setMode] = useState<ComputerMode>("blank");
+  const [openclawVariant, setOpenclawVariant] = useState<OpenClawVariant | null>(null);
   const [sizeKey, setSizeKey] = useState<SizeKey>("medium");
   const [region, setRegion] = useState<Region>("us-east");
   const [provider, setProvider] = useState<ProviderKey>("azure");
@@ -46,6 +49,11 @@ export function CreateComputerWizard({ workspaces, onCreated, onCancel }: Create
   const [persistenceEnabled, setPersistenceEnabled] = useState(true);
   const [controllerType, setControllerType] = useState<ControllerType>("human");
   const [modelKey, setModelKey] = useState<ModelKey | null>(null);
+
+  // Add variant step when openclaw mode is selected
+  const STEPS = mode === "openclaw"
+    ? ["workspace", "mode", "variant", "resources", "controller", "model", "review"] as Step[]
+    : BASE_STEPS;
 
   const currentIdx = STEPS.indexOf(step);
   const canGoBack = currentIdx > 0;
@@ -70,13 +78,14 @@ export function CreateComputerWizard({ workspaces, onCreated, onCancel }: Create
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           workspaceId,
-          name: name || `${MODE_PRESETS[mode].label} Computer`,
+          name: name || (openclawVariant ? OPENCLAW_VARIANTS[openclawVariant].label : MODE_PRESETS[mode].label) + " Computer",
           provider,
           sizeKey,
           region,
           controllerType,
           modelKey,
           mode,
+          openclawVariant,
           autoStopMinutes,
           persistenceEnabled,
           resolutionWidth: DEFAULT_RESOLUTION.width,

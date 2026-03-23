@@ -36,6 +36,15 @@ export type ComputerMode =
   | "trading"
   | "template";
 
+export type OpenClawVariant =
+  | "openclaw"
+  | "nanobot"
+  | "hermes-agent"
+  | "picobot"
+  | "agent-zero";
+
+export type TransferStatus = "pending" | "completed" | "cancelled";
+
 export type TemplateCategory =
   | "dev"
   | "browser"
@@ -247,6 +256,20 @@ export interface Computer {
   autoStopMinutes: number;
   controllerType: ControllerType;
   modelKey: ModelKey | null;
+  /** OpenClaw variant running in this instance (null if not an openclaw instance) */
+  openclawVariant: OpenClawVariant | null;
+  /** Wallet address of the current owner */
+  ownerWallet: string;
+  /** Org ID of the current owner */
+  ownerOrgId: string;
+  /** Whether this instance can be transferred/sold */
+  transferable: boolean;
+  /** Whether this instance is currently listed on the marketplace */
+  listedForSale: boolean;
+  /** Asking price in cents (null if not listed) */
+  listingPriceCents: number | null;
+  /** Public description for the marketplace listing */
+  listingDescription: string | null;
   createdByUserId: string;
   createdAt: Date | null;
   updatedAt: Date | null;
@@ -509,3 +532,99 @@ export const PLAN_LIMITS: Record<ComputeEntitlement["planTier"], {
   pro:        { creditsCents: 5000,  monthlyHours: 200,  maxConcurrent: 10, allowedSizes: ["small", "medium", "large"] },
   enterprise: { creditsCents: 25000, monthlyHours: 0,    maxConcurrent: 50, allowedSizes: ["small", "medium", "large", "xl"] },
 };
+
+// ═══════════════════════════════════════════════════════════════
+// OpenClaw Variant Presets
+// ═══════════════════════════════════════════════════════════════
+
+export const OPENCLAW_VARIANTS: Record<OpenClawVariant, {
+  label: string;
+  description: string;
+  icon: string;
+  baseImage: string;
+  defaultSize: SizeKey;
+  features: string[];
+  repoUrl: string;
+  language: string;
+  stars: string;
+}> = {
+  "openclaw": {
+    label: "OpenClaw",
+    description: "The original open-source AI agent framework with full tool use and memory",
+    icon: "Brain",
+    baseImage: "openclaw/openclaw:latest",
+    defaultSize: "medium",
+    features: ["Natural language control", "Tool use & automation", "Persistent memory", "Multi-model support"],
+    repoUrl: "https://github.com/openclaw",
+    language: "Python",
+    stars: "50k+",
+  },
+  "nanobot": {
+    label: "NanoBot",
+    description: "The ultra-lightweight OpenClaw — minimal footprint, maximum capability",
+    icon: "Zap",
+    baseImage: "hkuds/nanobot:latest",
+    defaultSize: "small",
+    features: ["Ultra-lightweight", "Fast startup", "Low resource usage", "OpenClaw compatible"],
+    repoUrl: "https://github.com/HKUDS/nanobot",
+    language: "Python",
+    stars: "35.5k",
+  },
+  "hermes-agent": {
+    label: "Hermes Agent",
+    description: "The agent that grows with you — by NousResearch, built on Hermes models",
+    icon: "Sparkles",
+    baseImage: "nousresearch/hermes-agent:latest",
+    defaultSize: "large",
+    features: ["Hermes model native", "Adaptive learning", "Multi-modal", "Research-grade"],
+    repoUrl: "https://github.com/NousResearch/hermes-agent",
+    language: "Python",
+    stars: "10.5k",
+  },
+  "picobot": {
+    label: "PicoBot",
+    description: "Lightweight self-hosted bot in a single binary — written in Go, instant deploy",
+    icon: "Box",
+    baseImage: "louisho5/picobot:latest",
+    defaultSize: "small",
+    features: ["Single binary", "Go performance", "Self-hosted", "Instant deploy"],
+    repoUrl: "https://github.com/louisho5/picobot",
+    language: "Go",
+    stars: "1.2k",
+  },
+  "agent-zero": {
+    label: "Agent Zero",
+    description: "Fully autonomous AI agent framework — self-healing, self-improving",
+    icon: "Shield",
+    baseImage: "agent0ai/agent-zero:latest",
+    defaultSize: "large",
+    features: ["Fully autonomous", "Self-healing", "Docker sandboxed", "Knowledge persistence"],
+    repoUrl: "https://github.com/agent0ai/agent-zero",
+    language: "Python",
+    stars: "16.3k",
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════
+// Ownership Transfer
+// ═══════════════════════════════════════════════════════════════
+
+export interface ComputerTransfer {
+  id: string;
+  computerId: string;
+  computerName: string;
+  openclawVariant: OpenClawVariant | null;
+  fromWallet: string;
+  fromOrgId: string;
+  toWallet: string;
+  toOrgId: string;
+  priceCents: number;
+  platformFeeCents: number;
+  status: TransferStatus;
+  snapshotId: string | null;
+  createdAt: Date | null;
+  completedAt: Date | null;
+}
+
+/** Platform fee percentage on agent sales */
+export const TRANSFER_FEE_PERCENT = 10;

@@ -54,6 +54,13 @@ export async function launchFromTemplate(opts: {
     autoStopMinutes: DEFAULT_AUTO_STOP_MINUTES,
     controllerType: opts.controllerType || "human",
     modelKey: opts.modelKey || null,
+    openclawVariant: null,
+    ownerWallet: opts.createdByUserId,
+    ownerOrgId: opts.orgId,
+    transferable: true,
+    listedForSale: false,
+    listingPriceCents: null,
+    listingDescription: null,
     createdByUserId: opts.createdByUserId,
   });
 

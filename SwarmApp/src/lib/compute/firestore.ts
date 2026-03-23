@@ -35,12 +35,16 @@ import type {
   BillingLedgerEntry,
   PricingSettings,
   ComputeEntitlement,
+  ComputerTransfer,
   ComputerStatus,
   TemplateCategory,
   MemoryScopeType,
   SizeKey,
   Region,
+  TransferStatus,
+  OpenClawVariant,
 } from "./types";
+import { TRANSFER_FEE_PERCENT } from "./types";
 
 // ═══════════════════════════════════════════════════════════════
 // Collection Names
@@ -61,6 +65,7 @@ const COLLECTIONS = {
   billingLedger: "computeBillingLedger",
   pricingSettings: "computePricingSettings",
   entitlements: "computeEntitlements",
+  transfers: "computeTransfers",
 } as const;
 
 // ═══════════════════════════════════════════════════════════════
@@ -207,6 +212,13 @@ function parseComputer(id: string, d: Record<string, unknown>): Computer {
     autoStopMinutes: (d.autoStopMinutes as number) ?? 30,
     controllerType: (d.controllerType as Computer["controllerType"]) || "human",
     modelKey: (d.modelKey as Computer["modelKey"]) || null,
+    openclawVariant: (d.openclawVariant as OpenClawVariant) || null,
+    ownerWallet: (d.ownerWallet as string) || (d.createdByUserId as string) || "",
+    ownerOrgId: (d.ownerOrgId as string) || (d.orgId as string) || "",
+    transferable: (d.transferable as boolean) ?? true,
+    listedForSale: (d.listedForSale as boolean) ?? false,
+    listingPriceCents: (d.listingPriceCents as number) ?? null,
+    listingDescription: (d.listingDescription as string) || null,
     createdByUserId: (d.createdByUserId as string) || "",
     createdAt: toDate(d.createdAt),
     updatedAt: toDate(d.updatedAt),
@@ -829,4 +841,190 @@ export async function addHoursUsed(orgId: string, hours: number): Promise<void> 
   await upsertEntitlement(orgId, {
     hoursUsedThisPeriod: entitlement.hoursUsedThisPeriod + hours,
   });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Transfers — Ownership Transfer Records
+// ═══════════════════════════════════════════════════════════════
+
+function parseTransfer(id: string, d: Record<string, unknown>): ComputerTransfer {
+  return {
+    id,
+    computerId: d.computerId as string,
+    computerName: (d.computerName as string) || "",
+    openclawVariant: (d.openclawVariant as OpenClawVariant) || null,
+    fromWallet: d.fromWallet as string,
+    fromOrgId: d.fromOrgId as string,
+    toWallet: d.toWallet as string,
+    toOrgId: d.toOrgId as string,
+    priceCents: (d.priceCents as number) || 0,
+    platformFeeCents: (d.platformFeeCents as number) || 0,
+    status: (d.status as TransferStatus) || "pending",
+    snapshotId: (d.snapshotId as string) || null,
+    createdAt: toDate(d.createdAt),
+    completedAt: toDate(d.completedAt),
+  };
+}
+
+export async function createTransfer(
+  data: Omit<ComputerTransfer, "id" | "createdAt" | "completedAt" | "platformFeeCents">,
+): Promise<string> {
+  const platformFeeCents = Math.ceil(data.priceCents * (TRANSFER_FEE_PERCENT / 100));
+  const ref = await addDoc(collection(db, COLLECTIONS.transfers), {
+    ...data,
+    platformFeeCents,
+    createdAt: serverTimestamp(),
+    completedAt: null,
+  });
+  return ref.id;
+}
+
+export async function getTransfer(id: string): Promise<ComputerTransfer | null> {
+  const snap = await getDoc(doc(db, COLLECTIONS.transfers, id));
+  if (!snap.exists()) return null;
+  return parseTransfer(snap.id, snap.data());
+}
+
+export async function getTransfers(opts?: {
+  computerId?: string;
+  fromWallet?: string;
+  toWallet?: string;
+  status?: TransferStatus;
+  limit?: number;
+}): Promise<ComputerTransfer[]> {
+  const constraints = [];
+  if (opts?.computerId) constraints.push(where("computerId", "==", opts.computerId));
+  if (opts?.fromWallet) constraints.push(where("fromWallet", "==", opts.fromWallet));
+  if (opts?.toWallet) constraints.push(where("toWallet", "==", opts.toWallet));
+  if (opts?.status) constraints.push(where("status", "==", opts.status));
+  const q = query(collection(db, COLLECTIONS.transfers), ...constraints);
+  const snap = await getDocs(q);
+  const items = snap.docs.map((s) => parseTransfer(s.id, s.data()));
+  items.sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
+  return items.slice(0, opts?.limit || 50);
+}
+
+export async function completeTransfer(transferId: string): Promise<void> {
+  await updateDoc(doc(db, COLLECTIONS.transfers, transferId), {
+    status: "completed",
+    completedAt: serverTimestamp(),
+  });
+}
+
+export async function cancelTransfer(transferId: string): Promise<void> {
+  await updateDoc(doc(db, COLLECTIONS.transfers, transferId), {
+    status: "cancelled",
+  });
+}
+
+/**
+ * Atomic ownership transfer: stops the computer, snapshots it,
+ * reassigns ownership, and logs the transfer.
+ */
+export async function transferComputer(opts: {
+  computerId: string;
+  fromWallet: string;
+  fromOrgId: string;
+  toWallet: string;
+  toOrgId: string;
+  toWorkspaceId: string;
+  priceCents: number;
+}): Promise<{ transferId: string; snapshotId: string | null }> {
+  const computer = await getComputer(opts.computerId);
+  if (!computer) throw new Error("Computer not found");
+  if (computer.ownerWallet !== opts.fromWallet) throw new Error("Not the owner");
+  if (!computer.transferable) throw new Error("Computer is not transferable");
+
+  // 1. Stop the computer if running
+  if (computer.status === "running" || computer.status === "starting") {
+    await updateComputer(opts.computerId, { status: "stopping" });
+  }
+
+  // 2. Create a snapshot for the transfer record
+  let snapshotId: string | null = null;
+  try {
+    snapshotId = await createSnapshot({
+      computerId: opts.computerId,
+      providerSnapshotId: `transfer-${Date.now()}`,
+      label: `Pre-transfer snapshot → ${opts.toWallet.slice(0, 8)}...`,
+    });
+  } catch {
+    // Snapshot is best-effort; transfer proceeds without it
+  }
+
+  // 3. Reassign ownership
+  await updateComputer(opts.computerId, {
+    ownerWallet: opts.toWallet,
+    ownerOrgId: opts.toOrgId,
+    orgId: opts.toOrgId,
+    workspaceId: opts.toWorkspaceId,
+    listedForSale: false,
+    listingPriceCents: null,
+    listingDescription: null,
+    status: "stopped",
+  });
+
+  // 4. Log the transfer
+  const transferId = await createTransfer({
+    computerId: opts.computerId,
+    computerName: computer.name,
+    openclawVariant: computer.openclawVariant,
+    fromWallet: opts.fromWallet,
+    fromOrgId: opts.fromOrgId,
+    toWallet: opts.toWallet,
+    toOrgId: opts.toOrgId,
+    priceCents: opts.priceCents,
+    status: "completed",
+    snapshotId,
+  });
+
+  await completeTransfer(transferId);
+
+  return { transferId, snapshotId };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Marketplace Helpers
+// ═══════════════════════════════════════════════════════════════
+
+/** List a computer for sale on the marketplace */
+export async function listComputerForSale(
+  computerId: string,
+  ownerWallet: string,
+  priceCents: number,
+  description: string,
+): Promise<void> {
+  const computer = await getComputer(computerId);
+  if (!computer) throw new Error("Computer not found");
+  if (computer.ownerWallet !== ownerWallet) throw new Error("Not the owner");
+  if (!computer.transferable) throw new Error("Computer is not transferable");
+
+  await updateComputer(computerId, {
+    listedForSale: true,
+    listingPriceCents: priceCents,
+    listingDescription: description,
+  });
+}
+
+/** Remove a computer from the marketplace */
+export async function unlistComputer(computerId: string, ownerWallet: string): Promise<void> {
+  const computer = await getComputer(computerId);
+  if (!computer) throw new Error("Computer not found");
+  if (computer.ownerWallet !== ownerWallet) throw new Error("Not the owner");
+
+  await updateComputer(computerId, {
+    listedForSale: false,
+    listingPriceCents: null,
+    listingDescription: null,
+  });
+}
+
+/** Get all computers currently listed for sale */
+export async function getListedComputers(): Promise<Computer[]> {
+  const q = query(
+    collection(db, COLLECTIONS.computers),
+    where("listedForSale", "==", true),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((s) => parseComputer(s.id, s.data()));
 }

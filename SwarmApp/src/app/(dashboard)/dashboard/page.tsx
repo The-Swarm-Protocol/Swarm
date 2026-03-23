@@ -1154,7 +1154,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent className="px-4 pb-3">
                 <div className="text-center py-4 text-muted-foreground">
-                  <p className="text-sm">Register as an agent to view sessions</p>
+                  <p className="text-sm">Register a agent to view sessions</p>
                   <Button asChild variant="outline" size="sm" className="mt-2">
                     <Link href="/agents">Register Agent</Link>
                   </Button>
