@@ -48,7 +48,8 @@ abstract class BaseAzureProvider implements ComputeProvider {
   }
 
   protected async getCredential() {
-    const { DefaultAzureCredential } = await import("@azure/identity");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { DefaultAzureCredential } = require("@azure/identity");
     return new DefaultAzureCredential();
   }
 
@@ -74,7 +75,8 @@ export class AzureACIProvider extends BaseAzureProvider {
   readonly productType: AzureProductType = "aci";
 
   async createInstance(config: InstanceConfig): Promise<ProviderResult> {
-    const { ContainerInstanceManagementClient } = await import("@azure/arm-containerinstance");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ContainerInstanceManagementClient } = require("@azure/arm-containerinstance");
     const credential = await this.getCredential();
     const client = new ContainerInstanceManagementClient(credential, this.subscriptionId);
 
@@ -139,28 +141,32 @@ export class AzureACIProvider extends BaseAzureProvider {
   }
 
   async startInstance(providerInstanceId: string): Promise<void> {
-    const { ContainerInstanceManagementClient } = await import("@azure/arm-containerinstance");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ContainerInstanceManagementClient } = require("@azure/arm-containerinstance");
     const credential = await this.getCredential();
     const client = new ContainerInstanceManagementClient(credential, this.subscriptionId);
     await client.containerGroups.start(this.resourceGroup, providerInstanceId);
   }
 
   async stopInstance(providerInstanceId: string): Promise<void> {
-    const { ContainerInstanceManagementClient } = await import("@azure/arm-containerinstance");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ContainerInstanceManagementClient } = require("@azure/arm-containerinstance");
     const credential = await this.getCredential();
     const client = new ContainerInstanceManagementClient(credential, this.subscriptionId);
     await client.containerGroups.stop(this.resourceGroup, providerInstanceId);
   }
 
   async restartInstance(providerInstanceId: string): Promise<void> {
-    const { ContainerInstanceManagementClient } = await import("@azure/arm-containerinstance");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ContainerInstanceManagementClient } = require("@azure/arm-containerinstance");
     const credential = await this.getCredential();
     const client = new ContainerInstanceManagementClient(credential, this.subscriptionId);
     await client.containerGroups.restart(this.resourceGroup, providerInstanceId);
   }
 
   async deleteInstance(providerInstanceId: string): Promise<void> {
-    const { ContainerInstanceManagementClient } = await import("@azure/arm-containerinstance");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ContainerInstanceManagementClient } = require("@azure/arm-containerinstance");
     const credential = await this.getCredential();
     const client = new ContainerInstanceManagementClient(credential, this.subscriptionId);
     await client.containerGroups.beginDeleteAndWait(this.resourceGroup, providerInstanceId);
@@ -173,7 +179,8 @@ export class AzureACIProvider extends BaseAzureProvider {
   }
 
   async executeAction(providerInstanceId: string, action: ActionEnvelope): Promise<ActionResult> {
-    const { ContainerInstanceManagementClient } = await import("@azure/arm-containerinstance");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ContainerInstanceManagementClient } = require("@azure/arm-containerinstance");
     const credential = await this.getCredential();
     const client = new ContainerInstanceManagementClient(credential, this.subscriptionId);
     const start = Date.now();
@@ -212,7 +219,8 @@ export class AzureACIProvider extends BaseAzureProvider {
   }
 
   async getVncUrl(providerInstanceId: string): Promise<string> {
-    const { ContainerInstanceManagementClient } = await import("@azure/arm-containerinstance");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ContainerInstanceManagementClient } = require("@azure/arm-containerinstance");
     const credential = await this.getCredential();
     const client = new ContainerInstanceManagementClient(credential, this.subscriptionId);
 
@@ -261,7 +269,8 @@ export class AzureSpotProvider extends BaseAzureProvider {
   readonly productType: AzureProductType = "spot";
 
   async createInstance(config: InstanceConfig): Promise<ProviderResult> {
-    const { ComputeManagementClient } = await import("@azure/arm-compute");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ComputeManagementClient } = require("@azure/arm-compute");
     const credential = await this.getCredential();
     const client = new ComputeManagementClient(credential, this.subscriptionId);
 
@@ -332,35 +341,40 @@ export class AzureSpotProvider extends BaseAzureProvider {
   // (Importing from the original azure.ts logic)
 
   async startInstance(providerInstanceId: string): Promise<void> {
-    const { ComputeManagementClient } = await import("@azure/arm-compute");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ComputeManagementClient } = require("@azure/arm-compute");
     const credential = await this.getCredential();
     const client = new ComputeManagementClient(credential, this.subscriptionId);
     await client.virtualMachines.beginStartAndWait(this.resourceGroup, providerInstanceId);
   }
 
   async stopInstance(providerInstanceId: string): Promise<void> {
-    const { ComputeManagementClient } = await import("@azure/arm-compute");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ComputeManagementClient } = require("@azure/arm-compute");
     const credential = await this.getCredential();
     const client = new ComputeManagementClient(credential, this.subscriptionId);
     await client.virtualMachines.beginDeallocateAndWait(this.resourceGroup, providerInstanceId);
   }
 
   async restartInstance(providerInstanceId: string): Promise<void> {
-    const { ComputeManagementClient } = await import("@azure/arm-compute");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ComputeManagementClient } = require("@azure/arm-compute");
     const credential = await this.getCredential();
     const client = new ComputeManagementClient(credential, this.subscriptionId);
     await client.virtualMachines.beginRestartAndWait(this.resourceGroup, providerInstanceId);
   }
 
   async deleteInstance(providerInstanceId: string): Promise<void> {
-    const { ComputeManagementClient } = await import("@azure/arm-compute");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ComputeManagementClient } = require("@azure/arm-compute");
     const credential = await this.getCredential();
     const client = new ComputeManagementClient(credential, this.subscriptionId);
     await client.virtualMachines.beginDeleteAndWait(this.resourceGroup, providerInstanceId);
   }
 
   async takeScreenshot(providerInstanceId: string): Promise<{ url: string; base64?: string }> {
-    const { ComputeManagementClient } = await import("@azure/arm-compute");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ComputeManagementClient } = require("@azure/arm-compute");
     const credential = await this.getCredential();
     const client = new ComputeManagementClient(credential, this.subscriptionId);
 
@@ -401,7 +415,8 @@ export class AzureSpotProvider extends BaseAzureProvider {
   }
 
   async createSnapshot(providerInstanceId: string, label: string): Promise<string> {
-    const { ComputeManagementClient } = await import("@azure/arm-compute");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ComputeManagementClient } = require("@azure/arm-compute");
     const credential = await this.getCredential();
     const client = new ComputeManagementClient(credential, this.subscriptionId);
 
@@ -458,7 +473,8 @@ ${config.startupScript || ""}
   }
 
   private async runCommand(vmName: string, command: string): Promise<ActionResult> {
-    const { ComputeManagementClient } = await import("@azure/arm-compute");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { ComputeManagementClient } = require("@azure/arm-compute");
     const credential = await this.getCredential();
     const client = new ComputeManagementClient(credential, this.subscriptionId);
     const start = Date.now();
@@ -495,7 +511,8 @@ ${config.startupScript || ""}
   }
 
   private async getPublicIp(vmName: string): Promise<string | null> {
-    const { NetworkManagementClient } = await import("@azure/arm-network");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { NetworkManagementClient } = require("@azure/arm-network");
     const credential = await this.getCredential();
     const client = new NetworkManagementClient(credential, this.subscriptionId);
 
