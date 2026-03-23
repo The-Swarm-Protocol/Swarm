@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Play, Square, RotateCcw, Copy, Camera, ChevronLeft, Trash2 } from "lucide-react";
+import { Play, Square, RotateCcw, Copy, Camera, ChevronLeft, Trash2, AlertCircle } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { Computer, ComputerSession, ComputerAction, ActionType } from "@/lib/compute/types";
 import {
@@ -103,9 +103,27 @@ export default function ComputerDetailPage({ params }: { params: Promise<{ id: s
 
   const handleLifecycle = async (action: "start" | "stop" | "restart") => {
     trackComputeEvent(`computer_${action}`, { computerId: id, sizeKey: computer?.sizeKey });
-    await fetch(`/api/compute/computers/${id}/${action}`, { method: "POST" });
-    await fetchComputer();
-    if (action === "start") await fetchSessions();
+    try {
+      const res = await fetch(`/api/compute/computers/${id}/${action}`, { method: "POST" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 409) {
+          // Computer is already in transitional state - not an error, just inform user
+          setError(`Computer is already ${computer?.status}. Please wait for the current operation to complete.`);
+          setTimeout(() => setError(""), 5000); // Clear after 5s
+        } else {
+          setError(data.error || `Failed to ${action} computer`);
+        }
+        return;
+      }
+
+      setError(""); // Clear any previous errors
+      await fetchComputer();
+      if (action === "start") await fetchSessions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to ${action} computer`);
+    }
   };
 
   const handleAction = async (actionType: ActionType, payload: Record<string, unknown>) => {
@@ -208,6 +226,23 @@ export default function ComputerDetailPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="space-y-6 p-6">
+      {/* Error Banner */}
+      {error && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-amber-400 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm text-amber-400 font-medium">Operation Status</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{error}</p>
+          </div>
+          <button
+            onClick={() => setError("")}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
@@ -262,11 +297,20 @@ export default function ComputerDetailPage({ params }: { params: Promise<{ id: s
         </TabsList>
 
         <TabsContent value="desktop">
-          <DesktopViewer computerId={id} vncUrl={vncUrl} />
+          <DesktopViewer
+            computerId={id}
+            vncUrl={vncUrl}
+            status={computer.status}
+            provider={computer.provider}
+          />
         </TabsContent>
 
         <TabsContent value="terminal">
-          <TerminalViewer computerId={id} terminalUrl={terminalUrl} />
+          <TerminalViewer
+            computerId={id}
+            terminalUrl={terminalUrl}
+            status={computer.status}
+          />
         </TabsContent>
 
         <TabsContent value="actions">

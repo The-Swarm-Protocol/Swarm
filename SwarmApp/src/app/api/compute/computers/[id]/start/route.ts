@@ -146,7 +146,36 @@ export async function POST(
     return Response.json({ ok: true, sessionId });
   } catch (err) {
     console.error("[compute/start] Failed:", err);
-    await updateComputer(id, { status: "error" });
-    return Response.json({ error: "Failed to start computer" }, { status: 500 });
+
+    // Extract detailed error message
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const stackTrace = err instanceof Error ? err.stack : undefined;
+
+    console.error("[compute/start] Error details:", {
+      message: errorMessage,
+      stack: stackTrace,
+      provider: computer.provider,
+      hasInstanceId: !!computer.providerInstanceId,
+    });
+
+    await updateComputer(id, {
+      status: "error",
+      providerMetadata: {
+        ...computer.providerMetadata,
+        lastError: errorMessage,
+        lastErrorAt: new Date().toISOString(),
+      }
+    });
+
+    return Response.json({
+      error: "Failed to start computer",
+      details: errorMessage,
+      provider: computer.provider,
+      suggestion: errorMessage.includes("credentials") || errorMessage.includes("authentication")
+        ? "Check Azure credentials in environment variables"
+        : errorMessage.includes("quota") || errorMessage.includes("limit")
+        ? "Check Azure subscription quotas and limits"
+        : "Check server logs for details"
+    }, { status: 500 });
   }
 }
