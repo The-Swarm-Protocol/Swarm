@@ -19,7 +19,7 @@ interface ResourcePickerProps {
 }
 
 /** Providers exposed in the UI (excludes stub) — Azure first */
-const UI_PROVIDERS: ProviderKey[] = ["swarm-node", "azure", "e2b", "aws", "gcp"];
+const UI_PROVIDERS: ProviderKey[] = ["azure", "e2b", "swarm-node", "aws", "gcp"];
 
 export function ResourcePicker({
   provider,

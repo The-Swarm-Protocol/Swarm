@@ -34,9 +34,39 @@ export async function GET(
   const provider = getComputeProvider(computer.provider);
   try {
     const url = await provider.getVncUrl(computer.providerInstanceId);
+
+    // Some providers (swarm-node, stub) don't support VNC
+    if (!url) {
+      return Response.json(
+        { error: `VNC access is not supported for provider "${computer.provider}"` },
+        { status: 501 },
+      );
+    }
+
     return Response.json({ ok: true, url });
   } catch (err) {
-    console.error("[compute/vnc-token] Failed:", err);
-    return Response.json({ error: "Failed to get VNC URL" }, { status: 500 });
+    // Extract detailed error message
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const stackTrace = err instanceof Error ? err.stack : undefined;
+
+    console.error("[compute/vnc-token] Failed:", {
+      error: errorMessage,
+      stack: stackTrace,
+      provider: computer.provider,
+      providerInstanceId: computer.providerInstanceId,
+      computerId: computer.id,
+      computerStatus: computer.status,
+    });
+
+    return Response.json({
+      error: "Failed to get VNC URL",
+      details: errorMessage,
+      provider: computer.provider,
+      suggestion: errorMessage.includes("credentials") || errorMessage.includes("authentication")
+        ? "Check Azure credentials in environment variables"
+        : errorMessage.includes("not found") || errorMessage.includes("does not exist")
+        ? "The VM may have been deleted or not yet created"
+        : "Check server logs for details"
+    }, { status: 500 });
   }
 }
