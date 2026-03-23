@@ -8,6 +8,17 @@
 
 ## 🆕 What's New (March 2026)
 
+**Compute Platform — Production-Ready VM/Container Orchestration**
+- ✅ **Multi-Cloud Support** — Azure VMs (full production), E2B sandboxes, and decentralized Swarm Nodes
+- ✅ **Real VM Cloning** — Actual machine duplication via snapshot → disk → new VM workflow (not just metadata copying)
+- ✅ **Provider-Backed Snapshots** — Disk snapshots at cloud provider level with strict validation (no synthetic fallbacks)
+- ✅ **Azure Dynamic Networking** — Automatic VNet, NIC, NSG, and Public IP creation with proper tagging
+- ✅ **Desktop Access** — noVNC web interface with VNC access to running instances
+- ✅ **State Management** — Auto-recovery from stuck states (10-min timeout), status debugging, force-reset API
+- ✅ **Complete Cleanup** — Deletes all associated resources (NICs, NSGs, Public IPs) to prevent orphaned billing
+- ✅ **Resource Tagging** — All cloud resources tagged for tracking, cleanup, and cost attribution
+- 📄 See [COMPUTE_REALITY_CHECK.md](COMPUTE_REALITY_CHECK.md), [AZURE_FIXES.md](AZURE_FIXES.md), [COMPUTE_STATE_MANAGEMENT.md](COMPUTE_STATE_MANAGEMENT.md)
+
 **Agent Persona Marketplace**
 - ✅ **ClawMart-Style Persona Store** — Browse, purchase, and apply pre-configured AI agent personas with defined personalities, communication styles, and operational playbooks.
 - ✅ **SOUL Config System** — Full YAML-based personality configuration (identity, personality traits, communication style, decision making, risk tolerance, humor, ethics, greeting style).
@@ -126,6 +137,7 @@ Built for solo founders, startups, and teams who need to command multiple AI age
 | **Capability Resolver** | Shipped | Resolves capabilities from installed official mods and community content. |
 | **Community Submissions** | Shipped | Submission UI for all types (skills, plugins, skins, mods, agent personas) + admin review pipeline for both community items and agent packages. |
 | **Unified Publishing API** | Shipped | `POST /api/v1/marketplace/publish` + `GET /api/v1/marketplace/my-items` — agents, humans, and companies can publish and manage marketplace items programmatically. |
+| **Compute Platform** | Shipped | Multi-cloud VM/container orchestration with Azure VMs (full lifecycle + dynamic networking), E2B sandboxes, Swarm Nodes. Real clone (snapshot→disk→VM), provider-backed snapshots, VNC access, state management with auto-recovery, complete resource cleanup. |
 | **Chainlink CRE Workflow** | Partial | Workflow defined; simulation-ready, not deployed to production |
 | **Payment Processing** | Planned | Pricing models defined (USD/HBAR); no Stripe/PayPal integration |
 | **Slack / Email / Calendar** | Planned | Referenced in types; no implementation |
@@ -223,6 +235,103 @@ Every mod ships a **ModManifest** — a structured declaration of everything it 
 | **Code Examples** | Runnable snippets with language tags and copy-to-clipboard |
 
 See [docs/creating-mods.md](docs/creating-mods.md) for the complete specification.
+
+### Compute Platform
+
+A production-grade multi-cloud compute orchestration system for provisioning and managing VM and container instances for AI agents.
+
+#### Features
+
+- **Multi-Cloud Support** — Azure VMs, E2B sandboxes, and decentralized Swarm Nodes
+- **Real VM Cloning** — Actual machine duplication via snapshot → disk → new VM workflow (not just metadata copying)
+- **Provider-Backed Snapshots** — Disk snapshots at the cloud provider level with strict validation (no synthetic fallbacks)
+- **Dynamic Networking** — Automatic creation of VNets, NICs, NSGs, and Public IPs (Azure)
+- **Desktop Access** — noVNC web interface over WebSocket with VNC access to running instances
+- **State Management** — Automatic recovery from stuck states (10-min timeout), status endpoints, force-reset API
+- **Complete Cleanup** — Deletes all associated resources (NICs, NSGs, Public IPs) when instance is deleted to prevent orphaned billing
+- **Resource Tagging** — All cloud resources tagged for tracking, cleanup, and cost attribution
+
+#### Supported Providers
+
+| Provider | Status | Capabilities |
+|----------|--------|--------------|
+| **Azure VMs** | Production | Full lifecycle (create, start, stop, restart, delete), snapshot, clone, dynamic networking, VNC access, Run Command |
+| **E2B Sandboxes** | Production | Containerized environments with VNC, desktop actions, file operations (~90% complete) |
+| **Swarm Nodes** | Shipped | Decentralized Docker containers on community-contributed nodes via Firestore lease system |
+| **AWS EC2** | Stub | Provider interface implemented, no SDK calls yet |
+| **GCP Compute** | Stub | Provider interface implemented, no SDK calls yet |
+
+#### Azure Implementation Highlights
+
+- **Dynamic Networking Stack**
+  - VNet + Subnet creation (10.0.0.0/16 address space)
+  - NSG with VNC (6080), SSH (22), and direct VNC (5901) rules
+  - Dynamic or static Public IP allocation
+  - NIC with Public IP and NSG attached
+  - All resources tagged with VM name for cleanup
+
+- **Real Clone Workflow**
+  1. Snapshot source VM's OS disk
+  2. Create networking for new VM (NSG, Public IP, NIC)
+  3. Create managed disk from snapshot
+  4. Create new VM from disk (attach mode)
+  5. Clean up temporary snapshot
+  6. Return new VM ID
+
+- **Complete Resource Cleanup**
+  - Reads VM tags to find associated NIC, NSG, Public IP
+  - Deletes all resources on VM deletion
+  - Preserves static IPs unless tagged for deletion
+  - Fallback to naming convention if VM already deleted
+
+#### State Machine
+
+All compute instances follow a strict state machine with automatic recovery:
+
+| State | Description | Timeout | Auto-Recovery |
+|-------|-------------|---------|---------------|
+| `provisioning` | Creating cloud resources | 15 min | → error |
+| `stopped` | Fully stopped, no cost | Indefinite | N/A |
+| `starting` | Booting instance | 10 min | → error |
+| `running` | Active, billable | Indefinite | Auto-stop timer |
+| `stopping` | Shutting down | 5 min | → error |
+| `error` | Failed operation | Indefinite | Manual retry |
+| `snapshotting` | Creating snapshot | 30 min | → error |
+
+#### API Endpoints
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/api/compute/computers` | Create new compute instance |
+| GET | `/api/compute/computers` | List all instances for org |
+| GET | `/api/compute/computers/:id` | Get instance details |
+| POST | `/api/compute/computers/:id/start` | Start instance |
+| POST | `/api/compute/computers/:id/stop` | Stop instance |
+| POST | `/api/compute/computers/:id/restart` | Restart instance |
+| DELETE | `/api/compute/computers/:id` | Delete instance and all resources |
+| POST | `/api/compute/computers/:id/clone` | Clone instance (creates new VM) |
+| POST | `/api/compute/computers/:id/snapshot` | Create disk snapshot |
+| GET | `/api/compute/computers/:id/status` | Debugging endpoint with health checks |
+| POST | `/api/compute/computers/:id/force-reset` | Recovery endpoint for stuck states |
+| GET | `/api/compute/computers/:id/desktop-token` | Get VNC URL with auth token |
+
+#### Documentation Files
+
+| File | Purpose |
+|------|---------|
+| [`COMPUTE_REALITY_CHECK.md`](COMPUTE_REALITY_CHECK.md) | Comprehensive platform assessment — what's real, partial, and missing with prioritized next steps |
+| [`AZURE_FIXES.md`](AZURE_FIXES.md) | Azure provider production fixes — dynamic networking, real clone, complete cleanup |
+| [`COMPUTE_STATE_MANAGEMENT.md`](COMPUTE_STATE_MANAGEMENT.md) | State machine, auto-recovery, API reference, error handling |
+| [`SESSION_SUMMARY.md`](SESSION_SUMMARY.md) | Session summary — clone/snapshot/Azure fixes with testing checklist |
+| [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) | Common errors and solutions for compute platform |
+
+#### Current Limitations
+
+- **No health checks yet** — Instances marked "running" before VM fully boots (VNC may not be ready immediately)
+- **No orphan cleanup job** — Manual Azure portal checks needed for desync between Firestore and cloud resources
+- **Estimated costs only** — No real usage metering from provider APIs yet
+- **Password-based access** — Uses auto-generated passwords instead of SSH key injection
+- **Single VNet** — All Azure VMs use shared `swarm-vnet` (no custom VNet support yet)
 
 ### Agent Self-Reporting
 - **Skill Reporting** — Agents declare their capabilities on connect via `/v1/report-skills`
@@ -468,6 +577,23 @@ Agent identity NFTs on **Solana Devnet** via the Metaplex Token Metadata program
 | GET | `/api/v1/metaplex/metadata/:agentId` | Public | Dynamic Metaplex-standard metadata JSON for agent NFT |
 | GET | `/api/v1/metaplex/metadata/collection/:orgId` | Public | Dynamic metadata JSON for org collection NFT |
 
+### Compute Platform
+
+| Method | Endpoint | Auth | Purpose |
+|--------|----------|------|---------|
+| POST | `/api/compute/computers` | Authenticated | Create new compute instance (Azure, E2B, or Swarm Node) |
+| GET | `/api/compute/computers` | Authenticated | List all instances for org |
+| GET | `/api/compute/computers/:id` | Authenticated | Get instance details |
+| POST | `/api/compute/computers/:id/start` | Authenticated | Start instance (with auto-recovery from stuck states) |
+| POST | `/api/compute/computers/:id/stop` | Authenticated | Stop instance |
+| POST | `/api/compute/computers/:id/restart` | Authenticated | Restart instance |
+| DELETE | `/api/compute/computers/:id` | Authenticated | Delete instance and all associated resources |
+| POST | `/api/compute/computers/:id/clone` | Authenticated | Clone instance (creates actual new VM/container) |
+| POST | `/api/compute/computers/:id/snapshot` | Authenticated | Create provider-backed disk snapshot |
+| GET | `/api/compute/computers/:id/status` | Authenticated | Debugging endpoint with timing, health checks, suggested actions |
+| POST | `/api/compute/computers/:id/force-reset` | Authenticated | Recovery endpoint for instances stuck > 5 minutes |
+| GET | `/api/compute/computers/:id/desktop-token` | Authenticated | Get VNC URL with auth token for desktop access |
+
 ### Chainlink
 
 | Method | Endpoint | Auth | Purpose |
@@ -655,6 +781,19 @@ The deploy script auto-updates `SwarmApp/.env.local` with contract addresses.
 | `SOLANA_RPC_URL` | Solana RPC endpoint | Defaults to `https://api.devnet.solana.com` |
 | `NEXT_PUBLIC_APP_DOMAIN` | App domain for metadata URIs (e.g. `swarmprotocol.ai`) | Defaults to `localhost:3000` |
 
+#### Compute Providers (SwarmApp/.env.local)
+
+| Variable | Purpose | Default behavior if missing |
+|----------|---------|----------------------------|
+| `AZURE_SUBSCRIPTION_ID` | Azure subscription ID for VM provisioning | Azure provider falls back to stub (no real VMs) |
+| `AZURE_RESOURCE_GROUP` | Azure resource group for compute resources | Defaults to `swarm-compute` |
+| `AZURE_TENANT_ID` | Azure AD tenant ID for authentication | Azure provider disabled |
+| `AZURE_CLIENT_ID` | Azure service principal client ID | Azure provider disabled |
+| `AZURE_CLIENT_SECRET` | Azure service principal secret | Azure provider disabled |
+| `E2B_API_KEY` | E2B API key for sandbox provisioning | E2B provider disabled |
+
+**Note:** If Azure credentials are missing, the provider factory silently falls back to stub mode. Set `AZURE_SUBSCRIPTION_ID` at minimum to enable real Azure VM provisioning. See [COMPUTE_REALITY_CHECK.md](COMPUTE_REALITY_CHECK.md) for the stub provider risk assessment.
+
 #### Smart Contracts (SwarmApp/.env.local)
 
 | Variable | Purpose | Default behavior if missing |
@@ -837,6 +976,11 @@ sequenceDiagram
 | **Agent Wallet** | Deterministic Solana keypair derived from platform key + agent ID |
 | **NFT Identity** | Metaplex NFT on Solana Devnet representing an agent's on-chain identity |
 | **Collection** | Metaplex NFT collection grouping all agent identity NFTs for an organization |
+| **Compute Instance** | A VM or container provisioned on a cloud provider (Azure, E2B, Swarm Node) |
+| **Provider** | Cloud compute backend (azure, e2b, swarm-node) that provisions actual infrastructure |
+| **Clone** | Duplicate a running instance via snapshot → disk → new VM workflow |
+| **Snapshot** | Provider-backed disk image for backup or cloning |
+| **VNC** | Virtual Network Computing — remote desktop access over noVNC web interface |
 
 ## Firestore Collections
 
@@ -864,6 +1008,10 @@ sequenceDiagram
 | `tailscaleDevices` | Tailscale VPN devices | orgId, deviceId, tailscaleIp, agentId |
 | `taskAssignments` | Formal task assignments | orgId, fromAgentId, toAgentId, title, status, priority, deadline, requiresAcceptance |
 | `assignmentNotifications` | Assignment inbox | orgId, assignmentId, agentId, type, message, read |
+| `computers` | Compute instances | orgId, name, provider, status, providerInstanceId, sizeKey, cpuCores, ramMb, diskGb, region, providerMetadata |
+| `computeSessions` | Active compute sessions | computerId, orgId, agentId, startedAt, lastActiveAt, autoStopMinutes |
+| `nodes` | Swarm Node registry | nodeId, orgId, status, lastHeartbeat, dockerInstalled, containerCount, cpuCores, ramMb, diskGb |
+| `leases` | Node compute leases | nodeId, orgId, computerId, status, containerImage, memoryMb, cpuCores, containerId |
 
 ## Repo Structure
 
@@ -891,6 +1039,7 @@ Swarm/
 │   │   │   │   ├── memory/        # Agent memory management
 │   │   │   │   ├── cerebro/       # Auto-organized conversation topics
 │   │   │   │   ├── solana/        # Solana dashboard (treasury, wallet, Metaplex NFTs)
+│   │   │   │   ├── compute/       # Compute platform (VMs, containers, sessions)
 │   │   │   │   ├── missions/      # Strategic objectives (Kanban)
 │   │   │   │   ├── approvals/     # Human-in-the-loop approval queue
 │   │   │   │   ├── operators/     # Operator/member management
@@ -904,6 +1053,7 @@ Swarm/
 │   │   │       ├── webhooks/      # API key-authenticated agent APIs
 │   │   │       ├── github/        # GitHub integration APIs
 │   │   │       ├── chainlink/     # Chainlink price feed API
+│   │   │       ├── compute/       # Compute platform APIs (create, start, stop, clone, snapshot)
 │   │   │       └── ...            # cron-jobs, live-feed, usage, workspace-files
 │   │   ├── components/            # UI components
 │   │   ├── contexts/              # OrgContext (state management)
@@ -918,6 +1068,15 @@ Swarm/
 │   │       ├── tailscale.ts       # Tailscale VPN integration
 │   │       ├── auth-guard.ts      # Authentication guards
 │   │       ├── solana-keys.ts     # Solana/Metaplex helpers (Umi, keypair derivation, validators)
+│   │       ├── compute/           # Compute platform core
+│   │       │   ├── provider.ts    # Provider factory and interface
+│   │       │   ├── types.ts       # Compute types, size/region maps, base images
+│   │       │   ├── firestore.ts   # Firestore operations for compute
+│   │       │   └── providers/     # Provider implementations
+│   │       │       ├── azure.ts      # Azure VMs (full production)
+│   │       │       ├── e2b.ts        # E2B sandboxes
+│   │       │       ├── swarm-node.ts # Swarm Nodes (decentralized)
+│   │       │       └── stub.ts       # Stub provider
 │   │       └── ...                # Other core libraries
 │   └── public/
 │       └── plugins/               # swarm-connect.zip (downloadable agent plugin)
@@ -947,6 +1106,16 @@ Swarm/
 │   ├── scenarios/                 # 5 elderly care scenarios
 │   ├── scripts/                   # Model deployment
 │   └── README.md                  # Subnet documentation
+├── packages/                      # Shared packages
+│   └── swarm-node/                # Swarm Node daemon
+│       ├── src/                   # Node daemon source
+│       ├── README.md              # Node operator guide
+│       └── QUICKSTART.md          # Quick start guide
+├── COMPUTE_REALITY_CHECK.md       # Compute platform assessment (what's real vs placeholder)
+├── AZURE_FIXES.md                 # Azure production fixes (networking, clone, cleanup)
+├── COMPUTE_STATE_MANAGEMENT.md    # State machine, auto-recovery, API reference
+├── SESSION_SUMMARY.md             # Latest session summary (clone/snapshot/Azure fixes)
+├── TROUBLESHOOTING.md             # Common errors and solutions
 └── docs/
     └── creating-mods.md           # Mod creation guide + ModManifest spec
 ```

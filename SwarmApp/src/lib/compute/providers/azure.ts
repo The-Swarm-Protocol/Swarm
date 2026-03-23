@@ -43,8 +43,10 @@ export class AzureComputeProvider implements ComputeProvider {
 
   async createInstance(config: InstanceConfig): Promise<ProviderResult> {
     const { ComputeManagementClient } = await import("@azure/arm-compute");
+    const { NetworkManagementClient } = await import("@azure/arm-network");
     const credential = await this.getCredential();
-    const client = new ComputeManagementClient(credential, this.subscriptionId);
+    const computeClient = new ComputeManagementClient(credential, this.subscriptionId);
+    const networkClient = new NetworkManagementClient(credential, this.subscriptionId);
 
     const location = config.providerRegion || this.resolveLocation(config.region);
     const vmSize = config.providerInstanceType || this.resolveVmSize(config.sizeKey);
@@ -53,7 +55,110 @@ export class AzureComputeProvider implements ComputeProvider {
     // Parse image reference (publisher:offer:sku:version)
     const imageRef = (config.providerImage || PROVIDER_BASE_IMAGES.azure).split(":");
 
-    await client.virtualMachines.beginCreateOrUpdateAndWait(this.resourceGroup, vmName, {
+    // Create networking resources dynamically
+    const vnetName = "swarm-vnet";
+    const subnetName = "swarm-subnet";
+    const nsgName = `${vmName}-nsg`;
+    const publicIpName = `${vmName}-ip`;
+    const nicName = `${vmName}-nic`;
+
+    // 1. Ensure VNet and subnet exist (or create)
+    try {
+      await networkClient.virtualNetworks.get(this.resourceGroup, vnetName);
+    } catch {
+      console.log(`[azure] Creating VNet ${vnetName}`);
+      await networkClient.virtualNetworks.beginCreateOrUpdateAndWait(this.resourceGroup, vnetName, {
+        location,
+        addressSpace: { addressPrefixes: ["10.0.0.0/16"] },
+        subnets: [{
+          name: subnetName,
+          addressPrefix: "10.0.0.0/24",
+        }],
+        tags: { "swarm:managed": "true" },
+      });
+    }
+
+    // 2. Create NSG (Network Security Group) with VNC and SSH rules
+    console.log(`[azure] Creating NSG ${nsgName}`);
+    await networkClient.networkSecurityGroups.beginCreateOrUpdateAndWait(this.resourceGroup, nsgName, {
+      location,
+      securityRules: [
+        {
+          name: "AllowVNC",
+          protocol: "Tcp",
+          sourcePortRange: "*",
+          destinationPortRange: "6080",
+          sourceAddressPrefix: "*",
+          destinationAddressPrefix: "*",
+          access: "Allow",
+          priority: 100,
+          direction: "Inbound",
+        },
+        {
+          name: "AllowSSH",
+          protocol: "Tcp",
+          sourcePortRange: "*",
+          destinationPortRange: "22",
+          sourceAddressPrefix: "*",
+          destinationAddressPrefix: "*",
+          access: "Allow",
+          priority: 110,
+          direction: "Inbound",
+        },
+        {
+          name: "AllowVNCDirect",
+          protocol: "Tcp",
+          sourcePortRange: "*",
+          destinationPortRange: "5901",
+          sourceAddressPrefix: "*",
+          destinationAddressPrefix: "*",
+          access: "Allow",
+          priority: 120,
+          direction: "Inbound",
+        },
+      ],
+      tags: { "swarm:managed": "true", "swarm:vm": vmName },
+    });
+
+    // 3. Create Public IP
+    console.log(`[azure] Creating Public IP ${publicIpName}`);
+    const publicIpResult = await networkClient.publicIPAddresses.beginCreateOrUpdateAndWait(
+      this.resourceGroup,
+      publicIpName,
+      {
+        location,
+        publicIPAllocationMethod: config.staticIpEnabled ? "Static" : "Dynamic",
+        sku: { name: "Standard" },
+        tags: { "swarm:managed": "true", "swarm:vm": vmName },
+      }
+    );
+
+    // 4. Get subnet reference
+    const subnet = await networkClient.subnets.get(this.resourceGroup, vnetName, subnetName);
+
+    // 5. Create NIC with Public IP and NSG
+    console.log(`[azure] Creating NIC ${nicName}`);
+    const nicResult = await networkClient.networkInterfaces.beginCreateOrUpdateAndWait(
+      this.resourceGroup,
+      nicName,
+      {
+        location,
+        ipConfigurations: [{
+          name: "ipconfig1",
+          subnet: { id: subnet.id },
+          publicIPAddress: { id: publicIpResult.id },
+          privateIPAllocationMethod: "Dynamic",
+        }],
+        networkSecurityGroup: {
+          id: `/subscriptions/${this.subscriptionId}/resourceGroups/${this.resourceGroup}/providers/Microsoft.Network/networkSecurityGroups/${nsgName}`,
+        },
+        tags: { "swarm:managed": "true", "swarm:vm": vmName },
+      }
+    );
+
+    // 6. Create VM with the newly created NIC
+    console.log(`[azure] Creating VM ${vmName}`);
+    await computeClient.virtualMachines.beginCreateOrUpdateAndWait(this.resourceGroup, vmName, {
       location,
       hardwareProfile: { vmSize },
       osProfile: {
@@ -81,9 +186,8 @@ export class AzureComputeProvider implements ComputeProvider {
       },
       networkProfile: {
         networkInterfaces: [{
-          // Assumes a NIC is pre-created or uses a default VNet
-          // In production, create NIC + public IP dynamically
-          id: `/subscriptions/${this.subscriptionId}/resourceGroups/${this.resourceGroup}/providers/Microsoft.Network/networkInterfaces/${vmName}-nic`,
+          id: nicResult.id,
+          primary: true,
         }],
       },
       diagnosticsProfile: {
@@ -92,6 +196,9 @@ export class AzureComputeProvider implements ComputeProvider {
       tags: {
         "swarm:managed": "true",
         "swarm:size": config.sizeKey,
+        "swarm:nic": nicName,
+        "swarm:nsg": nsgName,
+        "swarm:ip": publicIpName,
       },
     });
 
@@ -100,7 +207,12 @@ export class AzureComputeProvider implements ComputeProvider {
       status: "starting",
       providerInstanceType: vmSize,
       providerRegion: location,
-      metadata: { resourceGroup: this.resourceGroup },
+      metadata: {
+        resourceGroup: this.resourceGroup,
+        nicName,
+        nsgName,
+        publicIpName,
+      },
     };
   }
 
@@ -127,9 +239,71 @@ export class AzureComputeProvider implements ComputeProvider {
 
   async deleteInstance(providerInstanceId: string): Promise<void> {
     const { ComputeManagementClient } = await import("@azure/arm-compute");
+    const { NetworkManagementClient } = await import("@azure/arm-network");
     const credential = await this.getCredential();
-    const client = new ComputeManagementClient(credential, this.subscriptionId);
-    await client.virtualMachines.beginDeleteAndWait(this.resourceGroup, providerInstanceId);
+    const computeClient = new ComputeManagementClient(credential, this.subscriptionId);
+    const networkClient = new NetworkManagementClient(credential, this.subscriptionId);
+
+    // Get VM to retrieve associated resource names from tags
+    let nicName: string | undefined;
+    let nsgName: string | undefined;
+    let publicIpName: string | undefined;
+
+    try {
+      const vm = await computeClient.virtualMachines.get(this.resourceGroup, providerInstanceId);
+      nicName = vm.tags?.["swarm:nic"];
+      nsgName = vm.tags?.["swarm:nsg"];
+      publicIpName = vm.tags?.["swarm:ip"];
+    } catch {
+      // VM might already be deleted, continue with cleanup based on naming convention
+      nicName = `${providerInstanceId}-nic`;
+      nsgName = `${providerInstanceId}-nsg`;
+      publicIpName = `${providerInstanceId}-ip`;
+    }
+
+    // Delete VM first
+    console.log(`[azure] Deleting VM ${providerInstanceId}`);
+    try {
+      await computeClient.virtualMachines.beginDeleteAndWait(this.resourceGroup, providerInstanceId);
+    } catch (err) {
+      console.warn(`[azure] Failed to delete VM: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // Delete NIC
+    if (nicName) {
+      console.log(`[azure] Deleting NIC ${nicName}`);
+      try {
+        await networkClient.networkInterfaces.beginDeleteAndWait(this.resourceGroup, nicName);
+      } catch (err) {
+        console.warn(`[azure] Failed to delete NIC: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    // Delete NSG
+    if (nsgName) {
+      console.log(`[azure] Deleting NSG ${nsgName}`);
+      try {
+        await networkClient.networkSecurityGroups.beginDeleteAndWait(this.resourceGroup, nsgName);
+      } catch (err) {
+        console.warn(`[azure] Failed to delete NSG: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    // Delete Public IP (unless static and should be preserved)
+    if (publicIpName) {
+      console.log(`[azure] Deleting Public IP ${publicIpName}`);
+      try {
+        const ip = await networkClient.publicIPAddresses.get(this.resourceGroup, publicIpName);
+        // Only delete dynamic IPs or if explicitly tagged for deletion
+        if (ip.publicIPAllocationMethod === "Dynamic" || ip.tags?.["swarm:delete-with-vm"] === "true") {
+          await networkClient.publicIPAddresses.beginDeleteAndWait(this.resourceGroup, publicIpName);
+        } else {
+          console.log(`[azure] Preserving static IP ${publicIpName}`);
+        }
+      } catch (err) {
+        console.warn(`[azure] Failed to delete Public IP: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
   }
 
   async takeScreenshot(providerInstanceId: string): Promise<{ url: string; base64?: string }> {
@@ -225,8 +399,174 @@ export class AzureComputeProvider implements ComputeProvider {
   }
 
   async cloneInstance(providerInstanceId: string, newName: string): Promise<string> {
-    const snapshotId = await this.createSnapshot(providerInstanceId, "clone");
-    return snapshotId;
+    const { ComputeManagementClient } = await import("@azure/arm-compute");
+    const { NetworkManagementClient } = await import("@azure/arm-network");
+    const credential = await this.getCredential();
+    const computeClient = new ComputeManagementClient(credential, this.subscriptionId);
+    const networkClient = new NetworkManagementClient(credential, this.subscriptionId);
+
+    // Get source VM details
+    const sourceVm = await computeClient.virtualMachines.get(this.resourceGroup, providerInstanceId);
+    const location = sourceVm.location || "eastus";
+    const vmSize = sourceVm.hardwareProfile?.vmSize || "Standard_B2s";
+
+    // Generate new VM name
+    const newVmName = `swarm-${newName}-${Date.now()}`.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 64);
+
+    // Step 1: Create snapshot of source VM's OS disk
+    console.log(`[azure] Creating snapshot for clone`);
+    const snapshotName = await this.createSnapshot(providerInstanceId, "clone");
+
+    // Step 2: Create networking resources for new VM
+    const vnetName = "swarm-vnet";
+    const subnetName = "swarm-subnet";
+    const nsgName = `${newVmName}-nsg`;
+    const publicIpName = `${newVmName}-ip`;
+    const nicName = `${newVmName}-nic`;
+
+    // Create NSG
+    console.log(`[azure] Creating NSG for clone`);
+    await networkClient.networkSecurityGroups.beginCreateOrUpdateAndWait(this.resourceGroup, nsgName, {
+      location,
+      securityRules: [
+        {
+          name: "AllowVNC",
+          protocol: "Tcp",
+          sourcePortRange: "*",
+          destinationPortRange: "6080",
+          sourceAddressPrefix: "*",
+          destinationAddressPrefix: "*",
+          access: "Allow",
+          priority: 100,
+          direction: "Inbound",
+        },
+        {
+          name: "AllowSSH",
+          protocol: "Tcp",
+          sourcePortRange: "*",
+          destinationPortRange: "22",
+          sourceAddressPrefix: "*",
+          destinationAddressPrefix: "*",
+          access: "Allow",
+          priority: 110,
+          direction: "Inbound",
+        },
+        {
+          name: "AllowVNCDirect",
+          protocol: "Tcp",
+          sourcePortRange: "*",
+          destinationPortRange: "5901",
+          sourceAddressPrefix: "*",
+          destinationAddressPrefix: "*",
+          access: "Allow",
+          priority: 120,
+          direction: "Inbound",
+        },
+      ],
+      tags: { "swarm:managed": "true", "swarm:vm": newVmName },
+    });
+
+    // Create Public IP
+    console.log(`[azure] Creating Public IP for clone`);
+    const publicIpResult = await networkClient.publicIPAddresses.beginCreateOrUpdateAndWait(
+      this.resourceGroup,
+      publicIpName,
+      {
+        location,
+        publicIPAllocationMethod: "Dynamic",
+        sku: { name: "Standard" },
+        tags: { "swarm:managed": "true", "swarm:vm": newVmName },
+      }
+    );
+
+    // Get subnet reference
+    const subnet = await networkClient.subnets.get(this.resourceGroup, vnetName, subnetName);
+
+    // Create NIC
+    console.log(`[azure] Creating NIC for clone`);
+    const nicResult = await networkClient.networkInterfaces.beginCreateOrUpdateAndWait(
+      this.resourceGroup,
+      nicName,
+      {
+        location,
+        ipConfigurations: [{
+          name: "ipconfig1",
+          subnet: { id: subnet.id },
+          publicIPAddress: { id: publicIpResult.id },
+          privateIPAllocationMethod: "Dynamic",
+        }],
+        networkSecurityGroup: {
+          id: `/subscriptions/${this.subscriptionId}/resourceGroups/${this.resourceGroup}/providers/Microsoft.Network/networkSecurityGroups/${nsgName}`,
+        },
+        tags: { "swarm:managed": "true", "swarm:vm": newVmName },
+      }
+    );
+
+    // Step 3: Create managed disk from snapshot
+    console.log(`[azure] Creating disk from snapshot`);
+    const diskName = `${newVmName}-osdisk`;
+    const snapshot = await computeClient.snapshots.get(this.resourceGroup, snapshotName);
+
+    await computeClient.disks.beginCreateOrUpdateAndWait(this.resourceGroup, diskName, {
+      location,
+      creationData: {
+        createOption: "Copy",
+        sourceResourceId: snapshot.id,
+      },
+      sku: { name: "Premium_LRS" },
+      tags: { "swarm:managed": "true", "swarm:vm": newVmName },
+    });
+
+    // Step 4: Create new VM from the disk
+    console.log(`[azure] Creating cloned VM ${newVmName}`);
+    await computeClient.virtualMachines.beginCreateOrUpdateAndWait(this.resourceGroup, newVmName, {
+      location,
+      hardwareProfile: { vmSize },
+      osProfile: {
+        computerName: newVmName.slice(0, 15),
+        adminUsername: "swarm",
+        adminPassword: `Swarm${Date.now()}!`,
+        linuxConfiguration: {
+          disablePasswordAuthentication: false,
+        },
+      },
+      storageProfile: {
+        osDisk: {
+          createOption: "Attach",
+          managedDisk: {
+            id: `/subscriptions/${this.subscriptionId}/resourceGroups/${this.resourceGroup}/providers/Microsoft.Compute/disks/${diskName}`,
+          },
+          osType: "Linux",
+          deleteOption: "Delete",
+        },
+      },
+      networkProfile: {
+        networkInterfaces: [{
+          id: nicResult.id,
+          primary: true,
+        }],
+      },
+      diagnosticsProfile: {
+        bootDiagnostics: { enabled: true },
+      },
+      tags: {
+        "swarm:managed": "true",
+        "swarm:cloned-from": providerInstanceId,
+        "swarm:nic": nicName,
+        "swarm:nsg": nsgName,
+        "swarm:ip": publicIpName,
+      },
+    });
+
+    // Step 5: Clean up temporary snapshot
+    console.log(`[azure] Cleaning up clone snapshot ${snapshotName}`);
+    try {
+      await computeClient.snapshots.beginDeleteAndWait(this.resourceGroup, snapshotName);
+    } catch (err) {
+      console.warn(`[azure] Failed to delete clone snapshot: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    return newVmName;
   }
 
   // ── Helpers ────────────────────────────────────────────
