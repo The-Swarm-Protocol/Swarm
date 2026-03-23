@@ -167,6 +167,43 @@ export interface Channel {
   createdAt: unknown;
 }
 
+export interface SwarmNode {
+  id: string;
+  providerAddress: string;
+  status: 'online' | 'offline';
+  resources: {
+    cpuCores: number;
+    ramGb: number;
+    platform: string;
+    gpus: { vendor: string; model: string; vram: number; }[];
+  };
+  health?: {
+    cpuLoadPercent: number;
+    ramUsedGb: number;
+    uptimeSec: number;
+  };
+  registeredAt: unknown;
+  lastHeartbeat: unknown;
+}
+
+export interface ComputeLease {
+  id: string;
+  nodeId: string;
+  agentId?: string;
+  computerId: string;
+  orgId: string;
+  status: 'starting' | 'running' | 'stopping' | 'terminated' | 'error';
+  containerImage: string;
+  containerId?: string;
+  env?: Record<string, string>;
+  memoryMb?: number;
+  cpuCores?: number;
+  error?: string;
+  createdAt: unknown;
+  startedAt?: unknown;
+  endedAt?: unknown;
+}
+
 export interface Attachment {
   url: string;
   name: string;
@@ -985,4 +1022,48 @@ export async function getPlatformSnapshot(orgId: string) {
     })),
     timestamp: Date.now(),
   };
+}
+
+// ─── Swarm Node & Leases ────────────────────────────────────────
+
+export async function getSwarmNodes(): Promise<SwarmNode[]> {
+  const q = query(collection(db, "nodes"), orderBy("lastHeartbeat", "desc"));
+  const snap = await getDocs(q);
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as SwarmNode);
+}
+
+export async function getSwarmNode(id: string): Promise<SwarmNode | null> {
+  const snap = await getDoc(doc(db, "nodes", id));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as SwarmNode;
+}
+
+export async function createLease(data: Omit<ComputeLease, "id" | "createdAt" | "status">): Promise<string> {
+  const ref = await addDoc(collection(db, "leases"), {
+    ...data,
+    status: "starting",
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function updateLease(id: string, data: Partial<ComputeLease>): Promise<void> {
+  await updateDoc(doc(db, "leases", id), data);
+}
+
+export async function getLeases(orgId: string): Promise<ComputeLease[]> {
+  const q = query(
+    collection(db, "leases"),
+    where("orgId", "==", orgId),
+    orderBy("createdAt", "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as ComputeLease);
+}
+
+export function onLeaseChange(id: string, callback: (lease: ComputeLease | null) => void): Unsubscribe {
+  return onSnapshot(doc(db, "leases", id), (snap) => {
+    if (snap.exists()) callback({ id: snap.id, ...snap.data() } as ComputeLease);
+    else callback(null);
+  });
 }

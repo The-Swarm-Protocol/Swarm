@@ -1,0 +1,34 @@
+[Unit]
+Description=Swarm Node Daemon
+Documentation=https://github.com/swarm-protocol/swarm
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=swarm
+Group=docker
+WorkingDirectory=/opt/swarm-node
+Environment="NODE_ENV=production"
+EnvironmentFile=/opt/swarm-node/.env
+ExecStart=/usr/bin/node /opt/swarm-node/dist/index.js
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=swarm-node
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/run/docker.sock
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target

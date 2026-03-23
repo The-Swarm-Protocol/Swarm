@@ -84,6 +84,7 @@ export async function POST(
         providerInstanceType: computer.providerInstanceType || undefined,
         providerRegion: computer.providerRegion || undefined,
         providerImage: computer.providerImage || undefined,
+        providerMetadata: { orgId: computer.orgId, computerId: computer.id },
       });
       await updateComputer(id, {
         providerInstanceId: result.providerInstanceId,

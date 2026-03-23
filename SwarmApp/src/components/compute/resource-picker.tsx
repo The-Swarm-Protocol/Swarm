@@ -1,7 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { SIZE_PRESETS, REGION_LABELS, PROVIDER_LABELS, type SizeKey, type Region, type ProviderKey } from "@/lib/compute/types";
 import { estimateHourlyCost } from "@/lib/compute/billing";
+import { getSwarmNodes, type SwarmNode } from "@/lib/firestore";
 
 interface ResourcePickerProps {
   provider: ProviderKey;
@@ -17,7 +19,7 @@ interface ResourcePickerProps {
 }
 
 /** Providers exposed in the UI (excludes stub) — Azure first */
-const UI_PROVIDERS: ProviderKey[] = ["azure", "e2b", "aws", "gcp"];
+const UI_PROVIDERS: ProviderKey[] = ["swarm-node", "azure", "e2b", "aws", "gcp"];
 
 export function ResourcePicker({
   provider,
@@ -31,6 +33,19 @@ export function ResourcePicker({
   onAutoStopChange,
   onPersistenceChange,
 }: ResourcePickerProps) {
+  const [nodes, setNodes] = useState<SwarmNode[]>([]);
+  const [loadingNodes, setLoadingNodes] = useState(false);
+
+  useEffect(() => {
+    if (provider === "swarm-node") {
+      setLoadingNodes(true);
+      getSwarmNodes()
+        .then(setNodes)
+        .catch(console.error)
+        .finally(() => setLoadingNodes(false));
+    }
+  }, [provider]);
+
   return (
     <div className="space-y-6">
       {/* Provider */}
@@ -73,60 +88,114 @@ export function ResourcePicker({
         </div>
       </div>
 
-      {/* Size */}
-      <div>
-        <label className="text-sm font-medium text-muted-foreground mb-2 block">Instance Size</label>
-        <div className="grid grid-cols-2 gap-3">
-          {(Object.entries(SIZE_PRESETS) as [SizeKey, typeof SIZE_PRESETS[SizeKey]][]).map(
-            ([key, preset]) => {
-              const isSelected = sizeKey === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => onSizeChange(key)}
-                  className={`relative rounded-xl border-2 p-4 text-left transition-all duration-200 ${
-                    isSelected
-                      ? "border-primary bg-primary/10 shadow-sm ring-2 ring-primary/20 scale-[1.02]"
-                      : "border-border hover:border-primary/40 bg-card hover:bg-muted/50"
-                  }`}
-                >
-                  {isSelected && (
-                    <div className="absolute top-3 right-3 h-2 w-2 rounded-full bg-primary" />
-                  )}
-                  <div className="flex items-center justify-between pointer-events-none">
-                    <span className={`font-semibold text-sm ${isSelected ? "text-primary dark:text-primary" : "text-foreground"}`}>
-                      {preset.label}
-                    </span>
-                    <span className={`text-xs font-bold ${isSelected ? "text-primary/80" : "text-primary"}`}>
-                      ${(estimateHourlyCost(key, undefined, provider) / 100).toFixed(2)}/hr
-                    </span>
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1.5">
-                    {preset.disk} GB disk • {preset.cpu} vCPU • {preset.ram / 1024}GB RAM
-                  </div>
-                </button>
-              );
-            }
-          )}
+      {/* Swarm Nodes */}
+      {provider === "swarm-node" && (
+        <div>
+          <label className="text-sm font-medium text-muted-foreground mb-2 block">Available Swarm Nodes</label>
+          <div className="grid grid-cols-1 gap-3">
+            {loadingNodes ? (
+              <div className="text-sm text-muted-foreground p-4 border rounded-xl bg-muted/20">Finding nodes...</div>
+            ) : nodes.length === 0 ? (
+              <div className="text-sm text-muted-foreground p-4 border rounded-xl bg-muted/20">No nodes currently available.</div>
+            ) : (
+              nodes.map((node) => {
+                const isSelected = region === node.id;
+                return (
+                  <button
+                    key={node.id}
+                    type="button"
+                    onClick={() => onRegionChange(node.id as Region)}
+                    className={`relative rounded-xl border-2 p-4 text-left transition-all duration-200 ${
+                      isSelected
+                        ? "border-primary bg-primary/10 shadow-sm ring-2 ring-primary/20 scale-[1.02]"
+                        : "border-border hover:border-primary/40 bg-card hover:bg-muted/50"
+                    }`}
+                  >
+                    {isSelected && (
+                      <div className="absolute top-3 right-3 h-2 w-2 rounded-full bg-primary" />
+                    )}
+                    <div className="flex items-center justify-between pointer-events-none">
+                      <span className={`font-semibold text-sm ${isSelected ? "text-primary dark:text-primary" : "text-foreground"}`}>
+                        Node: {node.id.slice(0, 8)}
+                      </span>
+                      {node.providerAddress && (
+                        <span className={`text-xs font-bold ${isSelected ? "text-primary/80" : "text-primary"}`}>
+                          Provider: {node.providerAddress.slice(0, 6)}...
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1.5 flex gap-3">
+                      <span>{node.resources.cpuCores} vCPU</span>
+                      <span>{node.resources.ramGb} GB RAM</span>
+                      {node.resources.gpus?.length > 0 && <span>{node.resources.gpus[0].model}</span>}
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Region */}
-      <div>
-        <label className="text-sm font-medium text-muted-foreground mb-2 block">Region</label>
-        <select
-          value={region}
-          onChange={(e) => onRegionChange(e.target.value as Region)}
-          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
-        >
-          {Object.entries(REGION_LABELS).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Size */}
+      {provider !== "swarm-node" && (
+        <>
+          {/* Size */}
+          <div>
+            <label className="text-sm font-medium text-muted-foreground mb-2 block">Instance Size</label>
+            <div className="grid grid-cols-2 gap-3">
+              {(Object.entries(SIZE_PRESETS) as [SizeKey, typeof SIZE_PRESETS[SizeKey]][]).map(
+                ([key, preset]) => {
+                  const isSelected = sizeKey === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => onSizeChange(key)}
+                      className={`relative rounded-xl border-2 p-4 text-left transition-all duration-200 ${
+                        isSelected
+                          ? "border-primary bg-primary/10 shadow-sm ring-2 ring-primary/20 scale-[1.02]"
+                          : "border-border hover:border-primary/40 bg-card hover:bg-muted/50"
+                      }`}
+                    >
+                      {isSelected && (
+                        <div className="absolute top-3 right-3 h-2 w-2 rounded-full bg-primary" />
+                      )}
+                      <div className="flex items-center justify-between pointer-events-none">
+                        <span className={`font-semibold text-sm ${isSelected ? "text-primary dark:text-primary" : "text-foreground"}`}>
+                          {preset.label}
+                        </span>
+                        <span className={`text-xs font-bold ${isSelected ? "text-primary/80" : "text-primary"}`}>
+                          ${(estimateHourlyCost(key, undefined, provider) / 100).toFixed(2)}/hr
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1.5">
+                        {preset.disk} GB disk • {preset.cpu} vCPU • {preset.ram / 1024}GB RAM
+                      </div>
+                    </button>
+                  );
+                }
+              )}
+            </div>
+          </div>
+
+          {/* Region */}
+          <div>
+            <label className="text-sm font-medium text-muted-foreground mb-2 block">Region</label>
+            <select
+              value={region}
+              onChange={(e) => onRegionChange(e.target.value as Region)}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
+            >
+              {Object.entries(REGION_LABELS).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </>
+      )}
 
       {/* Auto-stop */}
       <div className="flex items-center justify-between rounded-lg border border-border p-4 bg-muted/10">

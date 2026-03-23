@@ -1,0 +1,37 @@
+{
+  "name": "swarm-node",
+  "version": "1.0.0",
+  "description": "Swarm Node Daemon - Decentralized compute provider for the Swarm network",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "swarm-node": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
+    "start": "node dist/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "swarm",
+    "compute",
+    "docker",
+    "decentralized"
+  ],
+  "author": "Swarm Protocol",
+  "license": "MIT",
+  "dependencies": {
+    "dockerode": "^4.0.10",
+    "dotenv": "^17.3.1",
+    "firebase-admin": "^13.7.0",
+    "systeminformation": "^5.31.5"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^4.0.1",
+    "@types/node": "^25.5.0",
+    "@types/systeminformation": "^3.23.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

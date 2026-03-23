@@ -315,8 +315,9 @@ const providerCache = new Map<string, ComputeProvider>();
  * Providers are cached — one instance per key.
  *
  * @param providerKey — Explicit provider key. Falls back to env detection.
+ * @param azureProduct — For Azure provider, specify which product (vm, aci, spot, etc.)
  */
-export function getComputeProvider(providerKey?: ProviderKey | string): ComputeProvider {
+export function getComputeProvider(providerKey?: ProviderKey | string, azureProduct?: string): ComputeProvider {
   let key = providerKey
     || process.env.COMPUTE_PROVIDER
     || (process.env.E2B_API_KEY ? "e2b" : "stub");
@@ -336,7 +337,10 @@ export function getComputeProvider(providerKey?: ProviderKey | string): ComputeP
     key = "stub";
   }
 
-  const cached = providerCache.get(key);
+  // For Azure, include product type in cache key
+  const cacheKey = key === "azure" && azureProduct ? `azure:${azureProduct}` : key;
+
+  const cached = providerCache.get(cacheKey);
   if (cached) return cached;
 
   let provider: ComputeProvider;
@@ -359,15 +363,29 @@ export function getComputeProvider(providerKey?: ProviderKey | string): ComputeP
       break;
     }
     case "azure": {
+      if (azureProduct && (azureProduct === "aci" || azureProduct === "spot")) {
+        // Use multi-product Azure provider
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { getAzureProvider } = require("./providers/azure-multi");
+        provider = getAzureProvider(azureProduct as import("./types").AzureProductType);
+      } else {
+        // Default to regular VM provider
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { AzureComputeProvider } = require("./providers/azure");
+        provider = new AzureComputeProvider();
+      }
+      break;
+    }
+    case "swarm-node": {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { AzureComputeProvider } = require("./providers/azure");
-      provider = new AzureComputeProvider();
+      const { SwarmNodeProvider } = require("./providers/swarm-node");
+      provider = new SwarmNodeProvider();
       break;
     }
     default:
       provider = new StubComputeProvider();
   }
 
-  providerCache.set(key, provider);
+  providerCache.set(cacheKey, provider);
   return provider;
 }

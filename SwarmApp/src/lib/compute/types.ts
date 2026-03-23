@@ -24,7 +24,14 @@ export type ModelKey = "claude" | "openai" | "gemini" | "generic";
 
 export type SizeKey = "small" | "medium" | "large" | "xl";
 
-export type ProviderKey = "e2b" | "aws" | "gcp" | "azure" | "stub";
+export type ProviderKey = "e2b" | "aws" | "gcp" | "azure" | "stub" | "swarm-node";
+
+export type AzureProductType =
+  | "vm"              // Virtual Machines (default)
+  | "aci"             // Azure Container Instances (serverless containers)
+  | "avd"             // Azure Virtual Desktop (managed VDI)
+  | "spot"            // Spot VMs (cheaper, interruptible)
+  | "batch";          // Azure Batch (parallel workloads)
 
 export type Region = "us-east" | "us-west" | "eu-west" | "ap-southeast";
 
@@ -112,11 +119,66 @@ export const REGION_LABELS: Record<Region, string> = {
 };
 
 export const PROVIDER_LABELS: Record<ProviderKey, { label: string; description: string; comingSoon?: boolean }> = {
-  azure: { label: "Azure VMs",          description: "Azure Virtual Machines — enterprise-grade cloud compute" },
+  azure: { label: "Microsoft Azure",    description: "Azure cloud platform — multiple compute products available" },
   e2b:   { label: "E2B Desktop",        description: "Managed cloud sandbox — fastest setup, built-in VNC" },
   aws:   { label: "AWS EC2",            description: "Amazon EC2 — widest region coverage, SSM integration", comingSoon: true },
   gcp:   { label: "GCP Compute Engine", description: "Google Compute Engine — strong ML/data tooling", comingSoon: true },
+  "swarm-node": { label: "Swarm Node",    description: "Decentralized worker node from the Swarm network" },
   stub:  { label: "Development",         description: "Local stub provider for development" },
+};
+
+/** Azure product offerings */
+export const AZURE_PRODUCTS: Record<AzureProductType, {
+  label: string;
+  description: string;
+  icon: string;
+  features: string[];
+  pricing: { small: number; medium: number; large: number; xl: number }; // cents/hour
+  bestFor: string[];
+  limitations?: string[];
+}> = {
+  vm: {
+    label: "Virtual Machines",
+    description: "Full VMs with persistent disks, VNC desktop, and complete control",
+    icon: "Server",
+    features: ["Full Ubuntu desktop", "Persistent storage", "VNC access", "Snapshots supported", "Custom images"],
+    pricing: { small: 5, medium: 18, large: 40, xl: 79 },
+    bestFor: ["Long-running tasks", "Development environments", "Persistent workloads"],
+  },
+  aci: {
+    label: "Container Instances",
+    description: "Serverless containers — fast startup, pay-per-second billing",
+    icon: "Box",
+    features: ["2-5s startup time", "Per-second billing", "No image limit", "Auto-scale", "Integrated logs"],
+    pricing: { small: 3, medium: 10, large: 22, xl: 50 },
+    bestFor: ["Short-lived tasks", "Batch jobs", "Event-driven workloads", "CI/CD pipelines"],
+    limitations: ["No VNC (container-only)", "No snapshots", "Ephemeral storage"],
+  },
+  avd: {
+    label: "Virtual Desktop",
+    description: "Enterprise VDI with Windows/Linux, managed by Azure, multi-session capable",
+    icon: "Monitor",
+    features: ["Windows 11 or Linux", "Multi-session", "Enterprise AD integration", "FSLogix profiles", "Autoscale"],
+    pricing: { small: 12, medium: 25, large: 55, xl: 110 },
+    bestFor: ["Enterprise users", "Windows desktop needs", "Regulated industries", "Multi-tenant scenarios"],
+  },
+  spot: {
+    label: "Spot VMs",
+    description: "Up to 90% discount on VMs — can be evicted with 30s notice",
+    icon: "Zap",
+    features: ["90% cost savings", "Same VM SKUs", "Eviction alerts", "Best-effort availability"],
+    pricing: { small: 1, medium: 3, large: 6, xl: 12 },
+    bestFor: ["Fault-tolerant workloads", "Batch processing", "Dev/test environments", "Interruptible tasks"],
+    limitations: ["Can be evicted", "No SLA", "Limited availability"],
+  },
+  batch: {
+    label: "Azure Batch",
+    description: "Managed service for parallel/HPC workloads — auto-scaling node pools",
+    icon: "Grid3x3",
+    features: ["Auto-scaling pools", "Job scheduling", "Task dependencies", "Low-priority VMs", "HPC optimized"],
+    pricing: { small: 4, medium: 15, large: 35, xl: 70 },
+    bestFor: ["Parallel workloads", "Monte Carlo simulations", "Video rendering", "Scientific computing"],
+  },
 };
 
 /** Maps Swarm regions to provider-native region identifiers */
@@ -125,6 +187,7 @@ export const PROVIDER_REGION_MAP: Record<ProviderKey, Record<Region, string>> = 
   aws:   { "us-east": "us-east-1", "us-west": "us-west-2", "eu-west": "eu-west-1", "ap-southeast": "ap-southeast-1" },
   gcp:   { "us-east": "us-east1",  "us-west": "us-west1",  "eu-west": "europe-west1", "ap-southeast": "asia-southeast1" },
   azure: { "us-east": "eastus",    "us-west": "westus2",   "eu-west": "westeurope",   "ap-southeast": "southeastasia" },
+  "swarm-node": { "us-east": "network", "us-west": "network", "eu-west": "network", "ap-southeast": "network" },
   stub:  { "us-east": "stub",      "us-west": "stub",      "eu-west": "stub",          "ap-southeast": "stub" },
 };
 
@@ -134,6 +197,7 @@ export const PROVIDER_SIZE_MAP: Record<ProviderKey, Record<SizeKey, string>> = {
   aws:   { small: "t3.medium", medium: "t3.xlarge", large: "m5.2xlarge", xl: "m5.4xlarge" },
   gcp:   { small: "e2-standard-2", medium: "e2-standard-4", large: "e2-standard-8", xl: "e2-standard-16" },
   azure: { small: "Standard_B2s", medium: "Standard_B4ms", large: "Standard_D8s_v3", xl: "Standard_D16s_v3" },
+  "swarm-node": { small: "preset", medium: "preset", large: "preset", xl: "preset" },
   stub:  { small: "stub-small", medium: "stub-medium", large: "stub-large", xl: "stub-xl" },
 };
 
@@ -143,6 +207,7 @@ export const PROVIDER_BASE_IMAGES: Record<ProviderKey, string> = {
   aws:   "ami-0c7217cdde317cfec", // Ubuntu 22.04 LTS in us-east-1
   gcp:   "projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts",
   azure: "Canonical:0001-com-ubuntu-server-jammy:22_04-lts:latest",
+  "swarm-node": "ubuntu:22.04",
   stub:  "ubuntu:22.04",
 };
 
@@ -152,6 +217,7 @@ export const PROVIDER_HOURLY_COSTS: Record<ProviderKey, Record<SizeKey, number>>
   aws:   { small: 4,   medium: 17,  large: 38,  xl: 77 },
   gcp:   { small: 5,   medium: 19,  large: 40,  xl: 80 },
   azure: { small: 5,   medium: 18,  large: 40,  xl: 79 },
+  "swarm-node": { small: 3, medium: 10, large: 20, xl: 40 },
   stub:  { small: 8,   medium: 16,  large: 32,  xl: 64 },
 };
 
@@ -472,6 +538,8 @@ export interface InstanceConfig {
   providerRegion?: string;
   /** Provider-native image override */
   providerImage?: string;
+  /** Context required by the provider for provisioning */
+  providerMetadata?: Record<string, unknown>;
 }
 
 export interface ProviderResult {
