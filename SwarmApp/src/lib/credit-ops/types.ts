@@ -341,6 +341,7 @@ export type AlertType =
   | "anomaly"
   | "threshold_breach"
   | "rapid_change"
+  | "rapid_score_change"
   | "mass_slashing"
   | "model_divergence";
 

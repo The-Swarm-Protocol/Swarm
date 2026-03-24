@@ -78,17 +78,31 @@ export async function checkAndSlashOverdueTasks(): Promise<SlashingEvent[]> {
         let trustPenalty: number;
         let reason: SlashingEvent["reason"];
 
+        // Read penalty values from active policy (fallback to hardcoded defaults)
+        let policySlashing: {
+            missedDeadline?: { credit: number; trust: number };
+            severelyLate?: { credit: number; trust: number };
+            abandoned?: { credit: number; trust: number };
+        } | null = null;
+        try {
+            const { getActivePolicy } = await import("./credit-ops/policy");
+            const policy = await getActivePolicy();
+            if (policy?.slashingRules) {
+                policySlashing = policy.slashingRules;
+            }
+        } catch { /* fallback to defaults */ }
+
         if (hoursLate > 168) { // > 7 days
-            creditPenalty = 30;
-            trustPenalty = 5;
+            creditPenalty = policySlashing?.abandoned?.credit ?? 30;
+            trustPenalty = policySlashing?.abandoned?.trust ?? 5;
             reason = "abandoned";
         } else if (hoursLate > 24) { // > 1 day
-            creditPenalty = 15;
-            trustPenalty = 3;
+            creditPenalty = policySlashing?.severelyLate?.credit ?? 15;
+            trustPenalty = policySlashing?.severelyLate?.trust ?? 3;
             reason = "severely_late";
         } else { // < 24 hours
-            creditPenalty = 5;
-            trustPenalty = 1;
+            creditPenalty = policySlashing?.missedDeadline?.credit ?? 5;
+            trustPenalty = policySlashing?.missedDeadline?.trust ?? 1;
             reason = "missed_deadline";
         }
 

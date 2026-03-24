@@ -55,7 +55,15 @@ export type ActivityEventType =
     | "fraud.case_created"
     | "fraud.case_resolved"
     | "fraud.scan_completed"
-    | "fraud.agent_banned";
+    | "fraud.agent_banned"
+    | "creditops.appeal_submitted"
+    | "creditops.appeal_resolved"
+    | "creditops.override_applied"
+    | "creditops.policy_activated"
+    | "creditops.model_promoted"
+    | "creditops.dispute_filed"
+    | "creditops.dispute_adjudicated"
+    | "creditops.agent_flagged";
 
 export type ActivityActor = "agent" | "user" | "system" | "cron";
 
@@ -116,6 +124,14 @@ export const EVENT_TYPE_CONFIG: Record<string, { label: string; icon: string; co
     "fraud.case_resolved": { label: "Case Resolved", icon: "✅", color: "text-emerald-400" },
     "fraud.scan_completed": { label: "Fraud Scan", icon: "🔍", color: "text-blue-400" },
     "fraud.agent_banned": { label: "Agent Banned", icon: "🚫", color: "text-red-400" },
+    "creditops.appeal_submitted": { label: "Appeal Filed", icon: "📝", color: "text-amber-400" },
+    "creditops.appeal_resolved": { label: "Appeal Resolved", icon: "✅", color: "text-emerald-400" },
+    "creditops.override_applied": { label: "Score Override", icon: "🔧", color: "text-cyan-400" },
+    "creditops.policy_activated": { label: "Policy Activated", icon: "📜", color: "text-purple-400" },
+    "creditops.model_promoted": { label: "Model Promoted", icon: "🚀", color: "text-blue-400" },
+    "creditops.dispute_filed": { label: "Dispute Filed", icon: "⚖️", color: "text-amber-400" },
+    "creditops.dispute_adjudicated": { label: "Dispute Adjudicated", icon: "🔨", color: "text-emerald-400" },
+    "creditops.agent_flagged": { label: "Agent Flagged", icon: "🚩", color: "text-red-400" },
 };
 
 export const ACTOR_ICONS: Record<ActivityActor, string> = {

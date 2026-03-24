@@ -9,7 +9,7 @@ import {
     Layers, Users, Plus, Clock, CheckCircle2, XCircle,
     CreditCard, Crown, Infinity, Calendar, ChevronRight, Palette,
     Bot, Fingerprint, TrendingUp, Briefcase, DollarSign, Zap,
-    Activity, StopCircle,
+    Activity, StopCircle, Server,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -23,7 +23,7 @@ import {
     type Skill, type OwnedItem, type MarketItemType, type CommunityMarketItem,
     type MarketSubscription, type SubscriptionPlan, type AgentInstall, type AgentDistribution,
     SKILL_REGISTRY, SKILL_BUNDLES, MOD_REGISTRY,
-    MOD_CATEGORIES, PLUGIN_CATEGORIES, SKILL_ONLY_CATEGORIES, SKIN_CATEGORIES, AGENT_ITEM_CATEGORIES,
+    MOD_CATEGORIES, PLUGIN_CATEGORIES, SKILL_ONLY_CATEGORIES, SKIN_CATEGORIES, AGENT_ITEM_CATEGORIES, COMPUTE_CATEGORIES,
     acquireItem, removeFromInventory, toggleInventoryItem, getOwnedItems, acquireBundle,
     getCommunityItems, getUserSubmissions,
     getOrgSubscriptions, subscribeToItem, cancelSubscription,
@@ -50,7 +50,7 @@ import { ApplyPersonaDialog } from "@/components/market/apply-persona-dialog";
 // Tab Config
 // ═══════════════════════════════════════════════════════════════
 
-type Tab = "agents" | "mods" | "plugins" | "skills" | "skins" | "bundles" | "inventory" | "submit";
+type Tab = "agents" | "mods" | "plugins" | "skills" | "skins" | "compute" | "bundles" | "inventory" | "submit";
 
 const TABS: { key: Tab; label: string; icon: typeof Wrench; type?: MarketItemType }[] = [
     { key: "agents", label: "Agents", icon: Bot, type: "agent" },
@@ -58,6 +58,7 @@ const TABS: { key: Tab; label: string; icon: typeof Wrench; type?: MarketItemTyp
     { key: "plugins", label: "Plugins", icon: Plug, type: "plugin" },
     { key: "skills", label: "Skills", icon: Puzzle, type: "skill" },
     { key: "skins", label: "Skins", icon: Palette, type: "skin" },
+    { key: "compute", label: "Compute", icon: Server, type: "compute" },
     { key: "bundles", label: "Bundles", icon: Layers },
     { key: "inventory", label: "Inventory", icon: Check },
     { key: "submit", label: "Submit", icon: Plus },
@@ -69,6 +70,7 @@ const CATEGORIES_BY_TYPE: Record<MarketItemType, string[]> = {
     skill: SKILL_ONLY_CATEGORIES,
     skin: SKIN_CATEGORIES,
     agent: AGENT_ITEM_CATEGORIES,
+    compute: COMPUTE_CATEGORIES,
 };
 
 // ═══════════════════════════════════════════════════════════════

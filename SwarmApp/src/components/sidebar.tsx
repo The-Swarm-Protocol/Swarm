@@ -101,10 +101,8 @@ const DEFAULT_SECTIONS: NavSection[] = [
     label: "Command",
     collapsible: true,
     items: [
-      { id: "command-center", href: "/command", label: "Command Center", icon: Command, badge: "NEW", maturity: "production" },
-      { id: "dashboard", href: "/dashboard", label: "Analytics", icon: BarChart3, maturity: "production" },
+      { id: "dashboard", href: "/dashboard", label: "Dashboard", icon: BarChart3, maturity: "production" },
       { id: "credit", href: "/analytics/credit", label: "Credit", icon: TrendingUp, maturity: "production" },
-      { id: "hbar", href: "/hbar", label: "Hedera", icon: Zap, maturity: "production" },
       { id: "activity", href: "/activity", label: "Activity", icon: Activity, maturity: "production" },
       { id: "doctor", href: "/doctor", label: "Health", icon: Stethoscope, maturity: "production" },
       { id: "agent-map", href: "/agent-map", label: "Agent Map", icon: Map, maturity: "production" },
@@ -154,7 +152,9 @@ const DEFAULT_SECTIONS: NavSection[] = [
   {
     id: "modifications",
     label: "Modifications",
-    items: [],
+    items: [
+      { id: "hbar", href: "/hbar", label: "Hedera", icon: Zap, maturity: "production" },
+    ],
     accentColor: "cyan",
     collapsible: true,
   },
@@ -172,8 +172,8 @@ const PINNED_ITEMS: NavItem[] = [
 
 const PLATFORM_ADMIN_ADDRESS = (process.env.NEXT_PUBLIC_ADMIN_ADDRESS || "").toLowerCase();
 
-const SECTION_ORDER_KEY = "swarm-sidebar-order";
-const ITEM_ORDER_KEY = "swarm-sidebar-items";
+const SECTION_ORDER_KEY = "swarm-sidebar-order-v2";
+const ITEM_ORDER_KEY = "swarm-sidebar-items-v2";
 const COLLAPSED_KEY = "swarm-sidebar-collapsed";
 const SECTION_COLLAPSED_KEY = "swarm-sidebar-sections-collapsed";
 
@@ -800,7 +800,7 @@ export function Sidebar() {
                           <item.icon className="shrink-0 h-4 w-4" />
                           <span className="truncate">{item.label}</span>
                           <div className="ml-auto flex items-center gap-1">
-                            {item.maturity && <MaturityBadge level={item.maturity} />}
+                            {/* {item.maturity && <MaturityBadge level={item.maturity} />} */ }
                             {item.badge && (
                               <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full font-medium", colors.badgeBg, colors.badgeText)}>
                                 {item.badge}

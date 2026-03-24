@@ -167,6 +167,41 @@ export async function getMonitoringStats(): Promise<{
 // Anomaly Detection
 // ═══════════════════════════════════════════════════════════════
 
+/**
+ * Check a single agent's recent events for anomalies.
+ * Called inline from mirror-subscriber after each event is processed.
+ */
+export async function checkAgentForAnomalies(
+  asn: string,
+  recentEvents: Array<{ type: string; creditDelta: number; trustDelta: number }>,
+): Promise<void> {
+  if (recentEvents.length < 5) return; // Need minimum sample
+
+  // Check for rapid score drop (sum of deltas in recent events)
+  const totalCreditDelta = recentEvents.reduce((sum, e) => sum + e.creditDelta, 0);
+  if (totalCreditDelta <= -50) {
+    await createAlert({
+      alertType: "rapid_score_change",
+      severity: totalCreditDelta <= -100 ? "critical" : "warning",
+      asn,
+      message: `Agent ${asn} rapid credit drop: ${totalCreditDelta} over ${recentEvents.length} events`,
+      details: { asn, totalCreditDelta, eventCount: recentEvents.length },
+    });
+  }
+
+  // Check for high penalty frequency
+  const penalties = recentEvents.filter((e) => e.creditDelta < 0);
+  if (penalties.length >= recentEvents.length * 0.8 && recentEvents.length >= 5) {
+    await createAlert({
+      alertType: "threshold_breach",
+      severity: "warning",
+      asn,
+      message: `Agent ${asn} has ${penalties.length}/${recentEvents.length} negative events`,
+      details: { asn, penaltyRatio: penalties.length / recentEvents.length },
+    });
+  }
+}
+
 /** Run anomaly detection scan. Checks for mass slashing patterns. */
 export async function runAnomalyDetection(): Promise<CreditOpsAlert[]> {
   const alerts: CreditOpsAlert[] = [];

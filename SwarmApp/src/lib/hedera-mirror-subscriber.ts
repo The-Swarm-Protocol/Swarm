@@ -337,6 +337,21 @@ export async function startMirrorNodeSubscriber(): Promise<void> {
                     console.warn("Event digest processing failed (non-fatal):", digestError);
                 }
 
+                // ── Anomaly Detection Hook ──
+                // Check for anomalies after processing each event
+                try {
+                    const { checkAgentForAnomalies } = await import("./credit-ops/monitoring");
+                    const agentRecentEvents = recentEvents
+                        .filter((e) => e.event.asn === event.asn)
+                        .slice(-20)
+                        .map((e) => e.event);
+                    agentRecentEvents.push(event);
+                    await checkAgentForAnomalies(event.asn, agentRecentEvents);
+                } catch (anomalyErr) {
+                    // Non-fatal: don't break event processing if anomaly detection fails
+                    console.warn("Anomaly detection check failed (non-fatal):", anomalyErr);
+                }
+
                 // Buffer recent events for provenance proofs
                 recentEvents.push({ event, sequence: message.sequence_number });
                 if (recentEvents.length > MAX_RECENT_EVENTS) {

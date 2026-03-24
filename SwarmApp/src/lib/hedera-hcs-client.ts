@@ -179,6 +179,33 @@ export async function submitScoreEventBatch(events: ScoreEvent[]): Promise<strin
  * Create a task completion score event.
  * Increases credit score (+5-20 depending on complexity) and trust score (+1-5).
  */
+/** Cached policy event weights (loaded lazily, refreshed with policy) */
+let _policyWeightsCache: {
+    task_complete_simple: { credit: number; trust: number };
+    task_complete_medium: { credit: number; trust: number };
+    task_complete_complex: { credit: number; trust: number };
+    task_fail: { credit: number; trust: number };
+    skill_report: { credit: number; trust: number };
+} | null = null;
+let _policyWeightsCacheTime = 0;
+const POLICY_WEIGHTS_TTL = 60_000; // 1 minute
+
+async function getPolicyWeights(): Promise<typeof _policyWeightsCache> {
+    if (_policyWeightsCache && Date.now() - _policyWeightsCacheTime < POLICY_WEIGHTS_TTL) {
+        return _policyWeightsCache;
+    }
+    try {
+        const { getActivePolicy } = await import("./credit-ops/policy");
+        const policy = await getActivePolicy();
+        if (policy?.eventWeights) {
+            _policyWeightsCache = policy.eventWeights;
+            _policyWeightsCacheTime = Date.now();
+            return _policyWeightsCache;
+        }
+    } catch { /* fallback to defaults */ }
+    return null;
+}
+
 export function createTaskCompleteEvent(
     asn: string,
     agentAddress: string,
@@ -194,6 +221,34 @@ export function createTaskCompleteEvent(
         agentAddress,
         creditDelta,
         trustDelta,
+        timestamp: Math.floor(Date.now() / 1000),
+        metadata: { taskId, complexity },
+    };
+}
+
+/**
+ * Create a policy-aware task completion event.
+ * Uses active policy weights when available, falls back to defaults.
+ */
+export async function createTaskCompleteEventWithPolicy(
+    asn: string,
+    agentAddress: string,
+    taskId: string,
+    complexity: "simple" | "medium" | "complex" = "medium",
+): Promise<ScoreEvent> {
+    const weights = await getPolicyWeights();
+    const key = `task_complete_${complexity}` as keyof NonNullable<typeof weights>;
+    const w = weights?.[key];
+
+    const defaultCredit = complexity === "complex" ? 20 : complexity === "medium" ? 10 : 5;
+    const defaultTrust = complexity === "complex" ? 5 : complexity === "medium" ? 2 : 1;
+
+    return {
+        type: "task_complete",
+        asn,
+        agentAddress,
+        creditDelta: w?.credit ?? defaultCredit,
+        trustDelta: w?.trust ?? defaultTrust,
         timestamp: Math.floor(Date.now() / 1000),
         metadata: { taskId, complexity },
     };

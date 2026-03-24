@@ -31,7 +31,7 @@ import { BRANDMOVER_MANIFEST } from "./brandmover";
 // Types
 // ═══════════════════════════════════════════════════════════════
 
-export type MarketItemType = "mod" | "plugin" | "skill" | "skin" | "agent";
+export type MarketItemType = "mod" | "plugin" | "skill" | "skin" | "agent" | "compute";
 export type MarketItemSource = "verified" | "community";
 export type PricingModel = "free" | "subscription" | "purchase" | "rental" | "hire";
 export type SubscriptionPlan = "monthly" | "yearly" | "lifetime";
@@ -401,6 +401,10 @@ export const AGENT_CATEGORIES = [
     "All", "Analytics", "Compliance", "Creative", "Customer Support",
     "Engineering", "General", "Governance", "Operations", "Research",
     "Security", "Trading",
+];
+
+export const COMPUTE_CATEGORIES = [
+    "GPU Node", "CPU Node", "Storage", "Bandwidth", "Cluster"
 ];
 
 // ═══════════════════════════════════════════════════════════════

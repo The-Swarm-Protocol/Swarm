@@ -82,6 +82,11 @@ export function SubmitMarketItemDialog({
     const [skinAccent, setSkinAccent] = useState("");
     const [skinBg, setSkinBg] = useState("");
     const [skinFeatures, setSkinFeatures] = useState("");
+    // Compute-specific fields
+    const [computeVcpu, setComputeVcpu] = useState("");
+    const [computeRam, setComputeRam] = useState("");
+    const [computeGpu, setComputeGpu] = useState("");
+    const [computeRegion, setComputeRegion] = useState("");
     // Mod manifest fields
     const [modTools, setModTools] = useState("");
     const [modWorkflows, setModWorkflows] = useState("");
@@ -130,6 +135,10 @@ export function SubmitMarketItemDialog({
         setSkinAccent("");
         setSkinBg("");
         setSkinFeatures("");
+        setComputeVcpu("");
+        setComputeRam("");
+        setComputeGpu("");
+        setComputeRegion("");
         setModTools("");
         setModWorkflows("");
         setModAgentSkills("");
@@ -234,6 +243,15 @@ export function SubmitMarketItemDialog({
                     };
                 }
 
+                if (type === "compute" && (computeVcpu || computeRam || computeGpu || computeRegion)) {
+                    body.computeConfig = {
+                        vCpu: parseInt(computeVcpu) || 0,
+                        ramGb: parseInt(computeRam) || 0,
+                        gpu: computeGpu.trim() || undefined,
+                        region: computeRegion.trim() || "global",
+                    };
+                }
+
                 if (type === "mod" && (modTools || modWorkflows || modAgentSkills)) {
                     body.modManifest = {
                         tools: modTools ? modTools.split("\n").map(t => t.trim()).filter(Boolean) : [],
@@ -313,6 +331,7 @@ export function SubmitMarketItemDialog({
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="agent">Agent</SelectItem>
+                                    <SelectItem value="compute">Compute Node</SelectItem>
                                     <SelectItem value="mod">Mod</SelectItem>
                                     <SelectItem value="plugin">Plugin</SelectItem>
                                     <SelectItem value="skill">Skill</SelectItem>
@@ -636,6 +655,53 @@ export function SubmitMarketItemDialog({
                                     rows={2}
                                     className="text-sm"
                                 />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Compute-specific fields */}
+                    {type === "compute" && (
+                        <div className="space-y-3 p-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5">
+                            <p className="text-xs font-medium text-emerald-400">Node Configuration</p>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-[11px] font-medium mb-0.5 block text-muted-foreground">vCPUs</label>
+                                    <Input
+                                        type="number" min="1"
+                                        placeholder="8"
+                                        value={computeVcpu}
+                                        onChange={(e) => setComputeVcpu(e.target.value)}
+                                        className="h-8 text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[11px] font-medium mb-0.5 block text-muted-foreground">RAM (GB)</label>
+                                    <Input
+                                        type="number" min="1"
+                                        placeholder="32"
+                                        value={computeRam}
+                                        onChange={(e) => setComputeRam(e.target.value)}
+                                        className="h-8 text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[11px] font-medium mb-0.5 block text-muted-foreground">GPU (Optional)</label>
+                                    <Input
+                                        placeholder="1x RTX 4090"
+                                        value={computeGpu}
+                                        onChange={(e) => setComputeGpu(e.target.value)}
+                                        className="h-8 text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[11px] font-medium mb-0.5 block text-muted-foreground">Region / Location</label>
+                                    <Input
+                                        placeholder="US-East, EU-West..."
+                                        value={computeRegion}
+                                        onChange={(e) => setComputeRegion(e.target.value)}
+                                        className="h-8 text-sm"
+                                    />
+                                </div>
                             </div>
                         </div>
                     )}
