@@ -1015,6 +1015,82 @@ export default function HbarPage() {
                 </div>
               )}
 
+              {/* Agent selector — auto-populates ID + ASN */}
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Select Agent</label>
+                      <select
+                        className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                        value={memAgentId}
+                        onChange={(e) => {
+                          const agent = fleetAgents.find(a => a.id === e.target.value);
+                          setMemAgentId(e.target.value);
+                          setMemASN(agent?.asn || "");
+                        }}
+                      >
+                        <option value="">Choose an agent...</option>
+                        {fleetAgents.filter(a => a.asn).map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name} — {a.asn?.slice(-9)} {a.status === "online" ? " (online)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {memAgentId && memASN && (
+                      <div className="flex items-center gap-2 pt-5">
+                        <Badge variant="secondary" className="font-mono text-[10px]">{memASN}</Badge>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quick actions when agent is selected */}
+                  {memAgentId && memASN && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Button
+                        onClick={async () => {
+                          setMemLoading(true);
+                          setMemStatus(null);
+                          try {
+                            const res = await fetch("/api/v1/asn-memory/backup", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ agentId: memAgentId, asn: memASN, orgId: currentOrg?.id }),
+                            });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data.error || "Backup failed");
+                            setMemStatus({ type: "success", message: `Backed up ${data.messageCount} messages to Storacha (CID: ${data.cid?.slice(0, 16)}...)` });
+                          } catch (err: any) { setMemStatus({ type: "error", message: err.message }); }
+                          finally { setMemLoading(false); }
+                        }}
+                        disabled={memLoading}
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                      >
+                        {memLoading ? "Backing up..." : "Backup to Storacha"}
+                      </Button>
+                      <Button onClick={handleCreateMemoryTopic} disabled={memLoading} size="sm" variant="outline">
+                        {memTopicId ? "Recreate HCS Topic" : "Create HCS Topic"}
+                      </Button>
+                      {memTopicId && (
+                        <Button onClick={handleRetrieveMemories} disabled={memLoading} size="sm" variant="outline">
+                          Retrieve Memories
+                        </Button>
+                      )}
+                      {memTopicId && (
+                        <Badge variant="secondary" className="font-mono text-xs">{memTopicId}</Badge>
+                      )}
+                      {memHashscanUrl && (
+                        <a href={memHashscanUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                          HashScan
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Feature overview cards */}
               <div className="grid sm:grid-cols-3 gap-4">
                 <div className="p-4 rounded-lg border border-border">
@@ -1031,72 +1107,18 @@ export default function HbarPage() {
                 </div>
               </div>
 
-              {/* Step 1: Create Memory Topic */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Step 1 — Create Private Memory Topic</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-xs text-muted-foreground">
-                    Each agent gets a private HCS topic for storing encrypted memories. The topic is linked to the agent&apos;s ASN for decryption.
-                  </p>
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Agent ID</label>
-                      <Input
-                        placeholder="e.g. agent-abc123"
-                        value={memAgentId}
-                        onChange={(e) => setMemAgentId(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">ASN (Agent Social Number)</label>
-                      <Input
-                        placeholder="e.g. ASN-SWM-2025-A1B2-C3D4-XY"
-                        value={memASN}
-                        onChange={(e) => setMemASN(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Button onClick={handleCreateMemoryTopic} disabled={memLoading || !memAgentId || !memASN} size="sm">
-                      {memLoading ? "Creating..." : "Create HCS Topic"}
-                    </Button>
-                    {memTopicId && (
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="font-mono text-xs">{memTopicId}</Badge>
-                        {memHashscanUrl && (
-                          <a href={memHashscanUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                            View on HashScan
-                          </a>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {memTopicId && (
-                    <div className="text-xs text-muted-foreground">
-                      Or enter an existing topic:
-                      <Input
-                        className="mt-1"
-                        placeholder="0.0.XXXXX"
-                        value={memTopicId}
-                        onChange={(e) => setMemTopicId(e.target.value)}
-                      />
-                    </div>
-                  )}
-                  {!memTopicId && (
-                    <div className="text-xs text-muted-foreground">
-                      Already have a topic? Enter it directly:
-                      <Input
-                        className="mt-1"
-                        placeholder="0.0.XXXXX"
-                        value={memTopicId}
-                        onChange={(e) => setMemTopicId(e.target.value)}
-                      />
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              {/* Existing topic input (for manual entry or retrieved topic) */}
+              {memAgentId && memASN && !memTopicId && (
+                <div className="text-xs text-muted-foreground px-1">
+                  Already have a topic? Enter it directly:
+                  <Input
+                    className="mt-1"
+                    placeholder="0.0.XXXXX"
+                    value={memTopicId}
+                    onChange={(e) => setMemTopicId(e.target.value)}
+                  />
+                </div>
+              )}
 
               {/* Step 2: Post Memory */}
               <Card>
@@ -1564,6 +1586,7 @@ export default function HbarPage() {
                       const hash = await swarmWrite.registerAgent(
                         selectedFleetAgent.name,
                         selectedAgentSkills,
+                        selectedFleetAgent.asn || "",
                         parseInt(ocAgentFeeRate) || 500,
                       );
                       if (hash) {

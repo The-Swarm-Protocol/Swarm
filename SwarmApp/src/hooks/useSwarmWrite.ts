@@ -18,9 +18,10 @@ declare global {
 import {
   HEDERA_CONTRACTS,
   HEDERA_TASK_BOARD_ABI,
-  HEDERA_AGENT_REGISTRY_ABI,
   HEDERA_GAS_LIMIT,
 } from "@/lib/swarm-contracts";
+// The deployed Hedera Testnet AgentRegistry contract uses the ASN-aware ABI
+import { LINK_AGENT_REGISTRY_ABI as AGENT_REGISTRY_ABI } from "@/lib/link-contracts";
 
 interface WriteState {
   isLoading: boolean;
@@ -32,7 +33,7 @@ interface SwarmWrite {
   claimTask: (taskId: number) => Promise<string | null>;
   submitDelivery: (taskId: number, deliveryHash: string) => Promise<string | null>;
   postTask: (vaultAddress: string, title: string, description: string, requiredSkills: string, deadlineUnix: number, budgetHbar: string) => Promise<string | null>;
-  registerAgent: (name: string, skills: string, feeRate: number, agentAddress?: string) => Promise<string | null>;
+  registerAgent: (name: string, skills: string, asn: string, feeRate: number, agentAddress?: string) => Promise<string | null>;
   state: WriteState;
   reset: () => void;
 }
@@ -155,16 +156,16 @@ export function useSwarmWrite(): SwarmWrite {
     }
   }, []);
 
-  const registerAgent = useCallback(async (name: string, skills: string, feeRate: number, agentAddress?: string): Promise<string | null> => {
+  const registerAgent = useCallback(async (name: string, skills: string, asn: string, feeRate: number, agentAddress?: string): Promise<string | null> => {
     setState({ isLoading: true, error: null, txHash: null });
     try {
       const signer = await getSigner();
-      const registry = new ethers.Contract(HEDERA_CONTRACTS.AGENT_REGISTRY, HEDERA_AGENT_REGISTRY_ABI, signer);
+      const registry = new ethers.Contract(HEDERA_CONTRACTS.AGENT_REGISTRY, AGENT_REGISTRY_ABI, signer);
 
       // Use registerAgentFor if agentAddress is provided, otherwise use registerAgent (which uses msg.sender)
       const tx = agentAddress
-        ? await registry.registerAgentFor(agentAddress, name, skills, feeRate, { gasLimit: HEDERA_GAS_LIMIT, type: 0 })
-        : await registry.registerAgent(name, skills, feeRate, { gasLimit: HEDERA_GAS_LIMIT, type: 0 });
+        ? await registry.registerAgentFor(agentAddress, name, skills, asn, feeRate, { gasLimit: HEDERA_GAS_LIMIT, type: 0 })
+        : await registry.registerAgent(name, skills, asn, feeRate, { gasLimit: HEDERA_GAS_LIMIT, type: 0 });
 
       const receipt = await tx.wait();
       setState({ isLoading: false, error: null, txHash: receipt.hash });

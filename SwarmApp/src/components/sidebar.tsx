@@ -175,7 +175,9 @@ const PLATFORM_ADMIN_ADDRESS = (process.env.NEXT_PUBLIC_ADMIN_ADDRESS || "").toL
 function isAdminAddress(addr: string | null | undefined): boolean {
   if (!addr) return false;
   const lower = addr.toLowerCase();
-  return lower === PLATFORM_ADMIN_ADDRESS || lower === "0x723708273e811a07d90d2e81e799b9ab27f0b549";
+  return lower === PLATFORM_ADMIN_ADDRESS
+    || lower === "0x723708273e811a07d90d2e81e799b9ab27f0b549"
+    || lower === "0x116c28e6dcabca363f83217c712d79dce168d90e";
 }
 
 const ADMIN_SECTION: NavSection = {

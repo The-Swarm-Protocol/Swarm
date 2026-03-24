@@ -13,13 +13,14 @@ import { ethers } from "ethers";
 import {
   HEDERA_CONTRACTS,
   HEDERA_TASK_BOARD_ABI,
-  HEDERA_AGENT_REGISTRY_ABI,
   HEDERA_TREASURY_ABI,
   toHbar,
   type TaskListing,
   type AgentProfile,
   type TreasuryPnL,
 } from "@/lib/swarm-contracts";
+// The deployed Hedera Testnet AgentRegistry contract uses the ASN-aware ABI
+import { LINK_AGENT_REGISTRY_ABI as AGENT_REGISTRY_ABI } from "@/lib/link-contracts";
 
 // Hedera Testnet RPC URL
 const HEDERA_RPC_URL = "https://testnet.hashio.io/api";
@@ -64,7 +65,7 @@ export function useSwarmData(): SwarmData {
     try {
       const provider = getProvider();
       const board = new ethers.Contract(HEDERA_CONTRACTS.TASK_BOARD, HEDERA_TASK_BOARD_ABI, provider);
-      const registry = new ethers.Contract(HEDERA_CONTRACTS.AGENT_REGISTRY, HEDERA_AGENT_REGISTRY_ABI, provider);
+      const registry = new ethers.Contract(HEDERA_CONTRACTS.AGENT_REGISTRY, AGENT_REGISTRY_ABI, provider);
       const treasuryContract = new ethers.Contract(HEDERA_CONTRACTS.AGENT_TREASURY, HEDERA_TREASURY_ABI, provider);
 
       // Fetch counts + bulk calls in parallel; bulk calls may revert if too large
@@ -115,16 +116,19 @@ export function useSwarmData(): SwarmData {
         };
       });
 
-      // Tuple: (agentAddress, name, skills, feeRate, active, registeredAt)
+      // Tuple: (agentAddress, name, skills, asn, feeRate, creditScore, trustScore, active, registeredAt)
       const parsedAgents: AgentProfile[] = (rawAgents as unknown[]).map((a: unknown) => {
-        const r = a as [string, string, string, bigint, boolean, bigint];
+        const r = a as [string, string, string, string, bigint, number, number, boolean, bigint];
         return {
           agentAddress: r[0],
           name: r[1],
           skills: r[2],
-          feeRate: Number(r[3]),
-          active: Boolean(r[4]),
-          registeredAt: Number(r[5]),
+          asn: r[3],
+          feeRate: Number(r[4]),
+          creditScore: Number(r[5]),
+          trustScore: Number(r[6]),
+          active: Boolean(r[7]),
+          registeredAt: Number(r[8]),
         };
       });
 

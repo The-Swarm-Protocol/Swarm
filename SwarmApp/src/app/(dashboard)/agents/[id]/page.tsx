@@ -365,7 +365,7 @@ function AgentDetailPage() {
     if (!registerName.trim()) return;
     const feeRate = parseInt(registerFeeRate, 10);
     if (isNaN(feeRate) || feeRate < 0) return;
-    const txHash = await swarmWrite.registerAgent(registerName.trim(), registerSkills.trim(), feeRate);
+    const txHash = await swarmWrite.registerAgent(registerName.trim(), registerSkills.trim(), agent?.asn || "", feeRate);
     if (txHash) {
       swarm.refetch();
     }
