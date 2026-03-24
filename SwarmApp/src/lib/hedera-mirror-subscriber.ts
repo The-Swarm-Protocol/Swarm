@@ -115,7 +115,7 @@ function processScoreEvent(event: ScoreEvent): ScoreState {
         // Initialize state from event (or use defaults)
         state = {
             asn: event.asn,
-            agentAddress: event.walletAddress,
+            agentAddress: event.agentAddress,
             creditScore: 680, // Default starting score
             trustScore: 50,
             lastEventTimestamp: event.timestamp,
@@ -151,7 +151,7 @@ async function syncScoresToFirestore(state: ScoreState): Promise<void> {
 
         // For now, let's query by agentAddress (more reliable)
         // In production, you'd have an ASN index
-        const snapshot = await getDoc(doc(agentsRef, state.walletAddress));
+        const snapshot = await getDoc(doc(agentsRef, state.agentAddress));
 
         if (!snapshot.exists()) {
             console.warn(`No agent found for ASN ${state.asn}, skipping Firestore sync`);

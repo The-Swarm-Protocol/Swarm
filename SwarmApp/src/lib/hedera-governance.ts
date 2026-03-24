@@ -177,7 +177,7 @@ async function executePenalty(proposalId: string): Promise<void> {
     // Emit penalty event to HCS
     const penaltyEvent = createPenaltyEvent(
         proposal.asn,
-        proposal.walletAddress,
+        proposal.agentAddress,
         Math.abs(proposal.creditPenalty),
         `GOVERNANCE APPROVED: ${proposal.reason}`,
     );

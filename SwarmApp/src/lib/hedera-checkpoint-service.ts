@@ -91,7 +91,7 @@ export async function checkpointAllScores(): Promise<CheckpointResult[]> {
             // Write to NFT contract
             const txHash = await checkpointAgentScore(
                 state.asn,
-                state.walletAddress,
+                state.agentAddress,
                 state.creditScore,
                 state.trustScore,
             );
@@ -99,7 +99,7 @@ export async function checkpointAllScores(): Promise<CheckpointResult[]> {
             // Emit checkpoint event back to HCS for audit trail
             const checkpointEvent = createCheckpointEvent(
                 state.asn,
-                state.walletAddress,
+                state.agentAddress,
                 state.creditScore,
                 state.trustScore,
             );
@@ -107,7 +107,7 @@ export async function checkpointAllScores(): Promise<CheckpointResult[]> {
 
             results.push({
                 asn: state.asn,
-                agentAddress: state.walletAddress,
+                agentAddress: state.agentAddress,
                 creditScore: state.creditScore,
                 trustScore: state.trustScore,
                 txHash,

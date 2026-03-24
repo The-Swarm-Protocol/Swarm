@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
             proposals: proposals.map(p => ({
                 id: p.id,
                 asn: p.asn,
-                agentAddress: p.walletAddress,
+                agentAddress: p.agentAddress,
                 creditPenalty: p.creditPenalty,
                 trustPenalty: p.trustPenalty,
                 reason: p.reason,

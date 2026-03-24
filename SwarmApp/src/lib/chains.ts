@@ -103,7 +103,7 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
             contractUrl: (a) => `https://etherscan.io/address/${a}`,
         },
         contracts: {},
-        enabled: true,
+        enabled: false, // Future bridge - not production ready
         logo: "/chains/ethereum.svg",
     },
 
@@ -122,7 +122,7 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
             contractUrl: (a) => `https://snowtrace.io/address/${a}`,
         },
         contracts: {},
-        enabled: true,
+        enabled: false, // Future bridge - not production ready
         logo: "/chains/avalanche.svg",
     },
 
@@ -141,7 +141,7 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
             contractUrl: (a) => `https://basescan.org/address/${a}`,
         },
         contracts: {},
-        enabled: true,
+        enabled: false, // Future bridge - not production ready
         logo: "/chains/base.svg",
     },
 
@@ -186,7 +186,7 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
             contractUrl: (a) => `https://filfox.info/en/address/${a}`,
         },
         contracts: {},
-        enabled: true,
+        enabled: false, // Future bridge - not production ready
         logo: "/chains/filecoin.svg",
     },
 
@@ -205,14 +205,14 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
             contractUrl: (a) => `https://sepolia.etherscan.io/address/${a}`,
         },
         contracts: {
-            // Set via NEXT_PUBLIC_LINK_* env vars after deployment
+            // Experimental Chainlink deployment — see "Future Multi-Chain Bridges" in README
             // Deploy: cd contracts && npx hardhat run scripts/deploy.ts --network sepolia
             linkAgentRegistry: process.env.NEXT_PUBLIC_LINK_AGENT_REGISTRY || "",
             linkTaskBoard: process.env.NEXT_PUBLIC_LINK_TASK_BOARD || "",
             linkASNRegistry: process.env.NEXT_PUBLIC_LINK_ASN_REGISTRY || "",
             linkTreasury: process.env.NEXT_PUBLIC_LINK_TREASURY || "",
         },
-        enabled: true,
+        enabled: false, // Experimental - 50,000x more expensive than Hedera
         logo: "/chains/ethereum.svg",
     },
 };

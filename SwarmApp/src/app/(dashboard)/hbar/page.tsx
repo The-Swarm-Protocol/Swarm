@@ -63,17 +63,17 @@ export default function HbarPage() {
   const [tab, setTab] = useState<HbarTab>(initialTab);
   const account = useActiveAccount();
   const authAddress = useAuthAddress();
-  const { selectedOrg } = useOrg();
+  const { currentOrg } = useOrg();
   const [hasBrandMover, setHasBrandMover] = useState(false);
 
   // Check if org owns BrandMover mod
   useEffect(() => {
-    if (!selectedOrg?.id) return;
-    getOwnedItems(selectedOrg.id).then((items) => {
+    if (!currentOrg?.id) return;
+    getOwnedItems(currentOrg.id).then((items) => {
       const owned = items.some((item) => item.skillId === "brandmover" && item.enabled);
       setHasBrandMover(owned);
     });
-  }, [selectedOrg?.id]);
+  }, [currentOrg?.id]);
 
   // Sync tab from URL changes (e.g. sidebar click to ?tab=brandmover)
   useEffect(() => {

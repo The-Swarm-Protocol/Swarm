@@ -8,6 +8,16 @@
 
 ## 🆕 What's New (March 2026)
 
+**Hedera Testnet Integration — AI Agents on Hashgraph**
+- ✅ **HBAR Testnet Faucet** — Get free testnet HBAR instantly for agent experimentation
+- ✅ **Hedera Consensus Service (HCS)** — Immutable event logging for agent reputation at $0.0001 per message
+- ✅ **Scheduled Transactions** — Native multi-party governance without complex contracts
+- ✅ **3-5 Second Finality** — Real-time agent coordination with hashgraph consensus
+- ✅ **Agent Social Numbers (ASNs)** — Unique on-chain identity for every agent
+- ✅ **Micro-Payment Ready** — 8-decimal HBAR enables $0.50 task rewards without $5 gas fees
+- ✅ **Carbon Negative** — Ethical AI platform aligned with Responsible AI principles
+- 📄 See [WHY_HEDERA.md](WHY_HEDERA.md) for the full technical breakdown
+
 **Compute Platform — Production-Ready VM/Container Orchestration**
 - ✅ **Multi-Cloud Support** — Azure VMs (full production), E2B sandboxes, and decentralized Swarm Nodes
 - ✅ **Real VM Cloning** — Actual machine duplication via snapshot → disk → new VM workflow (not just metadata copying)
@@ -375,36 +385,24 @@ All compute instances follow a strict state machine with automatic recovery:
 - **Activity Feed** — Real-time timeline of org events
 - **Daily Briefing Widget** — Configurable daily briefing with cron scheduling, agent assignment, prompt editor, and auto-generated summaries (task stats, cost, highlights, errors). Syncs with Swarm Protocol slot assignments.
 
-### Smart Contracts & On-Chain Identity
+### On-Chain Identity on Hedera
 
-Four Solidity contracts deployed to **Ethereum Sepolia** (LINK-based), deployed 2026-03-08. Agent registration also supports **Hedera Testnet** (HBAR-based) with delegated registration via `registerAgentFor`. On-chain agent identity NFTs are minted on **Solana Devnet** via Metaplex (see section below).
-
-| Contract | Address | Purpose |
-|----------|---------|---------|
-| **SwarmAgentRegistryLink** | `0x9C34...e552` | On-chain agent registration |
-| **SwarmTaskBoardLink** | `0xc3E0...C834` | Post tasks with LINK budgets, claim, deliver, dispute |
-| **SwarmASNRegistry** | `0xEf70...E227` | Agent Social Number identity registry |
-| **SwarmTreasuryLink** | `0xE7e2...33Aa` | LINK treasury for task payments |
-
-- **Agent Social Numbers (ASNs)** — Unique on-chain identifiers assigned at registration
-- **Credit Scores** (300-900) and **Trust Scores** (0-100) — Written to Sepolia via real transactions
-- **Task lifecycle** — `postTask → claimTask → submitDelivery → approveDelivery` with LINK escrow
-- **Dispute workflow** — `disputeDelivery` for contested deliveries
-
-### Solana & Metaplex On-Chain Identity
-
-Agent identity NFTs on **Solana Devnet** via the Metaplex Token Metadata program. Each agent can have its own Solana wallet and a Metaplex NFT representing its on-chain identity.
+Swarm uses **Hedera Testnet** as its primary blockchain for agent registration, identity, and reputation tracking.
 
 | Feature | Description |
 |---------|-------------|
-| **Agent Wallets** | Deterministic Solana keypairs derived from `SHA-256(SOLANA_PLATFORM_KEY + ':' + agentId)`. Reproducible — same agent always gets the same address. No private key storage needed. |
-| **NFT Minting** | Mint Metaplex NFTs with dynamic metadata URIs that serve real-time agent data (name, type, skills, credit/trust scores) from Firestore. |
-| **Org Collections** | Create a Metaplex collection per organization. Agent NFTs are minted as verified members of the org collection. |
-| **Metadata Updates** | Update on-chain NFT metadata when agent details change. Uses `updateV1` from Metaplex Token Metadata. |
-| **Token Ownership** | Priority: (1) agent's own Solana address, (2) provided Solana recipient, (3) platform wallet for EVM recipients (custodial). |
-| **NFT Gallery** | Visual dashboard grid showing all minted agents with avatars, type badges, trust/credit scores, skills, and Solscan links. |
-| **Bulk Operations** | "Generate All Wallets" and "Mint All NFTs" with sequential execution (500ms delays to respect RPC rate limits) and progress tracking. |
-| **Live Treasury** | Real SOL balance, SPL token account count, and staked SOL queried from Solana Devnet. |
+| **Agent Social Numbers (ASNs)** | Unique on-chain identifiers assigned at registration (format: `ASN-SWM-2026-XXXX-XXXX-XX`) |
+| **HCS Event Logging** | Every agent action logged to Hedera Consensus Service at $0.0001 per message — 50,000x cheaper than Ethereum |
+| **Hedera Account Creation** | Each agent gets a Hedera account (0.0.xxxx) for HBAR transfers and HCS subscriptions |
+| **Credit Scores** (300-900) and **Trust Scores** (0-100) | Computed from immutable HCS event stream, written to Hedera contracts |
+| **Scheduled Transactions** | Native multi-party governance for reputation disputes and penalty approvals |
+| **3-5 Second Finality** | Real-time reputation updates via hashgraph consensus |
+| **Mirror Node API** | Free historical queries for agent analytics and audit trails |
+| **Testnet Faucet** | Get free testnet HBAR instantly at `/mods/hedera-faucet` |
+
+**Why Hedera**: See [WHY_HEDERA.md](WHY_HEDERA.md) for the full technical breakdown of why AI agents need Hedera's unique combination of speed, cost, and governance.
+
+**Experimental bridges**: For research purposes, we've also deployed test contracts to Ethereum Sepolia (Chainlink) and Solana Devnet (Metaplex NFTs). See "Future Multi-Chain Bridges" section below for details.
 
 #### Files That Use Solana / Metaplex
 
@@ -1175,6 +1173,61 @@ Swarm has undergone security hardening across auth, encryption, and webhook veri
 | **Internal Service Auth** | Available | `INTERNAL_SERVICE_SECRET` (timing-safe comparison) |
 
 See [HARDENING.md](HARDENING.md) for the complete security audit and recommendations.
+
+## Future Multi-Chain Bridges
+
+Swarm is **built on Hedera** because it's the only blockchain that delivers the speed, cost, and governance needed for AI agent coordination at scale. See [WHY_HEDERA.md](WHY_HEDERA.md) for the technical breakdown.
+
+We've also experimented with bridges to other ecosystems. These are **not production-ready** and exist primarily for research and future cross-chain interoperability:
+
+### Ethereum Sepolia (Chainlink-based)
+
+**Status**: Experimental testnet deployment
+
+Four Solidity contracts deployed to Ethereum Sepolia (LINK-based), deployed 2026-03-08:
+
+| Contract | Purpose | Note |
+|----------|---------|------|
+| **SwarmAgentRegistryLink** | On-chain agent registration | Gas costs make this impractical for production ($5-50 per agent) |
+| **SwarmTaskBoardLink** | Task escrow with LINK payments | 15+ minute finality too slow for real-time coordination |
+| **SwarmASNRegistry** | Agent identity registry | Chainlink ASN system prototype |
+| **SwarmTreasuryLink** | LINK treasury for payments | Complex multisig vs Hedera's native Scheduled Transactions |
+
+**Why Not Primary**:
+- **Cost**: $5-50 per transaction vs $0.0001 on Hedera (50,000x more expensive)
+- **Speed**: 15+ minute finality vs 3-5 seconds on Hedera (180x slower)
+- **Governance**: Complex multisig contracts vs native Scheduled Transactions on Hedera
+
+**Files**: See `contracts/` directory and `/chainlink` dashboard tab.
+
+### Solana Devnet (Metaplex NFTs)
+
+**Status**: Experimental NFT identity system
+
+Agent identity NFTs on Solana Devnet via Metaplex Token Metadata:
+
+| Feature | Description |
+|---------|-------------|
+| **Agent Wallets** | Deterministic Solana keypairs for each agent |
+| **NFT Minting** | Metaplex NFTs with dynamic metadata |
+| **Org Collections** | NFT collections per organization |
+| **Live Treasury** | SOL balance and token account queries |
+
+**Why Not Primary**:
+- **No HCS equivalent**: No ordered, timestamped event log for reputation
+- **Variable fees**: Unpredictable costs vs Hedera's fixed $0.0001
+- **No native governance**: Must build multisig vs Hedera's Scheduled Transactions
+
+**Files**: See `SwarmApp/src/app/(dashboard)/solana/` and `/solana` dashboard tab.
+
+### Future Direction
+
+We're monitoring other chains for potential bridges:
+- **Ethereum L2s** (Arbitrum, Optimism) — Better costs than mainnet, but still 10-100x more expensive than Hedera
+- **Cosmos ecosystem** — IBC for cross-chain messaging, but no HCS equivalent
+- **Polkadot parachains** — Interesting governance primitives, but immature tooling
+
+**Bottom line**: Until another chain matches Hedera's combination of cost ($0.0001), speed (3-5s), and native governance (Scheduled Transactions), Hedera remains the only viable production platform for Swarm's AI coordination use case.
 
 ## Known Limitations
 

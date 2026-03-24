@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
             return NextResponse.json({
                 asn: state.asn,
-                agentAddress: state.walletAddress,
+                agentAddress: state.agentAddress,
                 creditScore: state.creditScore,
                 trustScore: state.trustScore,
                 lastEventTimestamp: state.lastEventTimestamp,
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
             count: allStates.length,
             scores: allStates.map(s => ({
                 asn: s.asn,
-                agentAddress: s.walletAddress,
+                agentAddress: s.agentAddress,
                 creditScore: s.creditScore,
                 trustScore: s.trustScore,
                 lastEventTimestamp: s.lastEventTimestamp,
