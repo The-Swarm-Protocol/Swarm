@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateSession } from "@/lib/session";
 import { getJob, updateJob } from "@/lib/firestore";
 import { createJobBountyEscrow } from "@/lib/hedera-job-bounty";
+import { enforceCreditPolicy } from "@/lib/credit-enforcement";
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,6 +44,27 @@ export async function POST(req: NextRequest) {
         { error: "Only job poster can create escrow" },
         { status: 403 }
       );
+    }
+
+    // ── Credit Policy Enforcement ──
+    // If the job has been taken by an agent, check their credit policy
+    if (job.takenByAgentId) {
+      try {
+        const enforcement = await enforceCreditPolicy(job.takenByAgentId, "accept_bounty", {
+          bountyHbar,
+        });
+        if (!enforcement.allowed) {
+          return NextResponse.json({
+            error: "Agent's credit score does not meet bounty requirements",
+            reason: enforcement.reason,
+            currentScore: enforcement.currentScore,
+            currentBand: enforcement.currentBand,
+          }, { status: 403 });
+        }
+      } catch (err) {
+        // Fail-open: log warning but don't block escrow creation
+        console.warn("[jobs/escrow/create] Credit enforcement check failed (fail-open):", err);
+      }
     }
 
     // Create Hedera scheduled transaction escrow

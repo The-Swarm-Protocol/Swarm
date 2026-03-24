@@ -20,6 +20,9 @@ import {
     SEPOLIA_RPC_URL,
 } from "@/lib/link-contracts";
 import { requirePlatformAdmin, forbidden } from "@/lib/auth-guard";
+import { recordCreditAudit } from "@/lib/credit-audit-log";
+import { fireWebhooks } from "@/lib/credit-webhooks";
+import { invalidateCache } from "@/lib/credit-cache";
 
 /** Update credit scores on-chain via platform wallet */
 async function updateCreditOnChain(
@@ -113,6 +116,9 @@ export async function POST(request: NextRequest) {
         return Response.json({ error: "trustScore must be 0-100" }, { status: 400 });
     }
 
+    const previousCredit = (agentData.creditScore as number) || 680;
+    const previousTrust = (agentData.trustScore as number) || 50;
+
     // Update Firestore
     await updateDoc(agentRef, {
         creditScore,
@@ -120,6 +126,33 @@ export async function POST(request: NextRequest) {
         lastCreditUpdate: serverTimestamp(),
         ...(reason ? { lastCreditReason: reason } : {}),
     });
+
+    // Record credit audit entry
+    recordCreditAudit({
+        agentId,
+        asn,
+        source: "admin",
+        performedBy: request.headers.get("x-wallet-address") || "platform-admin",
+        creditBefore: previousCredit,
+        creditAfter: creditScore,
+        trustBefore: previousTrust,
+        trustAfter: trustScore,
+        reason: reason || "Admin credit override",
+    }).catch((err) => console.error("Failed to record credit audit:", err));
+
+    // Invalidate credit cache
+    invalidateCache(`credit:${agentId}`);
+
+    // Fire webhooks (non-blocking)
+    fireWebhooks(agentId, "score_change", {
+        previousCreditScore: previousCredit,
+        newCreditScore: creditScore,
+        previousTrustScore: previousTrust,
+        newTrustScore: trustScore,
+        delta: { credit: creditScore - previousCredit, trust: trustScore - previousTrust },
+        trigger: "admin_update",
+        reason,
+    }).catch(err => console.error("[credit] Webhook dispatch error:", err));
 
     // Update on-chain
     const onChainResult = await updateCreditOnChain(

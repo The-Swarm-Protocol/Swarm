@@ -23,7 +23,7 @@ export interface AuditEntry {
   id?: string;
   action: string; // e.g. "submission.approved", "listing.suspended", "publisher.banned"
   performedBy: string; // admin wallet address
-  targetType: "submission" | "listing" | "publisher" | "report" | "mod_service" | "settings" | "ranking" | "transaction";
+  targetType: "submission" | "listing" | "publisher" | "report" | "mod_service" | "settings" | "ranking" | "transaction" | "risk_signal" | "fraud_case" | "risk_profile";
   targetId: string;
   metadata?: Record<string, unknown>;
   timestamp?: { seconds: number; nanoseconds: number };

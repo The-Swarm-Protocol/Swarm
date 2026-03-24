@@ -49,7 +49,13 @@ export type ActivityEventType =
     | "storacha.pro_space_deleted"
     | "storacha.pro_member_added"
     | "storacha.pro_member_removed"
-    | "storacha.pro_retrieval";
+    | "storacha.pro_retrieval"
+    | "fraud.signal_detected"
+    | "fraud.auto_penalty"
+    | "fraud.case_created"
+    | "fraud.case_resolved"
+    | "fraud.scan_completed"
+    | "fraud.agent_banned";
 
 export type ActivityActor = "agent" | "user" | "system" | "cron";
 
@@ -104,6 +110,12 @@ export const EVENT_TYPE_CONFIG: Record<string, { label: string; icon: string; co
     "storacha.pro_member_added": { label: "Member Added", icon: "👤", color: "text-emerald-400" },
     "storacha.pro_member_removed": { label: "Member Removed", icon: "👤", color: "text-muted-foreground" },
     "storacha.pro_retrieval": { label: "Smart Retrieve", icon: "🔍", color: "text-purple-400" },
+    "fraud.signal_detected": { label: "Fraud Signal", icon: "🚩", color: "text-red-400" },
+    "fraud.auto_penalty": { label: "Auto Penalty", icon: "⚖️", color: "text-orange-400" },
+    "fraud.case_created": { label: "Review Case", icon: "📋", color: "text-amber-400" },
+    "fraud.case_resolved": { label: "Case Resolved", icon: "✅", color: "text-emerald-400" },
+    "fraud.scan_completed": { label: "Fraud Scan", icon: "🔍", color: "text-blue-400" },
+    "fraud.agent_banned": { label: "Agent Banned", icon: "🚫", color: "text-red-400" },
 };
 
 export const ACTOR_ICONS: Record<ActivityActor, string> = {

@@ -72,6 +72,8 @@ export interface Organization {
   shareTotalSupply?: string;
   /** When shares were issued */
   sharesIssuedAt?: unknown;
+  /** Whether this org has custom credit policy overrides */
+  hasCreditPolicyOverrides?: boolean;
 }
 
 export interface GitHubRepoLink {
@@ -177,6 +179,20 @@ export interface Agent {
   solanaAddress?: string;
   /** Number of completed tasks (denormalized counter) */
   tasksCompleted?: number;
+  /** Resolved credit policy tier (cached, updated on score change) */
+  policyTier?: import("./credit-policy").PolicyTierName;
+  /** When policy tier was last resolved */
+  policyTierResolvedAt?: unknown;
+  /** Sub-score breakdown from the Dynamic Scoring Engine */
+  scoreBreakdown?: {
+    execution: number;
+    reliability: number;
+    settlement: number;
+    trustNetwork: number;
+    risk: number;
+    confidence: number;
+    modelVersion: string;
+  };
   createdAt: unknown;
 }
 
@@ -693,6 +709,12 @@ export interface Job {
   hederaBountyHbar?: string; // Bounty amount in HBAR
   hederaRecipientAccountId?: string; // Agent's Hedera account ID
   hederaEscrowStatus?: 'pending' | 'executed' | 'refunded';
+  /** Minimum required policy tier to claim this job */
+  minPolicyTier?: import("./credit-policy").PolicyTierName;
+  /** Escrow ratio applied based on claiming agent's tier */
+  appliedEscrowRatio?: number;
+  /** Fee multiplier applied at completion */
+  appliedFeeMultiplier?: number;
   createdAt: unknown;
   updatedAt?: unknown;
 }

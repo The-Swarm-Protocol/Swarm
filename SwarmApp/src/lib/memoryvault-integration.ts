@@ -116,7 +116,7 @@ export async function storeToFilecoin(
     const registryWithSigner = registry.connect(wallet);
 
     // Store memory on-chain (Filecoin CID + encrypted metadata)
-    const tx = await registryWithSigner.storeMemory(
+    const tx = await (registryWithSigner as any).storeMemory(
       cid,
       ethers.toUtf8Bytes(encryptedData)
     );
@@ -147,7 +147,7 @@ export async function retrieveFromFilecoin(
   try {
     const { registry } = getMemoryVaultContracts();
 
-    const memory = await registry.getMemory(memoryId);
+    const memory = await (registry as any).getMemory(memoryId);
 
     return {
       memoryId,
@@ -171,7 +171,7 @@ export async function getMemoriesByOwner(
   try {
     const { registry } = getMemoryVaultContracts();
 
-    const memoryIds = await registry.getMemoriesByOwner(walletAddress);
+    const memoryIds = await (registry as any).getMemoriesByOwner(walletAddress);
 
     return memoryIds.map((id: bigint) => id.toString());
   } catch (error) {
@@ -194,7 +194,7 @@ export async function mintMemoryAccessNFT(
     const wallet = new ethers.Wallet(signerPrivateKey, provider);
     const nftWithSigner = nft.connect(wallet);
 
-    const tx = await nftWithSigner.mint(recipientAddress, memoryId);
+    const tx = await (nftWithSigner as any).mint(recipientAddress, memoryId);
     const receipt = await tx.wait();
 
     const nftTokenId = receipt.logs[0]?.topics[3] || "0";
@@ -221,7 +221,7 @@ export async function checkMemoryAccess(
   try {
     const { registry } = getMemoryVaultContracts();
 
-    const hasAccess = await registry.hasAccess(userAddress, memoryId);
+    const hasAccess = await (registry as any).hasAccess(userAddress, memoryId);
 
     return hasAccess;
   } catch (error) {

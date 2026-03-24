@@ -9,6 +9,9 @@
  */
 import { NextRequest } from "next/server";
 import { getWalletAddress, requirePlatformAdmin } from "@/lib/auth-guard";
+import { enforceCreditPolicy } from "@/lib/credit-enforcement";
+import { db } from "@/lib/firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import {
     submitMarketItem,
     publishAgentPackage,
@@ -78,6 +81,31 @@ export async function POST(req: NextRequest) {
         ? (body.requiredKeys as string[]).map(k => String(k).trim()).filter(Boolean)
         : undefined;
     const publisherName = ((body.publisherName as string) || publisherWallet.slice(0, 8) + "...").trim();
+
+    // ── Credit Policy Enforcement ──
+    // Platform admins bypass credit checks
+    if (!admin.ok && wallet) {
+        try {
+            const agentQuery = query(collection(db, "agents"), where("walletAddress", "==", wallet));
+            const agentSnap = await getDocs(agentQuery);
+            if (!agentSnap.empty) {
+                const agentId = agentSnap.docs[0].id;
+                const enforcement = await enforceCreditPolicy(agentId, "publish_marketplace");
+                if (!enforcement.allowed) {
+                    return Response.json({
+                        error: "Credit policy violation",
+                        reason: enforcement.reason,
+                        currentScore: enforcement.currentScore,
+                        requiredScore: enforcement.requiredScore,
+                        currentBand: enforcement.currentBand,
+                    }, { status: 403 });
+                }
+            }
+        } catch (err) {
+            // Fail-open: log warning but don't block publishing
+            console.warn("[marketplace/publish] Credit enforcement check failed (fail-open):", err);
+        }
+    }
 
     // ── Submission Protocol v1: Intake Validation ──
     // Platform admins bypass intake checks

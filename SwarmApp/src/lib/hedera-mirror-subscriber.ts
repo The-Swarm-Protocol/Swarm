@@ -7,16 +7,29 @@
  * Architecture:
  * - Polls Mirror Node API for new messages on the reputation topic
  * - Parses score delta events
- * - Computes running credit/trust scores
- * - Updates Firestore in real-time
+ * - Applies fast credit/trust deltas (legacy accumulator)
+ * - Ingests events into the Dynamic Scoring Engine buffer
+ * - Triggers full multi-dimensional recompute when thresholds met
+ * - Updates Firestore with composite + sub-scores
  * - Triggers UI live updates via Firestore listeners
  *
  * Mirror Node API: https://testnet.mirrornode.hedera.com/api/v1/topics/{topicId}/messages
  */
 
 import { db } from "@/lib/firebase";
-import { collection, doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { collection, doc, updateDoc, serverTimestamp, getDoc, getDocs, query, where } from "firebase/firestore";
 import { getReputationTopicId, type ScoreEvent } from "./hedera-hcs-client";
+import { recordCreditAudit } from "./credit-audit-log";
+import { eventTypeLabel } from "./credit-tiers";
+import { onEventProcessed } from "./hedera-event-digest";
+import {
+    ingestScoreEvent,
+    shouldRecompute,
+    drainEventBuffer,
+    computeAgentScore,
+    persistScoreSnapshot,
+    syncCompositeToAgent,
+} from "./scoring-engine";
 
 // ═══════════════════════════════════════════════════════════════
 // Types
@@ -173,11 +186,65 @@ async function syncScoresToFirestore(state: ScoreState): Promise<void> {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// Agent Resolution (ASN → agentId) for Scoring Engine
+// ═══════════════════════════════════════════════════════════════
+
+/** Cache ASN → agentId mapping to avoid repeated Firestore lookups */
+const asnToAgentId = new Map<string, string>();
+
+async function resolveAgentId(asn: string): Promise<string | null> {
+    const cached = asnToAgentId.get(asn);
+    if (cached) return cached;
+
+    try {
+        const q = query(collection(db, "agents"), where("asn", "==", asn));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+            const agentId = snap.docs[0].id;
+            asnToAgentId.set(asn, agentId);
+            return agentId;
+        }
+    } catch (error) {
+        console.error(`Failed to resolve agent for ASN ${asn}:`, error);
+    }
+
+    return null;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Recent Events Buffer (for provenance proofs)
+// ═══════════════════════════════════════════════════════════════
+
+const MAX_RECENT_EVENTS = 1000;
+
+interface RecentEvent {
+    event: ScoreEvent;
+    sequence: number;
+}
+
+const recentEvents: RecentEvent[] = [];
+
+/** Get recent events for a specific ASN (for provenance proofs). */
+export function getRecentEventsForASN(asn: string): RecentEvent[] {
+    return recentEvents.filter((e) => e.event.asn === asn);
+}
+
+/** Get all recent events. */
+export function getAllRecentEvents(): RecentEvent[] {
+    return [...recentEvents];
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Subscriber
 // ═══════════════════════════════════════════════════════════════
 
 let isSubscribing = false;
 let lastProcessedSequence = 0;
+
+/** Check if the subscriber is currently running. */
+export function isSubscriberRunning(): boolean {
+    return isSubscribing;
+}
 
 /**
  * Start subscribing to HCS topic messages.
@@ -210,11 +277,71 @@ export async function startMirrorNodeSubscriber(): Promise<void> {
                 const event = decodeScoreEvent(message.message);
                 if (!event) continue;
 
+                // Capture before-scores for audit trail
+                const prev = scoreCache.get(event.asn);
+                const creditBefore = prev?.creditScore ?? 680;
+                const trustBefore = prev?.trustScore ?? 50;
+
                 // Process event and compute new scores
                 const state = processScoreEvent(event);
 
                 // Sync to Firestore (triggers live UI updates via listeners)
                 await syncScoresToFirestore(state);
+
+                // Record credit audit (non-blocking, skip checkpoints)
+                if (event.type !== "checkpoint") {
+                    recordCreditAudit({
+                        agentId: state.agentAddress,
+                        asn: state.asn,
+                        source: "auto",
+                        creditBefore,
+                        creditAfter: state.creditScore,
+                        trustBefore,
+                        trustAfter: state.trustScore,
+                        reason: eventTypeLabel(event.type),
+                        eventType: event.type,
+                        metadata: event.metadata,
+                    }).catch((err) => console.error("Credit audit log error:", err));
+                }
+
+                // ── Dynamic Scoring Engine integration ──
+                // Ingest event into the scoring engine's buffer
+                ingestScoreEvent(event);
+
+                // Trigger full multi-dimensional recompute when thresholds met
+                if (shouldRecompute(event.asn)) {
+                    const agentId = await resolveAgentId(event.asn);
+                    if (agentId) {
+                        try {
+                            const snapshot = await computeAgentScore(agentId, event.asn);
+                            await persistScoreSnapshot(snapshot);
+                            await syncCompositeToAgent(snapshot);
+                            drainEventBuffer(event.asn);
+                            console.log(
+                                `Score recomputed for ASN ${event.asn}: ` +
+                                `composite=${snapshot.compositeScore} band=${snapshot.band} ` +
+                                `(${snapshot.modelVersion})`,
+                            );
+                        } catch (err) {
+                            console.error(`Scoring engine recompute failed for ASN ${event.asn}:`, err);
+                        }
+                    }
+                }
+
+                // ── Trust Layer: Event Digest Chain ──
+                // Feed event into digest chain for cryptographic anchoring
+                const eventJson = Buffer.from(message.message, "base64").toString("utf-8");
+                try {
+                    await onEventProcessed(eventJson, message.sequence_number);
+                } catch (digestError) {
+                    console.warn("Event digest processing failed (non-fatal):", digestError);
+                }
+
+                // Buffer recent events for provenance proofs
+                recentEvents.push({ event, sequence: message.sequence_number });
+                if (recentEvents.length > MAX_RECENT_EVENTS) {
+                    recentEvents.shift();
+                }
 
                 // Update last processed sequence
                 lastProcessedSequence = message.sequence_number;

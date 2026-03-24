@@ -38,7 +38,7 @@ import CountUp from "@/components/reactbits/CountUp";
 // Types
 // ═══════════════════════════════════════════════════════════════
 
-type HbarTab = "overview" | "tasks" | "agents" | "treasury" | "explorer" | "brandmover";
+type HbarTab = "overview" | "tasks" | "agents" | "treasury" | "explorer" | "brandmover" | "orgs" | "memory" | "metrics";
 
 interface AgentPerformance {
   agentId: string;
@@ -242,6 +242,9 @@ export default function HbarPage() {
     { id: "tasks", label: "Tasks", icon: "📋" },
     { id: "agents", label: "Agents", icon: "🤖" },
     { id: "treasury", label: "Treasury", icon: "🏦" },
+    { id: "orgs", label: "Organizations", icon: "🏢" },
+    { id: "memory", label: "Memory", icon: "🧠" },
+    { id: "metrics", label: "Metrics", icon: "📈" },
     { id: "explorer", label: "Explorer", icon: "🔗" },
     { id: "brandmover", label: "BrandMover", icon: "📢" },
   ];
@@ -830,6 +833,180 @@ export default function HbarPage() {
                   >
                     github.com/The-Swarm-Protocol/brandmover →
                   </a>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* ═══════════ ORGS TAB ═══════════ */}
+          {tab === "orgs" && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold">HCS-Backed Organizations</h2>
+                  <p className="text-sm text-muted-foreground">Create organizations with immutable ownership proof on Hedera HCS + tradeable ERC20 shares</p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {/* TODO: Open create org dialog */}}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  + Create Organization
+                </Button>
+              </div>
+
+              {/* Coming soon placeholder */}
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <p className="text-4xl mb-4">🏢</p>
+                  <p className="text-lg font-semibold mb-2">HCS Organization Creation</p>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                    Create organizations with cryptographically signed ownership proofs submitted to Hedera Consensus Service,
+                    plus ERC20 share tokens for tradeable equity.
+                  </p>
+                  <div className="mt-6 grid sm:grid-cols-3 gap-4 max-w-2xl mx-auto text-left">
+                    <div className="p-4 rounded-lg border border-border">
+                      <p className="text-sm font-medium mb-1">🔐 Immutable Proof</p>
+                      <p className="text-xs text-muted-foreground">Ownership records on HCS with dual-signature transfers</p>
+                    </div>
+                    <div className="p-4 rounded-lg border border-border">
+                      <p className="text-sm font-medium mb-1">💎 ERC20 Shares</p>
+                      <p className="text-xs text-muted-foreground">Native Hedera tokens tradeable on DEXs</p>
+                    </div>
+                    <div className="p-4 rounded-lg border border-border">
+                      <p className="text-sm font-medium mb-1">📊 Full Audit Trail</p>
+                      <p className="text-xs text-muted-foreground">Query complete ownership history from HCS</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-6">UI Coming Soon</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* ═══════════ MEMORY TAB ═══════════ */}
+          {tab === "memory" && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold">Agent Memory (HCS)</h2>
+                <p className="text-sm text-muted-foreground">Private encrypted memories stored on Hedera Consensus Service, reconnectable with ASN</p>
+              </div>
+
+              {/* Coming soon placeholder */}
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <p className="text-4xl mb-4">🧠</p>
+                  <p className="text-lg font-semibold mb-2">Hedera Agent Memory</p>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                    Agents can post encrypted memories to private HCS topics and retrieve them across sessions using their ASN (Agent Social Number).
+                  </p>
+                  <div className="mt-6 grid sm:grid-cols-3 gap-4 max-w-2xl mx-auto text-left">
+                    <div className="p-4 rounded-lg border border-border">
+                      <p className="text-sm font-medium mb-1">🔒 AES-256-GCM</p>
+                      <p className="text-xs text-muted-foreground">End-to-end encryption with ASN-derived keys</p>
+                    </div>
+                    <div className="p-4 rounded-lg border border-border">
+                      <p className="text-sm font-medium mb-1">⚡ Real-time</p>
+                      <p className="text-xs text-muted-foreground">3-5s finality, $0.0001 per memory</p>
+                    </div>
+                    <div className="p-4 rounded-lg border border-border">
+                      <p className="text-sm font-medium mb-1">🔄 Reconnectable</p>
+                      <p className="text-xs text-muted-foreground">Agent memories persist across chains and sessions</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-6">UI Coming Soon</p>
+                </CardContent>
+              </Card>
+
+              {/* Architecture diagram */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Multi-Chain Memory Architecture</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
+                    <span className="text-2xl">⚡</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Hedera HCS (Real-time)</p>
+                      <p className="text-xs text-muted-foreground">Active memories, 3-5s finality, private encrypted topics</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                    <span className="text-2xl">💾</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-blue-700 dark:text-blue-400">Storacha (Backup)</p>
+                      <p className="text-xs text-muted-foreground">Decentralized backup layer with CID indexing</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800">
+                    <span className="text-2xl">🗄️</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-purple-700 dark:text-purple-400">Filecoin (Archival)</p>
+                      <p className="text-xs text-muted-foreground">100+ year persistence via MemoryVault Pro NFT access</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* ═══════════ METRICS TAB ═══════════ */}
+          {tab === "metrics" && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold">Hedera Metrics Dashboard</h2>
+                <p className="text-sm text-muted-foreground">Real-time usage statistics and cost comparisons</p>
+              </div>
+
+              {/* Coming soon placeholder */}
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <p className="text-4xl mb-4">📈</p>
+                  <p className="text-lg font-semibold mb-2">Hedera Usage Metrics</p>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                    Comprehensive dashboard showing organizations created, shares issued, memories stored, and cost savings vs Ethereum.
+                  </p>
+                  <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-3xl mx-auto">
+                    {[
+                      { label: "Organizations Created", icon: "🏢", desc: "HCS-backed orgs" },
+                      { label: "Shares Issued", icon: "💎", desc: "Total ERC20 supply" },
+                      { label: "Memories Stored", icon: "🧠", desc: "HCS messages" },
+                      { label: "Cost Savings", icon: "💰", desc: "vs Ethereum" },
+                    ].map((metric) => (
+                      <div key={metric.label} className="p-4 rounded-lg border border-border text-left">
+                        <p className="text-2xl mb-2">{metric.icon}</p>
+                        <p className="text-sm font-medium mb-1">{metric.label}</p>
+                        <p className="text-xs text-muted-foreground">{metric.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-6">UI Coming Soon</p>
+                </CardContent>
+              </Card>
+
+              {/* Cost comparison */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Hedera vs Ethereum Cost Comparison</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {[
+                      { action: "Post HCS Message (Memory)", hedera: "$0.0001", ethereum: "$2-5", savings: "99.98%" },
+                      { action: "Create Token (Org Shares)", hedera: "$1", ethereum: "$50-200", savings: "98-99%" },
+                      { action: "Token Transfer", hedera: "$0.001", ethereum: "$3-10", savings: "99.97%" },
+                      { action: "Smart Contract Call", hedera: "$0.05", ethereum: "$10-50", savings: "99.5%" },
+                    ].map((row) => (
+                      <div key={row.action} className="grid grid-cols-4 gap-4 items-center py-2 border-b border-border last:border-0">
+                        <p className="text-sm font-medium col-span-2">{row.action}</p>
+                        <div className="text-right">
+                          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{row.hedera}</p>
+                          <p className="text-xs text-muted-foreground line-through">{row.ethereum}</p>
+                        </div>
+                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 text-right">↓ {row.savings}</p>
+                      </div>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
             </div>

@@ -21,6 +21,9 @@ import {
     SEPOLIA_RPC_URL,
 } from "@/lib/link-contracts";
 import { requirePlatformAdminOrAgent, unauthorized } from "@/lib/auth-guard";
+import { recordCreditAudit } from "@/lib/credit-audit-log";
+import { fireWebhooks } from "@/lib/credit-webhooks";
+import { invalidateCache } from "@/lib/credit-cache";
 
 /** Update credit scores on-chain via platform wallet */
 async function updateCreditOnChain(
@@ -142,6 +145,32 @@ export async function POST(request: NextRequest) {
         trustScore: newTrust,
         lastCreditUpdate: serverTimestamp(),
     });
+
+    // Record credit audit entry (non-blocking)
+    recordCreditAudit({
+        agentId,
+        asn,
+        source: "auto",
+        creditBefore: currentCredit,
+        creditAfter: newCredit,
+        trustBefore: currentTrust,
+        trustAfter: newTrust,
+        reason: "Task completion",
+        eventType: "task_complete",
+    }).catch((err) => console.error("Failed to record credit audit:", err));
+
+    // Invalidate credit cache
+    invalidateCache(`credit:${agentId}`);
+
+    // Fire webhooks (non-blocking)
+    fireWebhooks(agentId, "score_change", {
+        previousCreditScore: currentCredit,
+        newCreditScore: newCredit,
+        previousTrustScore: currentTrust,
+        newTrustScore: newTrust,
+        delta: { credit: newCredit - currentCredit, trust: newTrust - currentTrust },
+        trigger: "task_complete",
+    }).catch(err => console.error("[credit/task-complete] Webhook dispatch error:", err));
 
     // Update on-chain credit + record task completion in parallel
     const [creditResult, taskTxHash] = await Promise.all([
