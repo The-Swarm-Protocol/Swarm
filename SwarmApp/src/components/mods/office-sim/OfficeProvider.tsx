@@ -1,7 +1,7 @@
 /** OfficeProvider — Wraps the Office Sim with state + data fetching + perception */
 "use client";
 
-import { useReducer, useEffect, useCallback, useRef } from "react";
+import { useReducer, useEffect, useCallback, useRef, useState } from "react";
 import { useOrg } from "@/contexts/OrgContext";
 import {
   OfficeContext,
@@ -14,6 +14,9 @@ import { DEFAULT_LAYOUT } from "./types";
 import { classifyTransition, generateNarrative, shouldHold, getZoneForStatus } from "./engine/perception";
 import { generateDemoState, rotateDemoState, generateDemoLinks } from "./demo-data";
 import type { AgentAvatarData } from "./studio/avatar-types";
+import type { OfficeFurnitureData } from "./studio/furniture-types";
+import type { OfficeTextureData } from "./studio/texture-types";
+import { useHubStream } from "@/hooks/useHubStream";
 
 /* ═══════════════════════════════════════
    Position Assignment
@@ -76,22 +79,40 @@ export function OfficeProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(officeReducer, initialState);
   const { currentOrg } = useOrg();
 
+  // Track SSE vs polling mode
+  const [sseActive, setSseActive] = useState(false);
+
   // Track previous agent states for perception engine
   const prevStatesRef = useRef<Map<string, AgentVisualStatus>>(new Map());
   const bubbleTimesRef = useRef<Map<string, number>>(new Map());
 
-  /* ── Live agent fetching ── */
+  /* ── SSE real-time stream (preferred) ── */
+  useHubStream({
+    orgId: currentOrg?.id,
+    enabled: !state.demoMode,
+    dispatch,
+    onConnected: () => setSseActive(true),
+    onDisconnected: () => setSseActive(false),
+    onFallback: () => setSseActive(false),
+  });
+
+  /* ── Live agent fetching (initial load + periodic refresh) ── */
   const fetchAgents = useCallback(async () => {
     if (!currentOrg || state.demoMode) return;
     try {
-      // Fetch agents + avatars in parallel
+      // Fetch hub-aware agents + avatars in parallel
       const [agentRes, avatarRes] = await Promise.all([
-        fetch(`/api/agents?orgId=${currentOrg.id}`),
+        fetch(`/api/v1/mods/office-sim/hub-agents?orgId=${currentOrg.id}`),
         fetch(`/api/v1/mods/office-sim/avatars?orgId=${currentOrg.id}`).catch(() => null),
       ]);
       if (!agentRes.ok) return;
       const data = await agentRes.json();
-      const raw = (data.agents || data || []) as RawAgent[];
+      const raw = (data.agents || []) as RawAgent[];
+
+      // Track hub connectivity
+      if (typeof data.hubConnected === "boolean") {
+        dispatch({ type: "SET_HUB_CONNECTED", hubConnected: data.hubConnected });
+      }
       const visual = assignPositions(raw, state.layout.desks);
 
       // Merge avatar data onto agents (graceful — if avatar fetch fails, agents still render)
@@ -153,13 +174,41 @@ export function OfficeProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentOrg, state.demoMode, state.layout.desks]);
 
-  /* ── Polling loop ── */
+  /* ── Polling loop — initial fetch always, then slower interval when SSE is active ── */
   useEffect(() => {
     if (state.demoMode) return;
     fetchAgents();
-    const interval = setInterval(fetchAgents, 5000);
+    // When SSE is active, poll less frequently (30s) as a safety net
+    // When SSE is not active, poll at 5s for near-real-time updates
+    const interval = setInterval(fetchAgents, sseActive ? 30_000 : 5_000);
     return () => clearInterval(interval);
-  }, [fetchAgents, state.demoMode]);
+  }, [fetchAgents, state.demoMode, sseActive]);
+
+  /* ── Fetch furniture + textures when theme changes ── */
+  useEffect(() => {
+    if (!currentOrg || state.demoMode) return;
+    const themeId = state.theme.id;
+
+    Promise.all([
+      fetch(`/api/v1/mods/office-sim/furniture?orgId=${currentOrg.id}&themeId=${themeId}`).catch(() => null),
+    ]).then(async ([furnitureRes]) => {
+      if (furnitureRes?.ok) {
+        try {
+          const data = await furnitureRes.json();
+          const furnitureMap = new Map<string, OfficeFurnitureData>();
+          if (data.furniture) {
+            for (const [cat, info] of Object.entries(data.furniture)) {
+              furnitureMap.set(cat, info as OfficeFurnitureData);
+            }
+          }
+          dispatch({ type: "SET_FURNITURE", furniture: furnitureMap });
+        } catch {
+          // Furniture fetch failed gracefully
+        }
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentOrg, state.theme.id, state.demoMode]);
 
   /* ── Demo mode ── */
   useEffect(() => {

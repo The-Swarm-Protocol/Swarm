@@ -35,8 +35,11 @@ export function forbidden(message = "Insufficient permissions") {
 
 // ─── Platform admin (wallet session OR env-based secret) ─
 
-/** Hardcoded platform admin address (always has access) */
-const HARDCODED_PLATFORM_ADMIN = "0x723708273e811a07d90d2e81e799b9Ab27F0B549".toLowerCase();
+/** Hardcoded platform admin addresses (always have access) */
+const PLATFORM_ADMINS = new Set([
+  "0x723708273e811a07d90d2e81e799b9Ab27F0B549".toLowerCase(),
+  "0xEAB03556443E0B852A8eFe836a004bC02cfF2974".toLowerCase(),
+]);
 
 export function requirePlatformAdmin(req: NextRequest): { ok: boolean; error?: string } {
   // 1. Wallet-based auth via session (injected by middleware)
@@ -47,7 +50,7 @@ export function requirePlatformAdmin(req: NextRequest): { ok: boolean; error?: s
     return { ok: true };
   }
 
-  if (walletAddress === HARDCODED_PLATFORM_ADMIN) {
+  if (walletAddress && PLATFORM_ADMINS.has(walletAddress)) {
     return { ok: true };
   }
 

@@ -17,6 +17,8 @@ import { Switch } from "@/components/ui/switch";
 import { useOffice } from "./office-store";
 import type { AgentVisualStatus } from "./types";
 import { STATUS_LABELS, LAYOUT_TEMPLATES } from "./types";
+import { THEME_PRESETS } from "./themes";
+import { OfficeGenerationDialog } from "./studio/OfficeGenerationDialog";
 
 const STATUS_OPTIONS: (AgentVisualStatus | "all")[] = [
   "all",
@@ -143,6 +145,22 @@ export function OfficeToolbar({ view }: { view: "2d" | "3d" }) {
           </Button>
         )}
 
+        {/* Theme selector */}
+        <select
+          value={state.theme.id}
+          onChange={(e) => {
+            const t = THEME_PRESETS.find((p) => p.id === e.target.value);
+            if (t) dispatch({ type: "SET_THEME", theme: t });
+          }}
+          className="h-8 rounded-md border border-border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+        >
+          {THEME_PRESETS.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+
         {/* Layout selector */}
         {LAYOUT_TEMPLATES.length > 1 && (
           <select
@@ -160,6 +178,21 @@ export function OfficeToolbar({ view }: { view: "2d" | "3d" }) {
             ))}
           </select>
         )}
+
+        {/* Generate Office */}
+        <OfficeGenerationDialog />
+
+        {/* Hub connection indicator */}
+        <Badge
+          variant="outline"
+          className={`text-[10px] ${
+            state.hubConnected
+              ? "border-green-500/30 text-green-400"
+              : "border-yellow-500/30 text-yellow-400"
+          }`}
+        >
+          {state.hubConnected ? "Hub Live" : "Polling"}
+        </Badge>
 
         {/* Demo toggle */}
         <div className="flex items-center gap-1.5">

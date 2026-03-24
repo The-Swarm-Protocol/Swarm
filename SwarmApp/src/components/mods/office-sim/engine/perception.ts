@@ -20,7 +20,10 @@ export type TransitionType =
   | "became_active"
   | "started_thinking"
   | "tool_call_start"
-  | "became_blocked";
+  | "became_blocked"
+  | "received_task"
+  | "sent_message"
+  | "typing";
 
 export function classifyTransition(
   prev: AgentVisualStatus,
@@ -79,6 +82,19 @@ const BLOCKED_PHRASES = [
   "Paused — dependency pending",
 ];
 
+const MESSAGE_PHRASES = [
+  "Sharing update...",
+  "Broadcasting results...",
+  "Sending message...",
+  "Reporting findings...",
+];
+
+const TASK_RECEIVED_PHRASES = [
+  "New task received",
+  "Assignment incoming...",
+  "Task assigned — starting...",
+];
+
 function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -115,6 +131,12 @@ export function generateNarrative(
       return pickRandom(IDLE_PHRASES);
     case "became_blocked":
       return pickRandom(BLOCKED_PHRASES);
+    case "received_task":
+      return pickRandom(TASK_RECEIVED_PHRASES);
+    case "sent_message":
+      return pickRandom(MESSAGE_PHRASES);
+    case "typing":
+      return "...";
     default:
       return null;
   }

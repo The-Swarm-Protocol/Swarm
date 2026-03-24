@@ -5,10 +5,11 @@ import { useState, useRef, useCallback } from "react";
 import { useOffice, getFilteredAgents } from "./office-store";
 import { STATUS_COLORS, STATUS_ICONS } from "./types";
 import type { VisualAgent, DeskSlot, RoomConfig, AgentVisualStatus } from "./types";
+import type { OfficeTheme } from "./themes";
 
 export function Office2D() {
   const { state, dispatch } = useOffice();
-  const { agents, layout, collaborationLinks, selectedAgentId } = state;
+  const { agents, layout, collaborationLinks, selectedAgentId, theme } = state;
   const [hoveredAgent, setHoveredAgent] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -38,19 +39,18 @@ export function Office2D() {
         {/* Background */}
         <defs>
           <pattern id="office-grid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="hsl(217, 33%, 14%)" strokeWidth="0.5" />
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke={theme.svgGridColor} strokeWidth="0.5" />
           </pattern>
-          {/* Speech bubble filter for glow */}
           <filter id="bubble-shadow">
             <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#000" floodOpacity="0.5" />
           </filter>
         </defs>
-        <rect width={canvasW} height={canvasH} fill="hsl(222, 84%, 5%)" />
+        <rect width={canvasW} height={canvasH} fill={theme.svgBackground} />
         <rect width={canvasW} height={canvasH} fill="url(#office-grid)" />
 
         {/* Rooms */}
         {layout.rooms.map((room) => (
-          <RoomSvg key={room.id} room={room} />
+          <RoomSvg key={room.id} room={room} theme={theme} />
         ))}
 
         {/* Collaboration lines */}
@@ -85,6 +85,7 @@ export function Office2D() {
               selected={agent?.id === selectedAgentId}
               hovered={agent?.id === hoveredAgent}
               dimmed={dimmed}
+              theme={theme}
               onHover={(id) => setHoveredAgent(id)}
               onSelect={(id) => selectAgent(id)}
             />
@@ -111,12 +112,12 @@ export function Office2D() {
   );
 }
 
-function RoomSvg({ room }: { room: RoomConfig }) {
+function RoomSvg({ room, theme }: { room: RoomConfig; theme: OfficeTheme }) {
   const colors: Record<string, { bg: string; border: string }> = {
-    meeting: { bg: "rgba(59, 130, 246, 0.06)", border: "rgba(59, 130, 246, 0.2)" },
-    break: { bg: "rgba(34, 197, 94, 0.04)", border: "rgba(34, 197, 94, 0.15)" },
-    server: { bg: "rgba(6, 182, 212, 0.04)", border: "rgba(6, 182, 212, 0.15)" },
-    error_bay: { bg: "rgba(239, 68, 68, 0.06)", border: "rgba(239, 68, 68, 0.2)" },
+    meeting: theme.svgRoomMeeting,
+    break: theme.svgRoomBreak,
+    server: theme.svgRoomServer,
+    error_bay: theme.svgRoomErrorBay,
   };
   const c = colors[room.type] || colors.meeting;
 
@@ -153,6 +154,7 @@ function DeskSvg({
   selected,
   hovered,
   dimmed,
+  theme,
   onHover,
   onSelect,
 }: {
@@ -161,6 +163,7 @@ function DeskSvg({
   selected: boolean;
   hovered: boolean;
   dimmed: boolean;
+  theme: OfficeTheme;
   onHover: (id: string | null) => void;
   onSelect: (id: string | null) => void;
 }) {
@@ -183,13 +186,13 @@ function DeskSvg({
         width={80}
         height={56}
         rx="4"
-        fill={selected ? "rgba(251, 191, 36, 0.08)" : hovered ? "rgba(255, 255, 255, 0.04)" : "hsl(222, 50%, 8%)"}
-        stroke={selected ? "#fbbf24" : hovered ? "hsl(217, 33%, 25%)" : "hsl(217, 33%, 15%)"}
+        fill={selected ? "rgba(251, 191, 36, 0.08)" : hovered ? "rgba(255, 255, 255, 0.04)" : theme.svgDeskFill}
+        stroke={selected ? theme.accentColor : hovered ? theme.svgDeskStroke : theme.svgDeskStroke}
         strokeWidth={selected ? 2 : 1}
       />
 
       {/* Monitor */}
-      <rect x={x + 25} y={y + 6} width={30} height={20} rx="2" fill="hsl(222, 50%, 12%)" stroke="hsl(217, 33%, 22%)" strokeWidth="0.5" />
+      <rect x={x + 25} y={y + 6} width={30} height={20} rx="2" fill={theme.svgMonitorFill} stroke={theme.svgMonitorStroke} strokeWidth="0.5" />
 
       {/* Status ring */}
       {agent && (

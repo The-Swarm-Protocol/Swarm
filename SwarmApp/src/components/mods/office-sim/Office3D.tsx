@@ -8,45 +8,70 @@ import * as THREE from "three";
 import { useOffice, getFilteredAgents } from "./office-store";
 import { STATUS_COLORS } from "./types";
 import type { VisualAgent, AgentVisualStatus, CameraMode } from "./types";
+import type { OfficeTheme } from "./themes";
 import { GltfAgent } from "./GltfAgent";
+import { OfficeEnvironment } from "./OfficeEnvironment";
 
 /* ═══════════════════════════════════════════════════════════════
-   Office Floor — Grid floor with subtle pattern
+   Office Floor — Theme-aware floor with grid
    ═══════════════════════════════════════════════════════════════ */
 
-function OfficeFloor() {
+function OfficeFloor({ theme }: { theme: OfficeTheme }) {
+  const gridColor1 = useMemo(() => {
+    const c = new THREE.Color(theme.floorColor);
+    c.offsetHSL(0, 0, 0.06);
+    return "#" + c.getHexString();
+  }, [theme.floorColor]);
+  const gridColor2 = useMemo(() => {
+    const c = new THREE.Color(theme.floorColor);
+    c.offsetHSL(0, 0, 0.03);
+    return "#" + c.getHexString();
+  }, [theme.floorColor]);
+
   return (
     <group position={[0, -0.01, 0]}>
-      <gridHelper args={[30, 60, "#1a2332", "#141c28"]} />
+      <gridHelper args={[30, 60, gridColor1, gridColor2]} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[30, 30]} />
-        <meshStandardMaterial color="#0a0f18" metalness={0.5} roughness={0.7} />
+        <meshStandardMaterial
+          color={theme.floorColor}
+          metalness={theme.floorMetalness}
+          roughness={theme.floorRoughness}
+        />
       </mesh>
     </group>
   );
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Desk — Agent workstation
+   Desk — Theme-aware agent workstation
    ═══════════════════════════════════════════════════════════════ */
 
-const deskMaterial = new THREE.MeshStandardMaterial({
-  color: "#1e2738",
-  metalness: 0.6,
-  roughness: 0.4,
-});
+function Desk({ position, theme }: { position: [number, number, number]; theme: OfficeTheme }) {
+  const deskMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: theme.deskColor,
+        metalness: theme.deskMetalness,
+        roughness: theme.deskRoughness,
+      }),
+    [theme.deskColor, theme.deskMetalness, theme.deskRoughness],
+  );
 
-const monitorMaterial = new THREE.MeshStandardMaterial({
-  color: "#0d1117",
-  metalness: 0.8,
-  roughness: 0.2,
-});
+  const monitorMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: theme.monitorColor,
+        metalness: 0.8,
+        roughness: 0.2,
+      }),
+    [theme.monitorColor],
+  );
 
-function Desk({ position }: { position: [number, number, number] }) {
   return (
     <group position={position}>
       {/* Desk surface */}
-      <mesh material={deskMaterial} position={[0, 0.45, 0]}>
+      <mesh material={deskMat} position={[0, 0.45, 0]}>
         <boxGeometry args={[1.2, 0.05, 0.6]} />
       </mesh>
       {/* Desk legs */}
@@ -56,16 +81,16 @@ function Desk({ position }: { position: [number, number, number] }) {
         [-0.5, 0, 0.2],
         [0.5, 0, 0.2],
       ].map((leg, i) => (
-        <mesh key={i} material={deskMaterial} position={[leg[0], 0.22, leg[2]]}>
+        <mesh key={i} material={deskMat} position={[leg[0], 0.22, leg[2]]}>
           <cylinderGeometry args={[0.02, 0.02, 0.44, 6]} />
         </mesh>
       ))}
       {/* Monitor */}
-      <mesh material={monitorMaterial} position={[0, 0.72, -0.15]}>
+      <mesh material={monitorMat} position={[0, 0.72, -0.15]}>
         <boxGeometry args={[0.5, 0.35, 0.02]} />
       </mesh>
       {/* Monitor stand */}
-      <mesh material={deskMaterial} position={[0, 0.55, -0.15]}>
+      <mesh material={deskMat} position={[0, 0.55, -0.15]}>
         <cylinderGeometry args={[0.02, 0.04, 0.15, 6]} />
       </mesh>
     </group>
@@ -257,15 +282,17 @@ function AgentFigure({
 
 function MeetingRoom({
   position,
+  theme,
 }: {
   position: [number, number, number];
+  theme: OfficeTheme;
 }) {
   return (
     <group position={position}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
         <planeGeometry args={[3, 2.5]} />
         <meshStandardMaterial
-          color="#0d1520"
+          color={theme.floorColor}
           metalness={0.4}
           roughness={0.6}
           opacity={0.8}
@@ -285,7 +312,7 @@ function MeetingRoom({
         >
           <planeGeometry args={[i < 2 ? 2.5 : 3, 1.2]} />
           <meshStandardMaterial
-            color="#3b82f6"
+            color={theme.accentColor}
             metalness={0.9}
             roughness={0.1}
             opacity={0.08}
@@ -297,9 +324,9 @@ function MeetingRoom({
       <mesh position={[0, 0.4, 0]}>
         <cylinderGeometry args={[0.6, 0.6, 0.04, 16]} />
         <meshStandardMaterial
-          color="#1e2738"
-          metalness={0.5}
-          roughness={0.5}
+          color={theme.deskColor}
+          metalness={theme.deskMetalness}
+          roughness={theme.deskRoughness}
         />
       </mesh>
     </group>
@@ -483,6 +510,7 @@ const DESK_POSITIONS: [number, number, number][] = [
 
 export function Office3D() {
   const { state, dispatch } = useOffice();
+  const { theme } = state;
   const agents = Array.from(state.agents.values());
   const filteredIds = getFilteredAgents(state);
   const [mounted, setMounted] = useState(false);
@@ -506,11 +534,12 @@ export function Office3D() {
 
   return (
     <div
-      className={`w-full rounded-lg border border-border overflow-hidden bg-[#060a12] ${
+      className={`w-full rounded-lg border border-border overflow-hidden ${
         isBackground
           ? "fixed inset-0 z-[-1] opacity-35 pointer-events-none border-none rounded-none"
           : "aspect-video"
       }`}
+      style={{ backgroundColor: theme.fogColor }}
     >
       <Canvas
         camera={{ position: [0, 6, 12], fov: 50 }}
@@ -521,28 +550,35 @@ export function Office3D() {
           powerPreference: "low-power",
         }}
       >
-        <color attach="background" args={["#060a12"]} />
-        <fog attach="fog" args={["#060a12", 12, 28]} />
+        <color attach="background" args={[theme.fogColor]} />
+        <fog attach="fog" args={[theme.fogColor, theme.fogNear, theme.fogFar]} />
 
-        {/* Lighting */}
-        <ambientLight intensity={0.25} color="#c4d4f0" />
+        {/* Theme-driven lighting */}
+        <ambientLight intensity={theme.ambientIntensity} color={theme.ambientColor} />
         <directionalLight
           position={[8, 12, 6]}
-          intensity={0.7}
+          intensity={theme.directionalIntensity}
+          color={theme.directionalColor}
           castShadow
         />
         <directionalLight
           position={[-5, 8, -3]}
           intensity={0.2}
-          color="#3b82f6"
+          color={theme.fillLightColor}
         />
         <pointLight
           position={[0, 3, 0]}
-          intensity={0.3}
-          color="#fbbf24"
+          intensity={theme.pointLightIntensity}
+          color={theme.pointLightColor}
         />
 
-        <OfficeFloor />
+        <Suspense fallback={<OfficeFloor theme={theme} />}>
+          <OfficeEnvironment
+            theme={theme}
+            furniture={state.furniture}
+            textures={state.textures}
+          />
+        </Suspense>
 
         {/* Desks + Agents */}
         {DESK_POSITIONS.map((pos, i) => {
@@ -550,7 +586,7 @@ export function Office3D() {
           const dimmed = agent ? !filteredIds.has(agent.id) : false;
           return (
             <group key={i}>
-              <Desk position={pos} />
+              <Desk position={pos} theme={theme} />
               {agent && agent.status !== "offline" && (
                 agent.modelUrl ? (
                   <Suspense fallback={
@@ -620,9 +656,9 @@ export function Office3D() {
         })}
 
         {/* Meeting Room */}
-        <MeetingRoom position={[5.5, 0, -1]} />
+        <MeetingRoom position={[5.5, 0, -1]} theme={theme} />
 
-        {/* Camera controller (replaces AutoCamera) */}
+        {/* Camera controller */}
         <CameraController
           mode={state.cameraMode}
           selectedAgent={selectedAgent}

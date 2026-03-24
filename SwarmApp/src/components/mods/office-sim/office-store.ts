@@ -14,6 +14,10 @@ import type {
   AgentVisualStatus,
 } from "./types";
 import { DEFAULT_LAYOUT } from "./types";
+import type { OfficeTheme } from "./themes";
+import { THEME_PRESETS } from "./themes";
+import type { OfficeFurnitureData } from "./studio/furniture-types";
+import type { OfficeTextureData } from "./studio/texture-types";
 
 /* ═══════════════════════════════════════
    State Shape
@@ -27,10 +31,14 @@ export interface OfficeState {
   activePanel: PanelType;
   selectedAgentId: string | null;
   connected: boolean;
+  hubConnected: boolean;
   demoMode: boolean;
   cameraMode: CameraMode;
   filter: FilterState;
   activityFeed: OfficeActivityEvent[];
+  theme: OfficeTheme;
+  furniture: Map<string, OfficeFurnitureData>;
+  textures: Map<string, OfficeTextureData>;
   metrics: {
     activeCount: number;
     taskCount: number;
@@ -50,13 +58,17 @@ export type OfficeAction =
   | { type: "SET_PANEL"; panel: PanelType }
   | { type: "SELECT_AGENT"; id: string | null }
   | { type: "SET_CONNECTED"; connected: boolean }
+  | { type: "SET_HUB_CONNECTED"; hubConnected: boolean }
   | { type: "SET_LINKS"; links: CollaborationLink[] }
   | { type: "SET_FILTER"; filter: Partial<FilterState> }
   | { type: "TOGGLE_DEMO" }
   | { type: "SET_CAMERA_MODE"; mode: CameraMode }
   | { type: "SET_ACTIVITY_FEED"; events: OfficeActivityEvent[] }
   | { type: "PUSH_ACTIVITY"; event: OfficeActivityEvent }
-  | { type: "SET_LAYOUT"; layout: OfficeLayout };
+  | { type: "SET_LAYOUT"; layout: OfficeLayout }
+  | { type: "SET_THEME"; theme: OfficeTheme }
+  | { type: "SET_FURNITURE"; furniture: Map<string, OfficeFurnitureData> }
+  | { type: "SET_TEXTURES"; textures: Map<string, OfficeTextureData> };
 
 /* ═══════════════════════════════════════
    Initial State
@@ -70,10 +82,14 @@ export const initialState: OfficeState = {
   activePanel: null,
   selectedAgentId: null,
   connected: false,
+  hubConnected: false,
   demoMode: false,
   cameraMode: "orbit",
   filter: { statusFilter: "all", searchQuery: "" },
   activityFeed: [],
+  theme: THEME_PRESETS[0],
+  furniture: new Map(),
+  textures: new Map(),
   metrics: { activeCount: 0, taskCount: 0, errorCount: 0 },
 };
 
@@ -125,6 +141,8 @@ export function officeReducer(state: OfficeState, action: OfficeAction): OfficeS
       return { ...state, selectedAgentId: action.id, activePanel: action.id ? "agent-detail" : null };
     case "SET_CONNECTED":
       return { ...state, connected: action.connected };
+    case "SET_HUB_CONNECTED":
+      return { ...state, hubConnected: action.hubConnected };
     case "SET_LINKS":
       return { ...state, collaborationLinks: action.links };
     case "SET_FILTER":
@@ -141,6 +159,12 @@ export function officeReducer(state: OfficeState, action: OfficeAction): OfficeS
     }
     case "SET_LAYOUT":
       return { ...state, layout: action.layout };
+    case "SET_THEME":
+      return { ...state, theme: action.theme };
+    case "SET_FURNITURE":
+      return { ...state, furniture: action.furniture };
+    case "SET_TEXTURES":
+      return { ...state, textures: action.textures };
     default:
       return state;
   }
