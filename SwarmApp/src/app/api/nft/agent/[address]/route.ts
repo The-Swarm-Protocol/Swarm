@@ -33,15 +33,12 @@ export async function GET(
     // Normalize address to lowercase
     const normalizedAddress = address.toLowerCase();
 
-    // Query Firestore for agent by wallet address
-    // Agents are stored with walletAddress field that matches their on-chain address
+    // Query Firestore for agent by wallet address or derived agent address
     const agentsRef = collection(db, "agents");
-    const q = query(
-      agentsRef,
-      where("walletAddress", "==", normalizedAddress)
-    );
-
-    const querySnapshot = await getDocs(q);
+    let querySnapshot = await getDocs(query(agentsRef, where("walletAddress", "==", normalizedAddress)));
+    if (querySnapshot.empty) {
+      querySnapshot = await getDocs(query(agentsRef, where("agentAddress", "==", normalizedAddress)));
+    }
 
     if (querySnapshot.empty) {
       // Agent not found in database - return default metadata

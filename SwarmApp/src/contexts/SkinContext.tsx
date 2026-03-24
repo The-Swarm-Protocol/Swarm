@@ -23,6 +23,8 @@ export const SKINS: SkinMeta[] = [
   { id: "cyberpunk", name: "Cyberpunk", description: "Neon pink & electric purple — Night City vibes", colors: ["#ff1493", "#8a2be2", "#c026d3"], builtin: true, marketId: "skin-cyberpunk" },
   { id: "midnight", name: "Midnight", description: "Deep indigo & violet — refined elegance", colors: ["#6366f1", "#a855f7", "#818cf8"], builtin: true, marketId: "skin-midnight" },
   { id: "hacker", name: "Hacker Green", description: "Green phosphor terminal — Matrix aesthetic", colors: ["#00ff41", "#00802b", "#003311"], builtin: true, marketId: "skin-hacker" },
+  { id: "jrpg", name: "JRPG Fantasy", description: "16-bit SNES-era Final Fantasy — pixel fonts, dialog boxes, quest menus", colors: ["#ffd700", "#4dccff", "#0a0a2e"], builtin: true, marketId: "skin-jrpg" },
+  { id: "pokemon", name: "Pokemon Trainer", description: "Catch 'em all — agents live in Pokeballs, Pokemon-style UI", colors: ["#ee1515", "#ffffff", "#3b4cca"], builtin: true, marketId: "skin-pokemon" },
 ];
 
 const STORAGE_KEY = "swarm-skin";

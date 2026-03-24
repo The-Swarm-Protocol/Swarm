@@ -1449,3 +1449,800 @@ body::after {
     radial-gradient(at 0% 0%, hsla(158, 64%, 52%, 0.1) 0px, transparent 50%),
     radial-gradient(at 100% 0%, hsla(283, 71%, 61%, 0.06) 0px, transparent 50%);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   SKIN: JRPG Fantasy — 16-bit SNES-era Final Fantasy UI
+   Pixel fonts, dialog boxes, quest menus, party stats
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Pixel font (only loaded when skin active) ── */
+@font-face {
+  font-family: 'Press Start 2P';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('https://fonts.gstatic.com/s/pressstart2p/v15/e3t4euO8T-267oIAQAu6jDQyK3nVivM.woff2') format('woff2');
+}
+
+/* ── 1. CSS Variable overrides ── */
+.skin-jrpg {
+  --primary: 48 100% 50%;
+  --ring: 48 100% 50%;
+  --spotlight-color: rgba(255, 215, 0, 0.04);
+  --font-jrpg: 'Press Start 2P', monospace;
+  /* Remap amber → gold (intensified golden hues) */
+  --color-amber-50: oklch(97% 0.04 85);
+  --color-amber-100: oklch(93% 0.08 85);
+  --color-amber-200: oklch(88% 0.12 85);
+  --color-amber-300: oklch(82% 0.14 80);
+  --color-amber-400: oklch(78% 0.16 75);
+  --color-amber-500: oklch(75% 0.15 70);
+  --color-amber-600: oklch(65% 0.13 70);
+  --color-amber-700: oklch(55% 0.11 70);
+  --color-amber-800: oklch(45% 0.09 70);
+  --color-amber-900: oklch(38% 0.07 70);
+  --color-amber-950: oklch(25% 0.05 70);
+}
+.skin-jrpg.dark {
+  --primary: 48 100% 50%;
+  --ring: 48 100% 50%;
+  --background: 240 60% 7%;
+  --foreground: 210 40% 98%;
+  --card: 240 45% 12%;
+  --card-foreground: 210 40% 98%;
+  --popover: 240 60% 7%;
+  --popover-foreground: 210 40% 98%;
+  --border: 240 40% 20%;
+  --input: 240 40% 20%;
+  --muted: 240 30% 18%;
+  --muted-foreground: 210 20% 70%;
+}
+
+/* ── 2. Body — pixel font + starfield background ── */
+.skin-jrpg body {
+  font-family: var(--font-jrpg), monospace;
+  font-size: 10px;
+  line-height: 2;
+  letter-spacing: 0.5px;
+  background-color: #0a0a2e;
+  background-image:
+    radial-gradient(1px 1px at 5% 15%, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1px 1px at 12% 45%, rgba(255,255,255,0.3), transparent),
+    radial-gradient(1px 1px at 20% 80%, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1px 1px at 35% 25%, rgba(255,255,255,0.6), transparent),
+    radial-gradient(1px 1px at 42% 65%, rgba(255,255,255,0.3), transparent),
+    radial-gradient(1px 1px at 55% 10%, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1px 1px at 60% 50%, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1px 1px at 68% 35%, rgba(255,255,255,0.3), transparent),
+    radial-gradient(1px 1px at 75% 70%, rgba(255,255,255,0.5), transparent),
+    radial-gradient(1px 1px at 82% 20%, rgba(255,255,255,0.4), transparent),
+    radial-gradient(1px 1px at 88% 55%, rgba(255,255,255,0.3), transparent),
+    radial-gradient(1px 1px at 95% 85%, rgba(255,255,255,0.4), transparent),
+    radial-gradient(2px 2px at 30% 40%, rgba(77,204,255,0.3), transparent),
+    radial-gradient(2px 2px at 70% 60%, rgba(255,215,0,0.2), transparent),
+    linear-gradient(180deg, #0a0a2e 0%, #12124a 40%, #1a1a4e 60%, #0a0a2e 100%);
+}
+
+/* ── 3. Suppress ambient orbs ── */
+.skin-jrpg body::before,
+.skin-jrpg body::after {
+  display: none;
+}
+
+/* ── 4. Text glow → golden ── */
+.skin-jrpg.dark .text-glow {
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.6), 0 0 20px rgba(255, 215, 0, 0.3);
+}
+.skin-jrpg.dark .text-glow-gold,
+.skin-jrpg .dark .text-glow-gold {
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.5), 0 0 16px rgba(255, 215, 0, 0.3);
+}
+.skin-jrpg.dark .text-glow-amber,
+.skin-jrpg .dark .text-glow-amber {
+  text-shadow: 0 0 6px rgba(255, 215, 0, 0.4), 0 0 12px rgba(255, 215, 0, 0.2);
+}
+
+/* ── 5. Neon glow → gold ── */
+.skin-jrpg .neon-glow-gold {
+  box-shadow: 0 0 4px rgba(255, 215, 0, 0.3),
+              0 0 12px rgba(255, 215, 0, 0.15),
+              0 0 24px rgba(255, 215, 0, 0.05);
+}
+
+/* ── 6. Border glow → gold ── */
+.skin-jrpg .border-glow-gold {
+  border-color: rgba(255, 215, 0, 0.3);
+  box-shadow: inset 0 0 15px rgba(255, 215, 0, 0.03), 0 0 10px rgba(255, 215, 0, 0.05);
+}
+
+/* ── 7. Glass card → JRPG dialog box (blue gradient + pixel border) ── */
+.skin-jrpg .glass-card,
+.skin-jrpg.dark .glass-card,
+.skin-jrpg .dark .glass-card {
+  background: linear-gradient(180deg, rgba(26,26,78,0.95) 0%, rgba(13,13,58,0.98) 100%) !important;
+  border: 3px solid #c8c8ff !important;
+  border-radius: 2px !important;
+  box-shadow:
+    inset 0 0 0 1px #0a0a2e,
+    inset 0 0 0 3px rgba(77,204,255,0.3),
+    0 4px 0 0 rgba(0,0,0,0.5) !important;
+}
+.skin-jrpg .glass-card:hover,
+.skin-jrpg.dark .glass-card:hover,
+.skin-jrpg .dark .glass-card:hover {
+  border-color: #ffd700 !important;
+  box-shadow:
+    inset 0 0 0 1px #0a0a2e,
+    inset 0 0 0 3px rgba(255,215,0,0.3),
+    0 4px 0 0 rgba(0,0,0,0.5),
+    0 0 15px rgba(255,215,0,0.1) !important;
+}
+.skin-jrpg .glass-card-enhanced,
+.skin-jrpg.dark .glass-card-enhanced,
+.skin-jrpg .dark .glass-card-enhanced {
+  background: linear-gradient(180deg, rgba(26,26,78,0.95) 0%, rgba(13,13,58,0.98) 100%) !important;
+  border: 3px solid #c8c8ff !important;
+  border-radius: 2px !important;
+  box-shadow:
+    inset 0 0 0 1px #0a0a2e,
+    inset 0 0 0 3px rgba(77,204,255,0.4),
+    0 4px 0 0 rgba(0,0,0,0.5) !important;
+}
+.skin-jrpg .glass-card-enhanced:hover,
+.skin-jrpg.dark .glass-card-enhanced:hover,
+.skin-jrpg .dark .glass-card-enhanced:hover {
+  border-color: #ffd700 !important;
+  box-shadow:
+    inset 0 0 0 1px #0a0a2e,
+    inset 0 0 0 3px rgba(255,215,0,0.4),
+    0 4px 0 0 rgba(0,0,0,0.5),
+    0 0 20px rgba(255,215,0,0.12) !important;
+}
+
+/* ── 8. Generic cards/panels → JRPG dialog style ── */
+.skin-jrpg.dark .rounded-lg.border.bg-card,
+.skin-jrpg .dark .rounded-lg.border.bg-card {
+  background: linear-gradient(180deg, rgba(26,26,78,0.95) 0%, rgba(13,13,58,0.98) 100%) !important;
+  border: 3px solid #c8c8ff !important;
+  border-radius: 2px !important;
+  box-shadow:
+    inset 0 0 0 1px #0a0a2e,
+    inset 0 0 0 3px rgba(77,204,255,0.25),
+    0 3px 0 0 rgba(0,0,0,0.4);
+}
+
+/* ── 9. Gradient border spin → gold ── */
+.skin-jrpg .gradient-border-spin::before {
+  background: conic-gradient(from 0deg, transparent, #ffd700, #4dccff, transparent);
+}
+
+/* ── 10. Scan line → gold ── */
+.skin-jrpg .scan-line-overlay {
+  background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.2), transparent);
+}
+
+/* ── 11. Button glow → pixel style ── */
+.skin-jrpg .btn-glow,
+.skin-jrpg button:not([data-radix-collection-item]) {
+  border-radius: 2px !important;
+  font-family: var(--font-jrpg), monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.skin-jrpg .btn-glow:hover {
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.3), inset 0 0 10px rgba(255, 215, 0, 0.05);
+  border-color: rgba(255, 215, 0, 0.5);
+}
+.skin-jrpg .btn-glow::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.1), transparent);
+}
+
+/* ── 12. Badge neon amber → gold pixel ── */
+.skin-jrpg .badge-neon-amber {
+  background: rgba(255, 215, 0, 0.1);
+  color: #b8860b;
+  border-color: rgba(255, 215, 0, 0.3);
+  border-radius: 0 !important;
+  font-family: var(--font-jrpg), monospace;
+}
+.skin-jrpg.dark .badge-neon-amber,
+.skin-jrpg .dark .badge-neon-amber {
+  background: rgba(255, 215, 0, 0.15);
+  color: #ffd700;
+  border-radius: 0 !important;
+  box-shadow: 0 0 6px rgba(255, 215, 0, 0.2);
+}
+
+/* ── 13. Node execution running → gold ── */
+.skin-jrpg .node-execution-running::before {
+  background: conic-gradient(from var(--node-angle, 0deg), transparent 25%, #ffd700 50%, transparent 75%);
+}
+
+/* ── 14. React Flow edges → gold/cyan ── */
+.skin-jrpg .react-flow {
+  --xy-edge-stroke-default: #ffd700;
+}
+.skin-jrpg .react-flow__connection-line {
+  stroke: #4dccff;
+}
+.skin-jrpg .map-edge-path:hover,
+.skin-jrpg .map-edge-path.selected {
+  stroke: #ffd700;
+  filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.5));
+}
+
+/* ── 15. Pulse / glow keyframes for JRPG ── */
+@keyframes pulse-glow-jrpg {
+  0%, 100% { opacity: 0.6; box-shadow: 0 0 5px rgba(255, 215, 0, 0.2); }
+  50% { opacity: 1; box-shadow: 0 0 20px rgba(255, 215, 0, 0.4); }
+}
+@keyframes icon-pulse-jrpg {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0px transparent); }
+  50% { transform: scale(1.1); filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.4)); }
+}
+@keyframes glow-pulse-jrpg {
+  0%, 100% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.3), 0 0 10px rgba(255, 215, 0, 0.1); }
+  50% { box-shadow: 0 0 15px rgba(255, 215, 0, 0.5), 0 0 30px rgba(255, 215, 0, 0.2); }
+}
+@keyframes jrpg-cursor-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+@keyframes jrpg-twinkle {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.skin-jrpg .animate-pulse-glow {
+  animation: pulse-glow-jrpg 3s ease-in-out infinite;
+}
+.skin-jrpg .animate-icon-pulse {
+  animation: icon-pulse-jrpg 3s ease-in-out infinite;
+}
+.skin-jrpg .animate-glow-pulse {
+  animation: glow-pulse-jrpg 2s ease-in-out infinite;
+}
+
+/* ── 16. Input fields → pixel-bordered ── */
+.skin-jrpg input,
+.skin-jrpg select,
+.skin-jrpg textarea {
+  border-radius: 2px !important;
+  border: 2px solid rgba(77, 204, 255, 0.4) !important;
+  background: rgba(10, 10, 46, 0.8) !important;
+  font-family: var(--font-jrpg), monospace;
+  font-size: 10px;
+}
+.skin-jrpg input:focus,
+.skin-jrpg select:focus,
+.skin-jrpg textarea:focus {
+  border-color: #ffd700 !important;
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.2);
+}
+
+/* ── 17. Scrollbar → pixel style ── */
+.skin-jrpg ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.skin-jrpg ::-webkit-scrollbar-track {
+  background: #0a0a2e;
+}
+.skin-jrpg ::-webkit-scrollbar-thumb {
+  background: #4dccff;
+  border: 1px solid #c8c8ff;
+}
+.skin-jrpg ::-webkit-scrollbar-thumb:hover {
+  background: #ffd700;
+}
+
+/* ── 18. Selection highlight → gold ── */
+.skin-jrpg ::selection {
+  background: rgba(255, 215, 0, 0.3);
+  color: #ffffff;
+}
+
+/* ── 19. Tooltips / popovers → JRPG dialog style ── */
+.skin-jrpg [data-radix-popper-content-wrapper] > div {
+  background: linear-gradient(180deg, rgba(26,26,78,0.98) 0%, rgba(13,13,58,0.99) 100%) !important;
+  border: 2px solid #c8c8ff !important;
+  border-radius: 2px !important;
+  font-family: var(--font-jrpg), monospace;
+  font-size: 9px;
+}
+
+/* ── 20. HP/MP bar styling for progress elements ── */
+.skin-jrpg [role="progressbar"] {
+  border: 2px solid #c8c8ff;
+  border-radius: 0 !important;
+  background: #0a0a2e;
+  overflow: hidden;
+}
+.skin-jrpg [role="progressbar"] > div {
+  border-radius: 0 !important;
+}
+
+/* ── 21. Tabs → JRPG menu style ── */
+.skin-jrpg [role="tablist"] {
+  border-radius: 2px !important;
+  border: 2px solid rgba(77, 204, 255, 0.3);
+  background: rgba(10, 10, 46, 0.6);
+}
+.skin-jrpg [role="tab"] {
+  border-radius: 0 !important;
+  font-family: var(--font-jrpg), monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+.skin-jrpg [role="tab"][data-state="active"] {
+  background: rgba(255, 215, 0, 0.15) !important;
+  color: #ffd700 !important;
+  border-color: rgba(255, 215, 0, 0.3);
+}
+
+/* ── 22. Dialog/modal → JRPG dialog box ── */
+.skin-jrpg [role="dialog"] {
+  background: linear-gradient(180deg, rgba(26,26,78,0.98) 0%, rgba(13,13,58,0.99) 100%) !important;
+  border: 3px solid #c8c8ff !important;
+  border-radius: 2px !important;
+  box-shadow:
+    inset 0 0 0 1px #0a0a2e,
+    inset 0 0 0 3px rgba(77,204,255,0.3),
+    0 8px 0 0 rgba(0,0,0,0.5);
+  font-family: var(--font-jrpg), monospace;
+}
+
+/* ── 23. Table → pixel borders ── */
+.skin-jrpg table {
+  border: 2px solid rgba(77, 204, 255, 0.3);
+}
+.skin-jrpg th {
+  font-family: var(--font-jrpg), monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+  color: #ffd700;
+  border-bottom: 2px solid rgba(255, 215, 0, 0.3);
+}
+.skin-jrpg td {
+  border-bottom: 1px solid rgba(77, 204, 255, 0.15);
+  font-size: 10px;
+}
+
+/* ── 24. JRPG utility classes ── */
+.jrpg-cursor-blink {
+  animation: jrpg-cursor-blink 0.8s step-end infinite;
+}
+.jrpg-dialog-box {
+  background: linear-gradient(180deg, rgba(26,26,78,0.95) 0%, rgba(13,13,58,0.98) 100%);
+  border: 3px solid #c8c8ff;
+  border-radius: 2px;
+  box-shadow:
+    inset 0 0 0 1px #0a0a2e,
+    inset 0 0 0 3px rgba(77,204,255,0.3),
+    0 4px 0 0 rgba(0,0,0,0.5);
+  padding: 16px 20px;
+  position: relative;
+}
+.jrpg-pixel-border {
+  border: 3px solid #c8c8ff;
+  border-radius: 2px;
+  box-shadow:
+    inset 0 0 0 1px #0a0a2e,
+    inset 0 0 0 3px rgba(77,204,255,0.25);
+}
+.jrpg-gold-text {
+  color: #ffd700;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
+}
+.jrpg-hp-bar {
+  height: 8px;
+  background: #0a0a2e;
+  border: 2px solid #c8c8ff;
+  border-radius: 0;
+  overflow: hidden;
+}
+.jrpg-hp-bar-fill {
+  height: 100%;
+  background: linear-gradient(180deg, #00ff88 0%, #00cc66 100%);
+  transition: width 0.3s ease;
+}
+.jrpg-mp-bar-fill {
+  height: 100%;
+  background: linear-gradient(180deg, #4dccff 0%, #2080a0 100%);
+  transition: width 0.3s ease;
+}
+.jrpg-sp-bar-fill {
+  height: 100%;
+  background: linear-gradient(180deg, #ffd700 0%, #b8860b 100%);
+  transition: width 0.3s ease;
+}
+
+/* ── 25. Heading overrides ── */
+.skin-jrpg h1, .skin-jrpg h2, .skin-jrpg h3, .skin-jrpg h4 {
+  font-family: var(--font-jrpg), monospace;
+  letter-spacing: 1px;
+}
+
+/* ── 26. Accent color overrides ── */
+.skin-jrpg .bg-amber-500 {
+  background-color: #ffd700 !important;
+}
+.skin-jrpg .text-amber-500,
+.skin-jrpg .text-amber-400 {
+  color: #ffd700 !important;
+}
+.skin-jrpg .border-amber-500 {
+  border-color: #ffd700 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SKIN: Pokemon Trainer — Catch 'em all
+   Red/white pokeball UI, agents in pokeballs, trainer HUD
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 1. CSS Variable overrides ── */
+.skin-pokemon {
+  --primary: 0 88% 51%;
+  --ring: 0 88% 51%;
+  --spotlight-color: rgba(238, 21, 21, 0.06);
+  /* Remap amber → Pokemon red */
+  --color-amber-50: oklch(97% 0.02 25);
+  --color-amber-100: oklch(93% 0.05 25);
+  --color-amber-200: oklch(85% 0.10 25);
+  --color-amber-300: oklch(75% 0.15 25);
+  --color-amber-400: oklch(65% 0.20 22);
+  --color-amber-500: oklch(55% 0.22 22);
+  --color-amber-600: oklch(48% 0.20 22);
+  --color-amber-700: oklch(42% 0.18 22);
+  --color-amber-800: oklch(36% 0.15 22);
+  --color-amber-900: oklch(30% 0.12 22);
+  --color-amber-950: oklch(22% 0.08 22);
+}
+.skin-pokemon.dark {
+  --primary: 0 88% 51%;
+  --ring: 0 88% 51%;
+  --background: 230 30% 8%;
+  --foreground: 0 0% 98%;
+  --card: 230 25% 12%;
+  --card-foreground: 0 0% 98%;
+  --popover: 230 30% 8%;
+  --popover-foreground: 0 0% 98%;
+  --border: 230 20% 18%;
+  --input: 230 20% 18%;
+  --muted: 230 20% 16%;
+  --muted-foreground: 230 10% 65%;
+}
+
+/* ── 2. Body — dark trainer background ── */
+.skin-pokemon body {
+  background-color: #141428;
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(238,21,21,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 30%, rgba(59,76,202,0.05) 0%, transparent 60%),
+    radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.15), transparent),
+    radial-gradient(1px 1px at 30% 70%, rgba(255,255,255,0.1), transparent),
+    radial-gradient(1px 1px at 50% 40%, rgba(255,255,255,0.12), transparent),
+    radial-gradient(1px 1px at 70% 15%, rgba(255,255,255,0.1), transparent),
+    radial-gradient(1px 1px at 90% 60%, rgba(255,255,255,0.15), transparent),
+    linear-gradient(180deg, #141428 0%, #1a1a3a 50%, #141428 100%);
+}
+
+/* ── 3. Suppress ambient orbs ── */
+.skin-pokemon body::before,
+.skin-pokemon body::after {
+  display: none;
+}
+
+/* ── 4. Text glow → red/gold ── */
+.skin-pokemon.dark .text-glow {
+  text-shadow: 0 0 10px rgba(238, 21, 21, 0.5), 0 0 20px rgba(238, 21, 21, 0.2);
+}
+.skin-pokemon.dark .text-glow-gold,
+.skin-pokemon .dark .text-glow-gold {
+  text-shadow: 0 0 8px rgba(255, 203, 5, 0.5), 0 0 16px rgba(255, 203, 5, 0.3);
+}
+.skin-pokemon.dark .text-glow-amber,
+.skin-pokemon .dark .text-glow-amber {
+  text-shadow: 0 0 6px rgba(238, 21, 21, 0.4), 0 0 12px rgba(238, 21, 21, 0.2);
+}
+
+/* ── 5. Neon glow → red ── */
+.skin-pokemon .neon-glow-gold {
+  box-shadow: 0 0 4px rgba(238, 21, 21, 0.3),
+              0 0 12px rgba(238, 21, 21, 0.15),
+              0 0 24px rgba(238, 21, 21, 0.05);
+}
+
+/* ── 6. Border glow → red ── */
+.skin-pokemon .border-glow-gold {
+  border-color: rgba(238, 21, 21, 0.3);
+  box-shadow: inset 0 0 15px rgba(238, 21, 21, 0.03), 0 0 10px rgba(238, 21, 21, 0.05);
+}
+
+/* ── 7. Glass card → Pokeball-style (red top / white bottom split) ── */
+.skin-pokemon .glass-card,
+.skin-pokemon.dark .glass-card,
+.skin-pokemon .dark .glass-card {
+  background: linear-gradient(180deg, rgba(238,21,21,0.08) 0%, rgba(238,21,21,0.03) 48%, rgba(30,30,50,0.95) 52%, rgba(20,20,40,0.98) 100%) !important;
+  border: 2px solid rgba(238,21,21,0.3) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+  position: relative;
+}
+.skin-pokemon .glass-card::after {
+  content: '';
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 49%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(238,21,21,0.4), rgba(255,255,255,0.6), rgba(238,21,21,0.4), transparent);
+  pointer-events: none;
+}
+.skin-pokemon .glass-card:hover,
+.skin-pokemon.dark .glass-card:hover,
+.skin-pokemon .dark .glass-card:hover {
+  border-color: rgba(255, 203, 5, 0.5) !important;
+  box-shadow: 0 2px 12px rgba(238,21,21,0.15), 0 0 20px rgba(255,203,5,0.08) !important;
+}
+.skin-pokemon .glass-card-enhanced,
+.skin-pokemon.dark .glass-card-enhanced,
+.skin-pokemon .dark .glass-card-enhanced {
+  background: linear-gradient(180deg, rgba(238,21,21,0.1) 0%, rgba(238,21,21,0.04) 48%, rgba(30,30,50,0.95) 52%, rgba(20,20,40,0.98) 100%) !important;
+  border: 2px solid rgba(238,21,21,0.4) !important;
+  border-radius: 12px !important;
+}
+.skin-pokemon .glass-card-enhanced:hover,
+.skin-pokemon.dark .glass-card-enhanced:hover,
+.skin-pokemon .dark .glass-card-enhanced:hover {
+  border-color: rgba(255, 203, 5, 0.6) !important;
+}
+
+/* ── 8. Generic card → Pokeball split ── */
+.skin-pokemon.dark .rounded-lg.border.bg-card,
+.skin-pokemon .dark .rounded-lg.border.bg-card {
+  background: linear-gradient(180deg, rgba(238,21,21,0.06) 0%, rgba(20,20,40,0.95) 50%, rgba(20,20,40,0.98) 100%) !important;
+  border: 2px solid rgba(238,21,21,0.25) !important;
+  border-radius: 12px !important;
+}
+
+/* ── 9. Gradient border spin → red/blue ── */
+.skin-pokemon .gradient-border-spin::before {
+  background: conic-gradient(from 0deg, transparent, #ee1515, #3b4cca, transparent);
+}
+
+/* ── 10. Scan line → red ── */
+.skin-pokemon .scan-line-overlay {
+  background: linear-gradient(90deg, transparent, rgba(238, 21, 21, 0.2), transparent);
+}
+
+/* ── 11. Button glow → red/pokeball ── */
+.skin-pokemon .btn-glow:hover {
+  box-shadow: 0 0 12px rgba(238, 21, 21, 0.3), inset 0 0 10px rgba(238, 21, 21, 0.05);
+  border-color: rgba(238, 21, 21, 0.5);
+}
+.skin-pokemon .btn-glow::after {
+  background: linear-gradient(90deg, transparent, rgba(238, 21, 21, 0.1), transparent);
+}
+
+/* ── 12. Badge neon amber → red ── */
+.skin-pokemon .badge-neon-amber {
+  background: rgba(238, 21, 21, 0.1);
+  color: #ee1515;
+  border-color: rgba(238, 21, 21, 0.3);
+}
+.skin-pokemon.dark .badge-neon-amber,
+.skin-pokemon .dark .badge-neon-amber {
+  background: rgba(238, 21, 21, 0.15);
+  color: #ff4444;
+  box-shadow: 0 0 6px rgba(238, 21, 21, 0.2);
+}
+
+/* ── 13. Node execution running → red ── */
+.skin-pokemon .node-execution-running::before {
+  background: conic-gradient(from var(--node-angle, 0deg), transparent 25%, #ee1515 50%, transparent 75%);
+}
+
+/* ── 14. React Flow edges → red/blue ── */
+.skin-pokemon .react-flow {
+  --xy-edge-stroke-default: #ee1515;
+}
+.skin-pokemon .react-flow__connection-line {
+  stroke: #3b4cca;
+}
+.skin-pokemon .map-edge-path:hover,
+.skin-pokemon .map-edge-path.selected {
+  stroke: #ffcb05;
+  filter: drop-shadow(0 0 6px rgba(255, 203, 5, 0.5));
+}
+
+/* ── 15. Pulse / glow keyframes ── */
+@keyframes pulse-glow-pokemon {
+  0%, 100% { opacity: 0.6; box-shadow: 0 0 5px rgba(238,21,21,0.2); }
+  50% { opacity: 1; box-shadow: 0 0 20px rgba(238,21,21,0.4); }
+}
+@keyframes icon-pulse-pokemon {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0px transparent); }
+  50% { transform: scale(1.1); filter: drop-shadow(0 0 6px rgba(238,21,21,0.4)); }
+}
+@keyframes glow-pulse-pokemon {
+  0%, 100% { box-shadow: 0 0 5px rgba(238,21,21,0.3), 0 0 10px rgba(238,21,21,0.1); }
+  50% { box-shadow: 0 0 15px rgba(238,21,21,0.5), 0 0 30px rgba(238,21,21,0.2); }
+}
+@keyframes pokeball-shake {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-15deg); }
+  50% { transform: rotate(15deg); }
+  75% { transform: rotate(-10deg); }
+}
+@keyframes pokeball-catch {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.8); }
+  100% { transform: scale(1); opacity: 0.8; }
+}
+
+.skin-pokemon .animate-pulse-glow {
+  animation: pulse-glow-pokemon 3s ease-in-out infinite;
+}
+.skin-pokemon .animate-icon-pulse {
+  animation: icon-pulse-pokemon 3s ease-in-out infinite;
+}
+.skin-pokemon .animate-glow-pulse {
+  animation: glow-pulse-pokemon 2s ease-in-out infinite;
+}
+
+/* ── 16. Input fields ── */
+.skin-pokemon input,
+.skin-pokemon select,
+.skin-pokemon textarea {
+  border-radius: 8px !important;
+  border: 2px solid rgba(59, 76, 202, 0.3) !important;
+  background: rgba(20, 20, 40, 0.8) !important;
+}
+.skin-pokemon input:focus,
+.skin-pokemon select:focus,
+.skin-pokemon textarea:focus {
+  border-color: #ee1515 !important;
+  box-shadow: 0 0 8px rgba(238, 21, 21, 0.2);
+}
+
+/* ── 17. Scrollbar ── */
+.skin-pokemon ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.skin-pokemon ::-webkit-scrollbar-track {
+  background: #141428;
+}
+.skin-pokemon ::-webkit-scrollbar-thumb {
+  background: #ee1515;
+  border-radius: 4px;
+  border: 1px solid #3b4cca;
+}
+.skin-pokemon ::-webkit-scrollbar-thumb:hover {
+  background: #ffcb05;
+}
+
+/* ── 18. Selection ── */
+.skin-pokemon ::selection {
+  background: rgba(238, 21, 21, 0.3);
+  color: #ffffff;
+}
+
+/* ── 19. Tooltips / popovers ── */
+.skin-pokemon [data-radix-popper-content-wrapper] > div {
+  background: linear-gradient(180deg, rgba(238,21,21,0.08) 0%, rgba(20,20,40,0.98) 50%) !important;
+  border: 2px solid rgba(238,21,21,0.3) !important;
+  border-radius: 10px !important;
+}
+
+/* ── 20. Progress bars → HP/XP style ── */
+.skin-pokemon [role="progressbar"] {
+  border: 2px solid rgba(238,21,21,0.3);
+  border-radius: 8px !important;
+  background: #141428;
+  overflow: hidden;
+}
+
+/* ── 21. Tabs ── */
+.skin-pokemon [role="tablist"] {
+  border-radius: 10px !important;
+  border: 2px solid rgba(59, 76, 202, 0.3);
+  background: rgba(20, 20, 40, 0.6);
+}
+.skin-pokemon [role="tab"] {
+  border-radius: 8px !important;
+}
+.skin-pokemon [role="tab"][data-state="active"] {
+  background: rgba(238, 21, 21, 0.15) !important;
+  color: #ee1515 !important;
+}
+
+/* ── 22. Dialog/modal ── */
+.skin-pokemon [role="dialog"] {
+  background: linear-gradient(180deg, rgba(238,21,21,0.06) 0%, rgba(20,20,40,0.98) 50%) !important;
+  border: 2px solid rgba(238,21,21,0.3) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+/* ── 23. Accent overrides ── */
+.skin-pokemon .bg-amber-500 {
+  background-color: #ee1515 !important;
+}
+.skin-pokemon .text-amber-500,
+.skin-pokemon .text-amber-400 {
+  color: #ee1515 !important;
+}
+.skin-pokemon .border-amber-500 {
+  border-color: #ee1515 !important;
+}
+
+/* ── 24. Pokeball utility classes ── */
+.pokeball {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  position: relative;
+  background: linear-gradient(180deg, #ee1515 0%, #ee1515 48%, #1a1a1a 48%, #1a1a1a 52%, #ffffff 52%, #ffffff 100%);
+  border: 2px solid #1a1a1a;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+.pokeball::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #1a1a1a;
+  box-shadow: 0 0 4px rgba(255,255,255,0.5);
+}
+.pokeball.pokeball-great {
+  background: linear-gradient(180deg, #3b4cca 0%, #3b4cca 48%, #1a1a1a 48%, #1a1a1a 52%, #ffffff 52%, #ffffff 100%);
+}
+.pokeball.pokeball-ultra {
+  background: linear-gradient(180deg, #1a1a1a 0%, #1a1a1a 48%, #ffcb05 48%, #ffcb05 52%, #1a1a1a 52%, #1a1a1a 100%);
+}
+.pokeball.pokeball-master {
+  background: linear-gradient(180deg, #705898 0%, #705898 48%, #1a1a1a 48%, #1a1a1a 52%, #ffffff 52%, #ffffff 100%);
+}
+.pokeball.pokeball-active {
+  animation: pokeball-shake 0.6s ease-in-out;
+}
+.pokeball.pokeball-sm {
+  width: 20px;
+  height: 20px;
+}
+.pokeball.pokeball-sm::after {
+  width: 6px;
+  height: 6px;
+}
+.pokeball.pokeball-lg {
+  width: 48px;
+  height: 48px;
+}
+.pokeball.pokeball-lg::after {
+  width: 14px;
+  height: 14px;
+  border-width: 3px;
+}
+.pokeball-empty {
+  opacity: 0.3;
+  filter: grayscale(100%);
+}
+.pokeball-online::after {
+  background: #78c850;
+  box-shadow: 0 0 6px rgba(120,200,80,0.6);
+}
+.pokeball-busy::after {
+  background: #f8d030;
+  box-shadow: 0 0 6px rgba(248,208,48,0.6);
+}
+.pokeball-offline::after {
+  background: #705898;
+  box-shadow: 0 0 4px rgba(112,88,152,0.4);
+}

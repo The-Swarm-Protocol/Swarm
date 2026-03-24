@@ -95,6 +95,32 @@ const SKIN_PALETTES: Record<string, ChartPalette> = {
     task: { done: "#00ff41", inProgress: "#ccff00", todo: "#1a3a1a" },
     agent: { online: "#00ff41", busy: "#ccff00", offline: "#1a3a1a" },
   },
+  pokemon: {
+    primary: "#ee1515",
+    secondary: "#3b4cca",
+    accent: "#ffcb05",
+    success: "#78c850",
+    warning: "#f8d030",
+    danger: "#ee1515",
+    muted: "#705898",
+    grid: "rgba(238,21,21,0.06)",
+    tooltip: { bg: "rgba(30,30,50,0.95)", border: "rgba(238,21,21,0.4)", text: "#ffffff" },
+    task: { done: "#78c850", inProgress: "#f8d030", todo: "#705898" },
+    agent: { online: "#78c850", busy: "#f8d030", offline: "#705898" },
+  },
+  jrpg: {
+    primary: "#ffd700",
+    secondary: "#4dccff",
+    accent: "#ff6b6b",
+    success: "#00ff88",
+    warning: "#ffd700",
+    danger: "#ff4444",
+    muted: "#3a3a6e",
+    grid: "rgba(255,215,0,0.06)",
+    tooltip: { bg: "rgba(10,10,46,0.95)", border: "rgba(255,215,0,0.4)", text: "#ffffff" },
+    task: { done: "#00ff88", inProgress: "#ffd700", todo: "#2a2a5e" },
+    agent: { online: "#00ff88", busy: "#ffd700", offline: "#2a2a5e" },
+  },
 };
 
 export function useChartPalette(): ChartPalette {

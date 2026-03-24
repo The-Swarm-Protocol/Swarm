@@ -6,6 +6,7 @@ import {
   ShieldAlert, Users, Flag, Server, Package, TrendingUp,
   Ban, CheckCircle, XCircle, Loader2, RefreshCw, ChevronDown,
   AlertTriangle, Globe, Clock, Star, Scale, ArrowRight,
+  Wallet, Fuel, ExternalLink, Copy,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { useSession } from "@/contexts/SessionContext";
 const PLATFORM_ADMIN_ADDRESSES = [
   "0x723708273e811a07d90d2e81e799b9Ab27F0B549",
   "0xFa086eE8EF6bf6C96AfB79Da7a691eFc1c0c24ba",
+  "0xEAB03556443E0B852A8eFe836a004bC02cfF2974",
 ].map(addr => addr.toLowerCase());
 
 // ── Types ──
@@ -76,6 +78,15 @@ interface Submission {
   pipelineStage?: string;
 }
 
+interface GasSponsor {
+  address: string;
+  balanceHbar: number;
+  totalSponsored: number;
+  estimatedRemaining: number;
+  avgCostHbar: number;
+  explorerUrl: string;
+}
+
 const TIER_NAMES: Record<number, string> = { 0: "New", 1: "Approved", 2: "Trusted", 3: "Strategic" };
 const TIER_COLORS: Record<number, string> = {
   0: "bg-zinc-500/20 text-zinc-400",
@@ -93,6 +104,7 @@ export default function AdminPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [modServices, setModServices] = useState<ModService[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [gasSponsor, setGasSponsor] = useState<GasSponsor | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [subFilter, setSubFilter] = useState<"pending" | "approved" | "rejected">("pending");
@@ -100,12 +112,13 @@ export default function AdminPage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [overviewRes, pubRes, repRes, modRes, subRes] = await Promise.all([
+      const [overviewRes, pubRes, repRes, modRes, subRes, gasRes] = await Promise.all([
         fetch("/api/admin/overview"),
         fetch("/api/admin/publishers"),
         fetch("/api/admin/reports"),
         fetch("/api/admin/mod-services"),
         fetch(`/api/admin/submissions?status=${subFilter}`),
+        fetch("/api/admin/gas-sponsor"),
       ]);
 
       if (overviewRes.ok) {
@@ -127,6 +140,10 @@ export default function AdminPage() {
       if (subRes.ok) {
         const d = await subRes.json();
         setSubmissions(d.submissions || []);
+      }
+      if (gasRes.ok) {
+        const d = await gasRes.json();
+        setGasSponsor(d);
       }
     } catch {
       // silent
@@ -242,6 +259,83 @@ export default function AdminPage() {
           <StatCard icon={Flag} label="Reports" value={stats.reports} alert={stats.reports > 0} />
           <StatCard icon={Star} label="Publishers" value={stats.publishers} />
           <StatCard icon={Server} label="Mod Services" value={stats.modServices} />
+        </div>
+      )}
+
+      {/* Gas Sponsor Wallet */}
+      {gasSponsor && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Fuel className="h-5 w-5 text-emerald-400" />
+              <h3 className="font-semibold">Gas Sponsor Wallet</h3>
+              <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
+                Hedera Testnet
+              </span>
+            </div>
+            <a
+              href={gasSponsor.explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-muted-foreground hover:text-emerald-400 flex items-center gap-1 transition-colors"
+            >
+              HashScan <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+
+          {/* Wallet address */}
+          <div className="flex items-center gap-2 bg-black/20 rounded-lg px-3 py-2">
+            <Wallet className="h-4 w-4 text-muted-foreground shrink-0" />
+            <code className="text-xs font-mono text-foreground flex-1 truncate">
+              {gasSponsor.address}
+            </code>
+            <button
+              onClick={() => navigator.clipboard.writeText(gasSponsor.address)}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              title="Copy address"
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          {/* Stats row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="rounded-lg border border-border bg-card/50 p-3">
+              <p className="text-xs text-muted-foreground">Balance</p>
+              <p className={`text-xl font-bold ${gasSponsor.balanceHbar < 5 ? "text-red-400" : gasSponsor.balanceHbar < 20 ? "text-amber-400" : "text-emerald-400"}`}>
+                {gasSponsor.balanceHbar.toLocaleString()} <span className="text-sm font-normal">HBAR</span>
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-card/50 p-3">
+              <p className="text-xs text-muted-foreground">Agents Sponsored</p>
+              <p className="text-xl font-bold">{gasSponsor.totalSponsored}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-card/50 p-3">
+              <p className="text-xs text-muted-foreground">Est. Remaining</p>
+              <p className={`text-xl font-bold ${gasSponsor.estimatedRemaining < 10 ? "text-amber-400" : ""}`}>
+                ~{gasSponsor.estimatedRemaining} <span className="text-sm font-normal">agents</span>
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-card/50 p-3">
+              <p className="text-xs text-muted-foreground">Cost per Agent</p>
+              <p className="text-xl font-bold">
+                ~{gasSponsor.avgCostHbar} <span className="text-sm font-normal">HBAR</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Low balance warning */}
+          {gasSponsor.balanceHbar < 10 && (
+            <div className="flex items-center gap-2 text-amber-400 bg-amber-500/10 rounded-lg px-3 py-2 text-sm">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>Low balance — send HBAR to the address above to continue sponsoring agent registrations.</span>
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            This wallet pays gas fees so every agent that registers gets their ASN on-chain automatically.
+            Send HBAR to the address above to refill.
+          </p>
         </div>
       )}
 

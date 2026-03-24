@@ -16,7 +16,7 @@ import { PLATFORM_BRIEFING } from "../briefing";
 import { getAgentAvatarUrl } from "@/lib/agent-avatar";
 import { agentCheckIn, getOrganization, type Agent } from "@/lib/firestore";
 import { generateASN } from "@/lib/chainlink";
-import { HEDERA_CONTRACTS, HEDERA_GAS_LIMIT } from "@/lib/swarm-contracts";
+import { HEDERA_CONTRACTS, HEDERA_GAS_LIMIT, CONTRACTS, AGENT_IDENTITY_NFT_ABI } from "@/lib/swarm-contracts";
 import { LINK_AGENT_REGISTRY_ABI } from "@/lib/link-contracts";
 import { db } from "@/lib/firebase";
 import {
@@ -31,6 +31,7 @@ import {
 } from "firebase/firestore";
 import { checkAndRestoreASN } from "@/lib/asn-auto-restore";
 import { emitSkillReport } from "@/lib/hedera-score-emitter";
+import { createPrivateMemoryTopic, postPrivateMemory } from "@/lib/hedera-agent-memory";
 
 const HEDERA_TESTNET_RPC = "https://testnet.hashio.io/api";
 
@@ -87,6 +88,55 @@ async function registerOnChain(
         return { txHash: receipt.hash };
     } catch (err) {
         console.error("On-chain registration failed (non-fatal):", err);
+        return null;
+    }
+}
+
+/** Mint a Soulbound Identity NFT for the agent on Hedera Testnet (platform-sponsored) */
+async function mintIdentityNFT(
+    agentAddress: string,
+    asn: string,
+    creditScore: number,
+    trustScore: number,
+): Promise<{ txHash: string; tokenId?: string } | null> {
+    const privateKey = process.env.HEDERA_PLATFORM_KEY;
+    if (!privateKey) return null;
+    try {
+        const provider = new ethers.JsonRpcProvider(HEDERA_TESTNET_RPC);
+        const wallet = new ethers.Wallet(privateKey, provider);
+        const nftContract = new ethers.Contract(
+            CONTRACTS.AGENT_IDENTITY_NFT,
+            AGENT_IDENTITY_NFT_ABI,
+            wallet,
+        );
+
+        // Check if agent already has an NFT (idempotent)
+        const hasNFT = await nftContract.hasNFT(agentAddress);
+        if (hasNFT) return null; // Already minted
+
+        const tx = await nftContract.mintAgentNFT(
+            agentAddress,
+            asn,
+            Math.min(Math.max(creditScore, 300), 900), // clamp 300-900
+            Math.min(Math.max(trustScore, 0), 100),     // clamp 0-100
+            { gasLimit: HEDERA_GAS_LIMIT, type: 0 },
+        );
+        const receipt = await tx.wait();
+
+        // Extract tokenId from logs if available
+        let tokenId: string | undefined;
+        for (const log of receipt.logs) {
+            try {
+                const parsed = nftContract.interface.parseLog({ topics: log.topics as string[], data: log.data });
+                if (parsed?.name === "AgentNFTMinted") {
+                    tokenId = parsed.args.tokenId?.toString();
+                }
+            } catch { /* skip non-matching logs */ }
+        }
+
+        return { txHash: receipt.hash, tokenId };
+    } catch (err) {
+        console.error("NFT mint failed (non-fatal):", err);
         return null;
     }
 }
@@ -232,6 +282,32 @@ export async function POST(request: NextRequest) {
                 });
             }
 
+            // If not yet on-chain, sponsor registration now
+            if (!existingData.onChainRegistered) {
+                const skillStr = (skills.length > 0 ? skills.map(s => s.name).join(",") : existingData.reportedSkills?.map((s: { name: string }) => s.name).join(",")) || "general";
+                registerOnChain(existingData.name || agentName, existingAsn, skillStr, publicKey).then(async (result) => {
+                    if (result) {
+                        await updateDoc(doc(db, "agents", existingDoc.id), {
+                            onChainTxHash: result.txHash,
+                            onChainRegistered: true,
+                        });
+                    }
+                }).catch(() => {});
+            }
+
+            // Mint Identity NFT if not yet minted (non-blocking)
+            if (!existingData.hederaNftMinted) {
+                mintIdentityNFT(agentAddress, existingAsn, existingData.creditScore ?? 680, existingData.trustScore ?? 50).then(async (result) => {
+                    if (result) {
+                        await updateDoc(doc(db, "agents", existingDoc.id), {
+                            hederaNftTxHash: result.txHash,
+                            hederaNftTokenId: result.tokenId || null,
+                            hederaNftMinted: true,
+                        });
+                    }
+                }).catch(() => {});
+            }
+
             // Post check-in greeting to Agent Hub
             const agent = { id: existingDoc.id, ...existingData } as Agent;
             agentCheckIn(agent, agent.orgId || orgId, skills.length > 0 ? skills : undefined, bio).catch(() => {});
@@ -249,6 +325,7 @@ export async function POST(request: NextRequest) {
                 registered: true,
                 existing: true,
                 reportedSkills: skills.length,
+                chain: existingData.onChainRegistered ? undefined : "hedera-testnet",
                 briefing: PLATFORM_BRIEFING,
                 ...(restoreResult.restored ? {
                     restored: true,
@@ -318,6 +395,32 @@ export async function POST(request: NextRequest) {
                 });
             }
 
+            // If not yet on-chain, sponsor registration now
+            if (!matchedData.onChainRegistered) {
+                const skillStr = (skills.length > 0 ? skills.map(s => s.name).join(",") : matchedData.reportedSkills?.map((s: { name: string }) => s.name).join(",")) || "general";
+                registerOnChain(matchedData.name || agentName, matchedAsn, skillStr, publicKey).then(async (result) => {
+                    if (result) {
+                        await updateDoc(doc(db, "agents", matchedDoc.id), {
+                            onChainTxHash: result.txHash,
+                            onChainRegistered: true,
+                        });
+                    }
+                }).catch(() => {});
+            }
+
+            // Mint Identity NFT if not yet minted (non-blocking)
+            if (!matchedData.hederaNftMinted) {
+                mintIdentityNFT(agentAddress, matchedAsn, matchedData.creditScore ?? 680, matchedData.trustScore ?? 50).then(async (result) => {
+                    if (result) {
+                        await updateDoc(doc(db, "agents", matchedDoc.id), {
+                            hederaNftTxHash: result.txHash,
+                            hederaNftTokenId: result.tokenId || null,
+                            hederaNftMinted: true,
+                        });
+                    }
+                }).catch(() => {});
+            }
+
             // Post check-in greeting to Agent Hub
             const agent = { id: matchedDoc.id, ...matchedData } as Agent;
             agentCheckIn(agent, agent.orgId || orgId, skills.length > 0 ? skills : undefined, bio).catch(() => {});
@@ -335,6 +438,7 @@ export async function POST(request: NextRequest) {
                 registered: true,
                 existing: true,
                 reportedSkills: skills.length,
+                chain: matchedData.onChainRegistered ? undefined : "hedera-testnet",
                 briefing: PLATFORM_BRIEFING,
                 ...(restoreResult.restored ? {
                     restored: true,
@@ -406,6 +510,49 @@ export async function POST(request: NextRequest) {
                 });
             }
         }).catch(() => {});
+
+        // Mint Soulbound Identity NFT on Hedera (non-blocking, platform-sponsored)
+        mintIdentityNFT(agentAddress, asn, initialCreditScore, initialTrustScore).then(async (result) => {
+            if (result) {
+                await updateDoc(doc(db, "agents", ref.id), {
+                    hederaNftTxHash: result.txHash,
+                    hederaNftTokenId: result.tokenId || null,
+                    hederaNftMinted: true,
+                });
+            }
+        }).catch(() => {});
+
+        // Create private HCS memory topic + deposit first memory backup (non-blocking)
+        (async () => {
+            try {
+                const memoryConfig = await createPrivateMemoryTopic(ref.id, asn);
+                await updateDoc(doc(db, "agents", ref.id), {
+                    hederaMemoryTopicId: memoryConfig.memoryTopicId,
+                    hederaMemoryEnabled: true,
+                    hederaMemoryCreatedAt: new Date(),
+                });
+                // Deposit first memory: registration event
+                await postPrivateMemory(memoryConfig.memoryTopicId, asn, {
+                    type: "context",
+                    content: JSON.stringify({
+                        event: "agent_registered",
+                        agentName,
+                        asn,
+                        agentAddress,
+                        orgId,
+                        skills: skills.map(s => s.name),
+                        bio: bio || "",
+                        creditScore: initialCreditScore,
+                        trustScore: initialTrustScore,
+                        timestamp: Date.now(),
+                    }),
+                    metadata: { role: "system", timestamp: Date.now(), orgId },
+                });
+                console.log(`[Register] First memory deposited on Hedera HCS for ${asn}`);
+            } catch (err) {
+                console.warn("[Register] Memory topic creation failed (non-fatal):", err);
+            }
+        })();
 
         // Post check-in greeting to Agent Hub
         const newAgent = { id: ref.id, name: agentName, type: agentType || "agent", orgId } as Agent;

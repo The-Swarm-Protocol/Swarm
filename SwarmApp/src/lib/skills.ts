@@ -596,6 +596,45 @@ export const SKILL_REGISTRY: Skill[] = [
             iconName: "Bot",
         },
     },
+    {
+        id: "auth0-token-vault",
+        name: "Auth0 Token Vault",
+        description: "OAuth connection manager — connect Google, GitHub, Slack, Microsoft, and Discord through Auth0. Agents request scoped capabilities with approval workflows, and every token use is audit-logged.",
+        type: "mod",
+        source: "verified",
+        category: "Security",
+        icon: "🔐",
+        version: "1.0.0",
+        author: "Swarm Core",
+        requiredKeys: ["AUTH0_DOMAIN", "AUTH0_CLIENT_ID", "AUTH0_CLIENT_SECRET"],
+        tags: ["auth0", "oauth", "token", "vault", "security", "google", "github", "slack", "permissions"],
+        pricing: { model: "free" },
+        sidebarConfig: {
+            sectionId: "modifications",
+            label: "Token Vault",
+            href: "/mods/token-vault",
+            iconName: "ShieldAlert",
+        },
+        modManifest: {
+            tools: [
+                { id: "tv-connect", name: "OAuth Connect", description: "Connect a third-party account via Auth0 Universal Login", icon: "🔗", category: "Auth", status: "active" as const },
+                { id: "tv-request", name: "Request Access", description: "Agent requests scoped token access with risk-based approval", icon: "🎫", category: "Auth", status: "active" as const },
+                { id: "tv-audit", name: "Audit Log", description: "Immutable audit trail for all token operations", icon: "📋", category: "Compliance", status: "active" as const },
+            ],
+            workflows: [
+                { id: "tv-onboard", name: "Service Onboarding", description: "Connect OAuth provider → configure scopes → approve agents", icon: "🚀", tags: ["auth", "setup"], steps: ["Connect OAuth provider via Auth0", "Select scopes to grant", "Agent requests access", "Admin reviews and approves", "Agent uses token with audit logging"] },
+                { id: "tv-approval", name: "Approval Flow", description: "Low-risk scopes auto-approve; medium/high require admin review", icon: "✅", tags: ["auth", "approval"], steps: ["Agent submits access request", "System calculates risk level", "Low-risk: auto-approved", "Medium/High: admin notification", "Admin approves or denies"] },
+            ],
+            examples: [
+                { id: "tv-ex-gmail", name: "Agent Reads Gmail", description: "Agent requests read access to Gmail, admin approves, agent fetches emails", icon: "📧", tags: ["google", "email"] },
+                { id: "tv-ex-github", name: "Agent Creates PR", description: "Agent requests repo access to GitHub, creates a pull request on behalf of user", icon: "🔀", tags: ["github", "code"] },
+                { id: "tv-ex-slack", name: "Agent Posts to Slack", description: "Agent sends status updates to a Slack channel using approved credentials", icon: "💬", tags: ["slack", "messaging"] },
+            ],
+            agentSkills: [
+                { id: "tv-skill-oauth", name: "OAuth Token Request", description: "Request and use OAuth tokens from the vault", type: "skill" as const, invocation: "token_vault.request_access", exampleInput: "{ provider: 'google', scopes: ['gmail.send'] }", exampleOutput: "{ status: 'approved', accessToken: '...' }" },
+            ],
+        },
+    },
 
     // ── Plugins ──
     {
@@ -828,6 +867,36 @@ export const SKILL_REGISTRY: Skill[] = [
         version: "1.0.0",
         author: "Swarm Core",
         tags: ["skin", "theme", "hacker", "green", "matrix", "terminal", "monochrome"],
+        pricing: { model: "free" },
+    },
+
+    // ── Pokemon Trainer Skin ──
+    {
+        id: "skin-pokemon",
+        name: "Pokemon Trainer",
+        description: "Catch 'em all — agents live in Pokeballs, Pokemon-style red/white UI with trainer HUD. Register agents to fill your Pokeball belt.",
+        type: "skin",
+        source: "verified",
+        category: "Themes",
+        icon: "🔴",
+        version: "1.0.0",
+        author: "Swarm Core",
+        tags: ["skin", "theme", "pokemon", "pokeball", "trainer", "catch", "retro"],
+        pricing: { model: "free" },
+    },
+
+    // ── JRPG Fantasy Skin ──
+    {
+        id: "skin-jrpg",
+        name: "JRPG Fantasy",
+        description: "16-bit SNES-era Final Fantasy UI — pixel fonts, chunky pixel borders, JRPG dialog boxes, party stats, and quest menus. Transforms your entire dashboard into a retro JRPG command center.",
+        type: "skin",
+        source: "verified",
+        category: "Themes",
+        icon: "🎮",
+        version: "1.0.0",
+        author: "Swarm Core",
+        tags: ["skin", "theme", "jrpg", "retro", "pixel", "fantasy", "16bit", "final-fantasy"],
         pricing: { model: "free" },
     },
 

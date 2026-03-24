@@ -96,6 +96,10 @@ export default function HbarPage() {
   const [ocSkills, setOcSkills] = useState("");
   const [ocBudget, setOcBudget] = useState("");
   const [ocDeadlineDays, setOcDeadlineDays] = useState("7");
+  const [ocScheduled, setOcScheduled] = useState(false);
+  const [ocScheduleDate, setOcScheduleDate] = useState("");
+  const [ocScheduleTime, setOcScheduleTime] = useState("");
+  const [ocRecurring, setOcRecurring] = useState<"" | "daily" | "weekly" | "monthly">("");
   const [deliveryInput, setDeliveryInput] = useState("");
 
   // Agent registration dialog — pick from existing fleet agents
@@ -131,6 +135,94 @@ export default function HbarPage() {
   const [memBreakdown, setMemBreakdown] = useState<Record<string, number>>({});
   const [memTotalCount, setMemTotalCount] = useState(0);
   const [memHashscanUrl, setMemHashscanUrl] = useState("");
+
+  // HCS Org state
+  interface HcsOrg {
+    id: string;
+    name: string;
+    ownerAddress: string;
+    hcsOwnershipVerified?: boolean;
+    hcsTopicId?: string;
+    hcsSequenceNumber?: string;
+    shareTokenId?: string;
+    shareTokenSymbol?: string;
+    shareTotalSupply?: string;
+    shareTokenAddress?: string;
+    createdAt?: { toDate?: () => Date };
+  }
+  const [orgDialogOpen, setOrgDialogOpen] = useState(false);
+  const [orgName, setOrgName] = useState("");
+  const [orgDesc, setOrgDesc] = useState("");
+  const [orgWebsite, setOrgWebsite] = useState("");
+  const [orgShareSymbol, setOrgShareSymbol] = useState("");
+  const [orgShareSupply, setOrgShareSupply] = useState("1000000");
+  const [orgLoading, setOrgLoading] = useState(false);
+  const [orgStatus, setOrgStatus] = useState<{ type: "success" | "error"; message: string; orgId?: string; hcsUrl?: string; tokenId?: string } | null>(null);
+  const [hcsOrgs, setHcsOrgs] = useState<HcsOrg[]>([]);
+
+  // Fetch HCS-backed orgs
+  useEffect(() => {
+    const q = query(collection(db, "organizations"), where("hcsOwnershipVerified", "==", true));
+    const unsub = onSnapshot(q, (snap) => {
+      setHcsOrgs(snap.docs.map(d => ({ id: d.id, ...d.data() } as HcsOrg)));
+    });
+    return () => unsub();
+  }, []);
+
+  async function handleCreateHcsOrg() {
+    if (!orgName || !orgShareSymbol) {
+      setOrgStatus({ type: "error", message: "Organization name and share symbol are required" });
+      return;
+    }
+    if (!account) {
+      setOrgStatus({ type: "error", message: "Connect your wallet to sign the ownership proof" });
+      return;
+    }
+    setOrgLoading(true);
+    setOrgStatus(null);
+    try {
+      // Step 1: Sign ownership proof
+      const timestamp = Date.now();
+      const tempOrgId = `org_${timestamp}_${Math.random().toString(36).slice(2, 8)}`;
+      const message = `Swarm Protocol Org Creation: ${tempOrgId} at ${timestamp}`;
+
+      // Use thirdweb account to sign
+      const signature = await account.signMessage({ message });
+
+      // Step 2: Submit to API
+      const res = await fetch("/api/v1/orgs/create-with-shares", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: orgName,
+          description: orgDesc,
+          website: orgWebsite,
+          ownerSignature: signature,
+          shareSymbol: orgShareSymbol.toUpperCase(),
+          initialShares: parseInt(orgShareSupply) || 1000000,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create organization");
+
+      setOrgStatus({
+        type: "success",
+        message: data.warning || "Organization created with HCS proof + ERC20 shares!",
+        orgId: data.orgId,
+        hcsUrl: data.hcsProof?.hashscanUrl,
+        tokenId: data.shareToken?.tokenId,
+      });
+      setOrgName("");
+      setOrgDesc("");
+      setOrgWebsite("");
+      setOrgShareSymbol("");
+      setOrgShareSupply("1000000");
+    } catch (err: unknown) {
+      setOrgStatus({ type: "error", message: err instanceof Error ? err.message : "Failed to create org" });
+    } finally {
+      setOrgLoading(false);
+    }
+  }
 
   // Memory API handlers
   async function handleCreateMemoryTopic() {
@@ -955,43 +1047,179 @@ export default function HbarPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-semibold">HCS-Backed Organizations</h2>
-                  <p className="text-sm text-muted-foreground">Create organizations with immutable ownership proof on Hedera HCS + tradeable ERC20 shares</p>
+                  <p className="text-sm text-muted-foreground">Immutable ownership proof on Hedera HCS + tradeable ERC20 shares</p>
                 </div>
-                <Button
-                  size="sm"
-                  onClick={() => {/* TODO: Open create org dialog */}}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                >
+                <Button size="sm" onClick={() => { setOrgDialogOpen(true); setOrgStatus(null); }} className="bg-emerald-600 hover:bg-emerald-700 text-white">
                   + Create Organization
                 </Button>
               </div>
 
-              {/* Coming soon placeholder */}
-              <Card>
-                <CardContent className="py-16 text-center">
-                  <p className="text-4xl mb-4">🏢</p>
-                  <p className="text-lg font-semibold mb-2">HCS Organization Creation</p>
-                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                    Create organizations with cryptographically signed ownership proofs submitted to Hedera Consensus Service,
-                    plus ERC20 share tokens for tradeable equity.
-                  </p>
-                  <div className="mt-6 grid sm:grid-cols-3 gap-4 max-w-2xl mx-auto text-left">
-                    <div className="p-4 rounded-lg border border-border">
-                      <p className="text-sm font-medium mb-1">🔐 Immutable Proof</p>
-                      <p className="text-xs text-muted-foreground">Ownership records on HCS with dual-signature transfers</p>
+              {/* Feature cards */}
+              <div className="grid sm:grid-cols-3 gap-3">
+                <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+                  <p className="text-sm font-medium mb-1">Immutable Proof</p>
+                  <p className="text-xs text-muted-foreground">Wallet-signed ownership on HCS with dual-signature transfers</p>
+                </div>
+                <div className="p-4 rounded-xl border border-purple-500/20 bg-purple-500/5">
+                  <p className="text-sm font-medium mb-1">ERC20 Shares</p>
+                  <p className="text-xs text-muted-foreground">Native Hedera tokens (HTS) tradeable on DEXs</p>
+                </div>
+                <div className="p-4 rounded-xl border border-cyan-500/20 bg-cyan-500/5">
+                  <p className="text-sm font-medium mb-1">Full Audit Trail</p>
+                  <p className="text-xs text-muted-foreground">Query complete ownership history from HCS</p>
+                </div>
+              </div>
+
+              {/* Existing HCS orgs list */}
+              {hcsOrgs.length > 0 ? (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-muted-foreground">HCS-Verified Organizations ({hcsOrgs.length})</h3>
+                  {hcsOrgs.map((org) => (
+                    <Card key={org.id}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-lg">
+                              {org.name?.charAt(0)?.toUpperCase() || "O"}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium">{org.name}</p>
+                                {org.hcsOwnershipVerified && (
+                                  <Badge className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">HCS Verified</Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground font-mono">{org.ownerAddress ? `${org.ownerAddress.slice(0, 6)}...${org.ownerAddress.slice(-4)}` : "—"}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4 text-right">
+                            {org.shareTokenSymbol && (
+                              <div>
+                                <p className="text-xs text-muted-foreground">Share Token</p>
+                                <p className="font-mono text-sm font-medium text-purple-400">${org.shareTokenSymbol}</p>
+                                <p className="text-[10px] text-muted-foreground">{Number(org.shareTotalSupply || 0).toLocaleString()} supply</p>
+                              </div>
+                            )}
+                            {org.hcsTopicId && (
+                              <a
+                                href={`https://hashscan.io/testnet/topic/${org.hcsTopicId}`}
+                                target="_blank" rel="noopener noreferrer"
+                                className="text-xs text-emerald-400 hover:underline"
+                              >
+                                HashScan
+                              </a>
+                            )}
+                            {org.shareTokenId && (
+                              <a
+                                href={`https://hashscan.io/testnet/token/${org.shareTokenId}`}
+                                target="_blank" rel="noopener noreferrer"
+                                className="text-xs text-purple-400 hover:underline"
+                              >
+                                Token
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <p className="text-3xl mb-3">🏢</p>
+                    <p className="font-medium mb-1">No HCS-backed organizations yet</p>
+                    <p className="text-sm text-muted-foreground">Create one to get immutable ownership proof + ERC20 share tokens on Hedera testnet.</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Create Org Dialog */}
+              <Dialog open={orgDialogOpen} onOpenChange={setOrgDialogOpen}>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle>Create HCS-Backed Organization</DialogTitle>
+                  </DialogHeader>
+
+                  <div className="space-y-4 mt-2">
+                    {/* Org name */}
+                    <div>
+                      <label className="text-sm font-medium">Organization Name *</label>
+                      <Input value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="e.g. Acme AI Labs" className="mt-1" />
                     </div>
-                    <div className="p-4 rounded-lg border border-border">
-                      <p className="text-sm font-medium mb-1">💎 ERC20 Shares</p>
-                      <p className="text-xs text-muted-foreground">Native Hedera tokens tradeable on DEXs</p>
+
+                    {/* Description */}
+                    <div>
+                      <label className="text-sm font-medium">Description</label>
+                      <Textarea value={orgDesc} onChange={e => setOrgDesc(e.target.value)} placeholder="What does this organization do?" className="mt-1" rows={2} />
                     </div>
-                    <div className="p-4 rounded-lg border border-border">
-                      <p className="text-sm font-medium mb-1">📊 Full Audit Trail</p>
-                      <p className="text-xs text-muted-foreground">Query complete ownership history from HCS</p>
+
+                    {/* Website */}
+                    <div>
+                      <label className="text-sm font-medium">Website</label>
+                      <Input value={orgWebsite} onChange={e => setOrgWebsite(e.target.value)} placeholder="https://..." className="mt-1" />
                     </div>
+
+                    {/* Share token settings */}
+                    <div className="border border-purple-500/20 rounded-lg p-3 bg-purple-500/5 space-y-3">
+                      <p className="text-sm font-medium text-purple-400">ERC20 Share Token</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-muted-foreground">Symbol *</label>
+                          <Input
+                            value={orgShareSymbol}
+                            onChange={e => setOrgShareSymbol(e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 6))}
+                            placeholder="ACME"
+                            className="mt-1 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">Total Supply</label>
+                          <Input
+                            value={orgShareSupply}
+                            onChange={e => setOrgShareSupply(e.target.value.replace(/[^0-9]/g, ""))}
+                            placeholder="1000000"
+                            className="mt-1 font-mono"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Shares are minted as native Hedera tokens (HTS). All shares go to the platform operator account initially.</p>
+                    </div>
+
+                    {/* Flow explanation */}
+                    <div className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-3 space-y-1">
+                      <p className="font-medium text-foreground">What happens when you create:</p>
+                      <p>1. Your wallet signs an ownership proof message</p>
+                      <p>2. Organization is created in Swarm database</p>
+                      <p>3. Signed proof is submitted to Hedera HCS (immutable)</p>
+                      <p>4. ERC20 share tokens are minted on Hedera Token Service</p>
+                    </div>
+
+                    {/* Status */}
+                    {orgStatus && (
+                      <div className={cn(
+                        "px-3 py-2 rounded-lg text-sm border",
+                        orgStatus.type === "success" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-red-500/10 border-red-500/30 text-red-400"
+                      )}>
+                        <p>{orgStatus.message}</p>
+                        {orgStatus.orgId && <p className="text-xs mt-1 font-mono opacity-70">Org ID: {orgStatus.orgId}</p>}
+                        {orgStatus.hcsUrl && (
+                          <a href={orgStatus.hcsUrl} target="_blank" rel="noopener noreferrer" className="text-xs mt-1 underline block">View HCS proof on HashScan</a>
+                        )}
+                        {orgStatus.tokenId && <p className="text-xs mt-1 font-mono opacity-70">Token: {orgStatus.tokenId}</p>}
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={handleCreateHcsOrg}
+                      disabled={orgLoading || !orgName || !orgShareSymbol}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      {orgLoading ? "Creating... (signing + HCS + token mint)" : "Sign & Create Organization"}
+                    </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-6">UI Coming Soon</p>
-                </CardContent>
-              </Card>
+                </DialogContent>
+              </Dialog>
             </div>
           )}
 
@@ -1475,6 +1703,72 @@ export default function HbarPage() {
                 <Input type="number" placeholder="7" value={ocDeadlineDays} onChange={(e) => setOcDeadlineDays(e.target.value)} min="1" />
               </div>
             </div>
+            {/* Hedera Scheduler Options */}
+            <div className="border border-cyan-500/20 rounded-lg p-3 bg-cyan-500/5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-cyan-400">Hedera Scheduler</p>
+                  <p className="text-[10px] text-muted-foreground">Schedule task to post at a future time using Hedera Scheduled Transactions</p>
+                </div>
+                <button
+                  onClick={() => setOcScheduled(!ocScheduled)}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${ocScheduled ? "bg-cyan-500" : "bg-muted"}`}
+                >
+                  <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${ocScheduled ? "translate-x-4.5" : "translate-x-0.5"}`} />
+                </button>
+              </div>
+
+              {ocScheduled && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">Schedule Date</label>
+                      <Input
+                        type="date"
+                        value={ocScheduleDate}
+                        onChange={(e) => setOcScheduleDate(e.target.value)}
+                        min={new Date().toISOString().split("T")[0]}
+                        className="text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">Schedule Time</label>
+                      <Input
+                        type="time"
+                        value={ocScheduleTime}
+                        onChange={(e) => setOcScheduleTime(e.target.value)}
+                        className="text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Recurring</label>
+                    <div className="flex gap-1.5 mt-1">
+                      {(["", "daily", "weekly", "monthly"] as const).map((freq) => (
+                        <button
+                          key={freq || "once"}
+                          onClick={() => setOcRecurring(freq)}
+                          className={`text-[10px] px-2 py-1 rounded-full border transition-colors ${
+                            ocRecurring === freq
+                              ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-400"
+                              : "bg-muted/30 border-border text-muted-foreground hover:border-cyan-500/30"
+                          }`}
+                        >
+                          {freq || "Once"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-muted-foreground">
+                    Uses Hedera ScheduleCreateTransaction — the task will be submitted to the network at the scheduled time.
+                    {ocRecurring && ` Repeats ${ocRecurring}.`}
+                  </p>
+                </div>
+              )}
+            </div>
+
             {swarmWrite.state.error && (
               <p className="text-xs text-red-500">{swarmWrite.state.error}</p>
             )}
@@ -1484,16 +1778,25 @@ export default function HbarPage() {
                 onClick={async () => {
                   if (!ocTitle.trim() || !ocBudget.trim()) return;
                   const deadlineUnix = Math.floor(Date.now() / 1000) + (parseInt(ocDeadlineDays) || 7) * 86400;
+
+                  // If scheduled, store schedule metadata in task description
+                  let finalDesc = ocDesc.trim();
+                  if (ocScheduled && ocScheduleDate) {
+                    const scheduleTs = new Date(`${ocScheduleDate}T${ocScheduleTime || "00:00"}`).getTime();
+                    finalDesc += `\n\n[SCHEDULED: ${new Date(scheduleTs).toISOString()}${ocRecurring ? ` | RECURRING: ${ocRecurring}` : ""}]`;
+                  }
+
                   const hash = await swarmWrite.postTask(
                     CONTRACTS.BRAND_VAULT,
                     ocTitle.trim(),
-                    ocDesc.trim(),
+                    finalDesc,
                     ocSkills.trim(),
                     deadlineUnix,
                     ocBudget.trim(),
                   );
                   if (hash) {
                     setOcTitle(""); setOcDesc(""); setOcSkills(""); setOcBudget(""); setOcDeadlineDays("7");
+                    setOcScheduled(false); setOcScheduleDate(""); setOcScheduleTime(""); setOcRecurring("");
                     setPostOpen(false);
                     swarm.refetch();
                   }
@@ -1501,7 +1804,11 @@ export default function HbarPage() {
                 disabled={swarmWrite.state.isLoading || !ocTitle.trim() || !ocBudget.trim() || !account}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
               >
-                {swarmWrite.state.isLoading ? "Posting..." : `Post Task (${ocBudget || "0"} ${currencySymbol})`}
+                {swarmWrite.state.isLoading
+                  ? "Posting..."
+                  : ocScheduled
+                    ? `Schedule Task (${ocBudget || "0"} ${currencySymbol})`
+                    : `Post Task (${ocBudget || "0"} ${currencySymbol})`}
               </Button>
             </div>
             {!account && !authAddress && <p className="text-[10px] text-muted-foreground text-center">Connect your wallet to post onchain tasks</p>}

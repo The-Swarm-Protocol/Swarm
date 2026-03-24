@@ -1,0 +1,27 @@
+{
+  "id": "skin-pokemon",
+  "name": "Pokemon Trainer",
+  "version": "1.0.0",
+  "type": "skin",
+  "author": "Swarm Core",
+  "description": "Catch 'em all — agents live in Pokeballs, Pokemon-style red/white UI with trainer HUD. Register agents to fill your Pokeball belt.",
+  "category": "Themes",
+  "icon": "🔴",
+  "pricing": { "model": "free" },
+  "tags": ["skin", "pokemon", "pokeball", "trainer", "catch", "retro"],
+  "files": {
+    "skin_css": "globals-pokemon.css",
+    "components": [
+      "pokemon-sidebar.tsx",
+      "pokemon-header.tsx",
+      "pokemon-background.tsx"
+    ],
+    "context": "PokemonContext.tsx"
+  },
+  "features": {
+    "layout_override": true,
+    "label_remapping": true,
+    "pokeball_agents": true,
+    "chart_palette": true
+  }
+}

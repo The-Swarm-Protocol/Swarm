@@ -264,6 +264,7 @@ function AgentMapInner({ agents, tasks, jobs = [], onAssign, onDispatch, executi
     const agentNodes: Node[] = agents.map((agent, i) => {
       const agentTasks = tasks.filter((t) => t.assigneeAgentId === agent.id);
       const agentActive = agentTasks.filter((t) => t.status === "in_progress");
+      const a = agent as Record<string, unknown>;
 
       return {
         id: agent.id,
@@ -280,9 +281,42 @@ function AgentMapInner({ agents, tasks, jobs = [], onAssign, onDispatch, executi
           activeJobName: agent.activeJobName,
           assignedCost: agent.assignedCost ?? 0,
           currencySymbol,
+          // ChatDev-style extended data
+          asn: a.asn as string | undefined,
+          creditScore: (a.creditScore as number) || 0,
+          trustScore: (a.trustScore as number) || 0,
+          skills: Array.isArray(a.reportedSkills)
+            ? (a.reportedSkills as { name: string }[]).map(s => s.name)
+            : [],
         },
       };
     });
+
+    // Inter-agent communication edges (ChatDev-style chain)
+    // Connect agents that share the same active job (collaborative chain)
+    const commEdges: Edge[] = [];
+    const busyAgents = agents.filter(a => a.status === "busy" && a.activeJobName);
+    const jobGroups = new Map<string, string[]>();
+    for (const a of busyAgents) {
+      const jobName = a.activeJobName!;
+      if (!jobGroups.has(jobName)) jobGroups.set(jobName, []);
+      jobGroups.get(jobName)!.push(a.id);
+    }
+    for (const [, agentIds] of jobGroups) {
+      for (let j = 0; j < agentIds.length - 1; j++) {
+        commEdges.push({
+          id: `comm-${agentIds[j]}-${agentIds[j + 1]}`,
+          source: agentIds[j],
+          sourceHandle: "job-source",
+          target: agentIds[j + 1],
+          animated: true,
+          style: { stroke: "#a855f7", strokeWidth: 2, strokeDasharray: "3 3" },
+          label: "collab",
+          labelStyle: { fontSize: 9, fill: "#a855f7" },
+          type: "mapCustomEdge",
+        });
+      }
+    }
 
     // Prompt node — right side, vertically centered
     const agentBlockHeight = Math.max(0, (agents.length - 1) * agentSpacing);
@@ -311,7 +345,7 @@ function AgentMapInner({ agents, tasks, jobs = [], onAssign, onDispatch, executi
 
     return {
       initialNodes: [...agentNodes, promptNode],
-      initialEdges: startEdges,
+      initialEdges: [...startEdges, ...commEdges],
     };
   }, [agents, tasks, currencySymbol]);
 

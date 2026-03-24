@@ -34,6 +34,7 @@ const ICON_MAP: Record<string, typeof LayoutDashboard> = {
   Puzzle: Puzzle,
   Sparkles: Sparkles,
   Bot: Bot,
+  ShieldAlert: ShieldAlert,
 };
 
 /** Default icon per item type for mods without explicit sidebarConfig */
@@ -92,7 +93,7 @@ const SECTION_COLORS: Record<string, { activeBg: string; activeText: string; act
   },
 };
 
-const DEFAULT_SECTIONS: NavSection[] = [
+export const DEFAULT_SECTIONS: NavSection[] = [
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // STREAMLINED NAVIGATION — Consolidated for clarity (40% fewer items)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -161,7 +162,7 @@ const DEFAULT_SECTIONS: NavSection[] = [
 ];
 
 /** Bottom-pinned items — always visible, not part of draggable sections */
-const PINNED_ITEMS: NavItem[] = [
+export const PINNED_ITEMS: NavItem[] = [
   { id: "docs", href: "/docs", label: "Docs", icon: BookOpen },
   { id: "settings", href: "/settings", label: "Settings", icon: Settings },
 ];
