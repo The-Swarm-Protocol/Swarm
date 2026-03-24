@@ -1,6 +1,7 @@
 /** Root Layout — App-level providers (ThirdwebProvider, ThemeProvider, OrgProvider, SessionProvider), global fonts, and metadata. */
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import { Web3Provider } from "@/lib/dynamic";
 import { OrgProvider } from "@/contexts/OrgContext";
@@ -39,6 +40,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Preserve native constructors before MetaMask SES lockdown can strip them.
+            SES (lockdown-install.js) from wallet extensions can corrupt Map/Set,
+            breaking React Flow and other libraries that use them internally. */}
+        <Script id="ses-guard" strategy="beforeInteractive">{`
+          (function(){var g=typeof globalThis!=='undefined'?globalThis:window;if(typeof g.Map==='function')g.__nativeMap=g.Map;if(typeof g.Set==='function')g.__nativeSet=g.Set;if(typeof g.WeakMap==='function')g.__nativeWeakMap=g.WeakMap;})();
+        `}</Script>
+      </head>
       <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           <SkinProvider>

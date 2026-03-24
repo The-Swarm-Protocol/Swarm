@@ -1,52 +1,68 @@
 /** Office Sim — 2D Command Center View */
 "use client";
 
-import { Layout, Box, ArrowLeft, Maximize2, Filter } from "lucide-react";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { OfficeProvider } from "@/components/mods/office-sim/OfficeProvider";
+import { useEffect, useCallback, useRef } from "react";
 import { useOffice } from "@/components/mods/office-sim/office-store";
+import { useOrg } from "@/contexts/OrgContext";
 import { Office2D } from "@/components/mods/office-sim/Office2D";
 import { AgentDetailDrawer } from "@/components/mods/office-sim/AgentDetailDrawer";
+import { OfficeToolbar } from "@/components/mods/office-sim/OfficeToolbar";
 
-function Office2DContent() {
-  const { state } = useOffice();
-  const agentCount = state.agents.size;
+export default function Office2DPage() {
+  const { state, dispatch } = useOffice();
+  const { currentOrg } = useOrg();
   const { activeCount, errorCount } = state.metrics;
+  const searchRef = useRef<HTMLInputElement | null>(null);
+
+  /* ── Keyboard navigation ── */
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      const agents = Array.from(state.agents.values());
+      if (agents.length === 0) return;
+
+      // Don't capture when typing in an input
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") return;
+
+      switch (e.key) {
+        case "Tab": {
+          e.preventDefault();
+          const currentIdx = agents.findIndex(
+            (a) => a.id === state.selectedAgentId,
+          );
+          const next = e.shiftKey
+            ? (currentIdx - 1 + agents.length) % agents.length
+            : (currentIdx + 1) % agents.length;
+          dispatch({ type: "SELECT_AGENT", id: agents[next].id });
+          break;
+        }
+        case "Escape":
+          dispatch({ type: "SELECT_AGENT", id: null });
+          break;
+        case "/":
+          e.preventDefault();
+          // Focus the search input in toolbar
+          const input = document.querySelector<HTMLInputElement>(
+            'input[placeholder="Search agents..."]',
+          );
+          input?.focus();
+          break;
+        default:
+          break;
+      }
+    },
+    [state.agents, state.selectedAgentId, dispatch],
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
 
   return (
     <div className="space-y-3">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Link href="/mods/office-sim">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div className="flex items-center gap-1.5">
-            <Layout className="h-4 w-4 text-amber-400" />
-            <h1 className="text-sm font-semibold">2D Office</h1>
-          </div>
-          <Badge variant="outline" className="text-[10px] ml-2">
-            {activeCount} active / {agentCount} total
-          </Badge>
-          {errorCount > 0 && (
-            <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400">
-              {errorCount} errors
-            </Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          <Link href="/mods/office-sim/3d">
-            <Button variant="outline" size="sm" className="text-xs gap-1.5">
-              <Box className="h-3 w-3" />
-              Switch to 3D
-            </Button>
-          </Link>
-        </div>
-      </div>
+      {/* Shared Toolbar */}
+      <OfficeToolbar view="2d" />
 
       {/* Floor plan */}
       <Office2D />
@@ -59,21 +75,20 @@ function Office2DContent() {
         <span className="text-border">|</span>
         <span>{state.metrics.taskCount} tasks</span>
         <span className="text-border">|</span>
-        <span className={state.connected ? "text-green-400" : "text-red-400"}>
-          ws: {state.connected ? "connected" : "disconnected"}
+        <span
+          className={
+            state.connected ? "text-green-400" : "text-red-400"
+          }
+        >
+          {state.connected ? "connected" : "disconnected"}
+        </span>
+        <span className="ml-auto text-muted-foreground/50 text-[10px]">
+          Tab: cycle agents &middot; Esc: close &middot; /: search
         </span>
       </div>
 
       {/* Agent Detail Drawer */}
-      <AgentDetailDrawer />
+      <AgentDetailDrawer orgId={currentOrg?.id} />
     </div>
-  );
-}
-
-export default function Office2DPage() {
-  return (
-    <OfficeProvider>
-      <Office2DContent />
-    </OfficeProvider>
   );
 }

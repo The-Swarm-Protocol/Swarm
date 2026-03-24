@@ -1,19 +1,18 @@
 /** Office Sim — Home Dashboard */
 "use client";
 
-import { useState } from "react";
-import { Monitor, Settings, Layout, Box, Play } from "lucide-react";
+import { Monitor, Layout, Box, Play, Settings } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { OfficeProvider } from "@/components/mods/office-sim/OfficeProvider";
+import { Switch } from "@/components/ui/switch";
 import { useOffice } from "@/components/mods/office-sim/office-store";
-import { STATUS_COLORS } from "@/components/mods/office-sim/types";
-import type { VisualAgent } from "@/components/mods/office-sim/types";
+import { STATUS_COLORS, STATUS_ICONS } from "@/components/mods/office-sim/types";
+import type { VisualAgent, OfficeActivityEvent } from "@/components/mods/office-sim/types";
 
-function DashboardContent() {
-  const { state } = useOffice();
+export default function OfficeSimPage() {
+  const { state, dispatch } = useOffice();
   const agents = Array.from(state.agents.values());
   const { activeCount, errorCount, taskCount } = state.metrics;
   const totalAgents = agents.length;
@@ -33,7 +32,15 @@ function DashboardContent() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Demo</span>
+            <Switch
+              checked={state.demoMode}
+              onCheckedChange={() => dispatch({ type: "TOGGLE_DEMO" })}
+              className="scale-75"
+            />
+          </div>
           <Badge variant="outline" className={state.connected ? "border-green-500/30 text-green-400" : "border-red-500/30 text-red-400"}>
             {state.connected ? "Connected" : "Disconnected"}
           </Badge>
@@ -45,7 +52,7 @@ function DashboardContent() {
         <OverviewCard label="Active" value={activeCount} total={totalAgents} color="#22c55e" />
         <OverviewCard label="Tasks" value={taskCount} color="#3b82f6" />
         <OverviewCard label="Errors" value={errorCount} color="#ef4444" />
-        <OverviewCard label="Uptime" value={totalAgents > 0 ? `${Math.round(((totalAgents - (agents.filter(a => a.status === "offline").length)) / totalAgents) * 100)}%` : "—"} color="#a855f7" />
+        <OverviewCard label="Uptime" value={totalAgents > 0 ? `${Math.round(((totalAgents - (agents.filter(a => a.status === "offline").length)) / totalAgents) * 100)}%` : "\u2014"} color="#a855f7" />
       </div>
 
       {/* Quick Actions */}
@@ -90,6 +97,31 @@ function DashboardContent() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Recent Activity */}
+      <div>
+        <h2 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">
+          Recent Activity
+        </h2>
+        {state.activityFeed.length === 0 ? (
+          <Card>
+            <CardContent className="p-6 text-center text-muted-foreground text-sm">
+              No recent activity.{" "}
+              {!state.demoMode && "Toggle demo mode to see sample events."}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="p-0">
+              <div className="divide-y divide-border">
+                {state.activityFeed.slice(0, 8).map((event, i) => (
+                  <ActivityRow key={`${event.agentId}-${event.timestamp}-${i}`} event={event} />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Agent Status Grid */}
@@ -156,7 +188,7 @@ function AgentRow({ agent }: { agent: VisualAgent }) {
         </Badge>
       </td>
       <td className="p-3 hidden md:table-cell text-muted-foreground capitalize">{agent.zone.replace("_", " ")}</td>
-      <td className="p-3 hidden md:table-cell text-muted-foreground text-xs font-mono">{agent.model || "—"}</td>
+      <td className="p-3 hidden md:table-cell text-muted-foreground text-xs font-mono">{agent.model || "\u2014"}</td>
       <td className="p-3 text-right">
         <Link href={`/mods/office-sim/2d?agent=${agent.id}`}>
           <Button variant="ghost" size="sm" className="text-xs">Inspect</Button>
@@ -166,10 +198,35 @@ function AgentRow({ agent }: { agent: VisualAgent }) {
   );
 }
 
-export default function OfficeSimPage() {
+const EVENT_ICONS: Record<string, string> = {
+  status_change: "\u{1F504}",
+  error: "\u26A0\uFE0F",
+  recovery: "\u2705",
+  spawn: "\u2728",
+  despawn: "\u{1F44B}",
+  task_start: "\u25B6\uFE0F",
+  task_complete: "\u2714\uFE0F",
+};
+
+function ActivityRow({ event }: { event: OfficeActivityEvent }) {
+  const icon = EVENT_ICONS[event.type] || "\u{1F504}";
+  const timeStr = formatRelativeTime(event.timestamp);
+
   return (
-    <OfficeProvider>
-      <DashboardContent />
-    </OfficeProvider>
+    <div className="flex items-center gap-3 px-4 py-2.5 text-sm">
+      <span className="text-base shrink-0">{icon}</span>
+      <span className="flex-1 truncate text-muted-foreground">
+        <span className="text-foreground font-medium">{event.agentName}</span>{" "}
+        {event.description.replace(`${event.agentName}: `, "").replace(`${event.agentName} `, "")}
+      </span>
+      <span className="text-xs text-muted-foreground shrink-0">{timeStr}</span>
+    </div>
   );
+}
+
+function formatRelativeTime(ts: number): string {
+  const diff = Date.now() - ts;
+  if (diff < 60_000) return "Just now";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  return `${Math.floor(diff / 3_600_000)}h ago`;
 }

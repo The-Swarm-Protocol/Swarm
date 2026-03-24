@@ -2,12 +2,24 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { useOrg } from "@/contexts/OrgContext";
 import { useActiveAccount } from "thirdweb/react";
 import { useChainCurrency } from "@/hooks/useChainCurrency";
 import { motion } from "motion/react";
-import { AgentMap } from "@/components/agent-map";
 import type { DispatchPayload } from "@/components/agent-map/agent-map";
+
+const AgentMap = dynamic(
+  () => import("@/components/agent-map/agent-map"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-96 text-muted-foreground">
+        Loading agent map...
+      </div>
+    ),
+  }
+);
 import {
     getAgentsByOrg,
     getTasksByOrg,

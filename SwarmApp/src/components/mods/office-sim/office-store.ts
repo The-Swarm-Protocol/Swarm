@@ -1,4 +1,4 @@
-/** OpenClaw Office Sim — Central state store using React context + useReducer */
+/** OpenClaw Office Sim — Central state store (React Context + useReducer) */
 "use client";
 
 import { createContext, useContext } from "react";
@@ -8,9 +8,16 @@ import type {
   OfficeLayout,
   ViewMode,
   PanelType,
+  FilterState,
+  CameraMode,
+  OfficeActivityEvent,
   AgentVisualStatus,
 } from "./types";
 import { DEFAULT_LAYOUT } from "./types";
+
+/* ═══════════════════════════════════════
+   State Shape
+   ═══════════════════════════════════════ */
 
 export interface OfficeState {
   agents: Map<string, VisualAgent>;
@@ -20,6 +27,10 @@ export interface OfficeState {
   activePanel: PanelType;
   selectedAgentId: string | null;
   connected: boolean;
+  demoMode: boolean;
+  cameraMode: CameraMode;
+  filter: FilterState;
+  activityFeed: OfficeActivityEvent[];
   metrics: {
     activeCount: number;
     taskCount: number;
@@ -27,14 +38,29 @@ export interface OfficeState {
   };
 }
 
+/* ═══════════════════════════════════════
+   Actions
+   ═══════════════════════════════════════ */
+
 export type OfficeAction =
   | { type: "SET_AGENTS"; agents: VisualAgent[] }
   | { type: "UPDATE_AGENT"; id: string; patch: Partial<VisualAgent> }
+  | { type: "UPDATE_SPEECH_BUBBLE"; agentId: string; bubble: string | null }
   | { type: "SET_VIEW_MODE"; mode: ViewMode }
   | { type: "SET_PANEL"; panel: PanelType }
   | { type: "SELECT_AGENT"; id: string | null }
   | { type: "SET_CONNECTED"; connected: boolean }
-  | { type: "SET_LINKS"; links: CollaborationLink[] };
+  | { type: "SET_LINKS"; links: CollaborationLink[] }
+  | { type: "SET_FILTER"; filter: Partial<FilterState> }
+  | { type: "TOGGLE_DEMO" }
+  | { type: "SET_CAMERA_MODE"; mode: CameraMode }
+  | { type: "SET_ACTIVITY_FEED"; events: OfficeActivityEvent[] }
+  | { type: "PUSH_ACTIVITY"; event: OfficeActivityEvent }
+  | { type: "SET_LAYOUT"; layout: OfficeLayout };
+
+/* ═══════════════════════════════════════
+   Initial State
+   ═══════════════════════════════════════ */
 
 export const initialState: OfficeState = {
   agents: new Map(),
@@ -44,28 +70,51 @@ export const initialState: OfficeState = {
   activePanel: null,
   selectedAgentId: null,
   connected: false,
+  demoMode: false,
+  cameraMode: "orbit",
+  filter: { statusFilter: "all", searchQuery: "" },
+  activityFeed: [],
   metrics: { activeCount: 0, taskCount: 0, errorCount: 0 },
 };
+
+/* ═══════════════════════════════════════
+   Reducer
+   ═══════════════════════════════════════ */
+
+function computeMetrics(agents: Map<string, VisualAgent>) {
+  let activeCount = 0;
+  let errorCount = 0;
+  let taskCount = 0;
+  for (const a of agents.values()) {
+    if (a.status === "active" || a.status === "thinking" || a.status === "tool_calling" || a.status === "speaking") activeCount++;
+    if (a.status === "error") errorCount++;
+    if (a.currentTask) taskCount++;
+  }
+  return { activeCount, errorCount, taskCount };
+}
 
 export function officeReducer(state: OfficeState, action: OfficeAction): OfficeState {
   switch (action.type) {
     case "SET_AGENTS": {
       const agents = new Map<string, VisualAgent>();
-      let activeCount = 0;
-      let errorCount = 0;
-      let taskCount = 0;
-      for (const a of action.agents) {
-        agents.set(a.id, a);
-        if (a.status === "active" || a.status === "thinking" || a.status === "tool_calling" || a.status === "speaking") activeCount++;
-        if (a.status === "error") errorCount++;
-        if (a.currentTask) taskCount++;
-      }
-      return { ...state, agents, metrics: { activeCount, errorCount, taskCount } };
+      for (const a of action.agents) agents.set(a.id, a);
+      return { ...state, agents, metrics: computeMetrics(agents) };
     }
     case "UPDATE_AGENT": {
       const agents = new Map(state.agents);
       const existing = agents.get(action.id);
-      if (existing) agents.set(action.id, { ...existing, ...action.patch });
+      if (existing) {
+        agents.set(action.id, { ...existing, ...action.patch });
+        return { ...state, agents, metrics: computeMetrics(agents) };
+      }
+      return state;
+    }
+    case "UPDATE_SPEECH_BUBBLE": {
+      const agents = new Map(state.agents);
+      const existing = agents.get(action.agentId);
+      if (existing) {
+        agents.set(action.agentId, { ...existing, speechBubble: action.bubble });
+      }
       return { ...state, agents };
     }
     case "SET_VIEW_MODE":
@@ -78,9 +127,42 @@ export function officeReducer(state: OfficeState, action: OfficeAction): OfficeS
       return { ...state, connected: action.connected };
     case "SET_LINKS":
       return { ...state, collaborationLinks: action.links };
+    case "SET_FILTER":
+      return { ...state, filter: { ...state.filter, ...action.filter } };
+    case "TOGGLE_DEMO":
+      return { ...state, demoMode: !state.demoMode };
+    case "SET_CAMERA_MODE":
+      return { ...state, cameraMode: action.mode };
+    case "SET_ACTIVITY_FEED":
+      return { ...state, activityFeed: action.events };
+    case "PUSH_ACTIVITY": {
+      const feed = [action.event, ...state.activityFeed].slice(0, 50);
+      return { ...state, activityFeed: feed };
+    }
+    case "SET_LAYOUT":
+      return { ...state, layout: action.layout };
     default:
       return state;
   }
+}
+
+/* ═══════════════════════════════════════
+   Selectors
+   ═══════════════════════════════════════ */
+
+export function getFilteredAgents(state: OfficeState): Set<string> {
+  const { statusFilter, searchQuery } = state.filter;
+  const matchingIds = new Set<string>();
+  const query = searchQuery.toLowerCase().trim();
+
+  for (const agent of state.agents.values()) {
+    const matchesStatus = statusFilter === "all" || agent.status === statusFilter;
+    const matchesSearch = !query || agent.name.toLowerCase().includes(query) || (agent.agentType?.toLowerCase().includes(query) ?? false);
+    if (matchesStatus && matchesSearch) {
+      matchingIds.add(agent.id);
+    }
+  }
+  return matchingIds;
 }
 
 /** Map raw Swarm agent status to visual status */
@@ -88,11 +170,16 @@ export function mapAgentStatus(raw: string): AgentVisualStatus {
   switch (raw) {
     case "online": return "active";
     case "busy": return "thinking";
+    case "paused": return "blocked";
     case "error": return "error";
     case "offline": return "offline";
     default: return "idle";
   }
 }
+
+/* ═══════════════════════════════════════
+   Context
+   ═══════════════════════════════════════ */
 
 export const OfficeContext = createContext<{
   state: OfficeState;

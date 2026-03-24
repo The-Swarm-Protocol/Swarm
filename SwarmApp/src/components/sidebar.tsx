@@ -36,6 +36,7 @@ const ICON_MAP: Record<string, typeof LayoutDashboard> = {
   Bot: Bot,
   ShieldAlert: ShieldAlert,
   Monitor: Monitor,
+  DollarSign: DollarSign,
 };
 
 /** Default icon per item type for mods without explicit sidebarConfig */

@@ -1,6 +1,17 @@
 /** Agent Map Canvas — React Flow graph visualization of agents, hub, and job nodes with connections. */
 "use client";
 
+// Restore native Map/Set if MetaMask SES lockdown corrupted them
+if (typeof window !== "undefined") {
+  const g = globalThis as Record<string, unknown>;
+  if (typeof Map !== "function" && typeof g.__nativeMap === "function") {
+    (globalThis as Record<string, unknown>).Map = g.__nativeMap;
+  }
+  if (typeof Set !== "function" && typeof g.__nativeSet === "function") {
+    (globalThis as Record<string, unknown>).Set = g.__nativeSet;
+  }
+}
+
 import { useMemo, useCallback, useState, useEffect, useRef } from "react";
 import {
   ReactFlow,
@@ -32,7 +43,7 @@ import { withNodeWrapper } from "./map-node-wrapper";
 import { AgentMapPalette, type DockPosition } from "./agent-map-palette";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PanelLeftClose, PanelLeftOpen, Maximize, Trash2, Play, Plus, Minus, LocateFixed, Map, Undo2, Redo2, Save, FolderOpen, AlertCircle } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, Maximize, Trash2, Play, Plus, Minus, LocateFixed, MapPinned, Undo2, Redo2, Save, FolderOpen, AlertCircle } from "lucide-react";
 
 interface Agent {
   id: string;
@@ -142,7 +153,7 @@ function loadWorkflow(): { nodes: Node[]; edges: Edge[] } | null {
 // ─── Edge Validation ─────────────────────────────────────────────────────────
 
 /** Data-driven node types that should not receive workflow connections */
-const DATA_NODE_TYPES = new Set(["agentNode", "hubNode", "jobNode"]);
+const DATA_NODE_TYPES: Record<string, true> = { agentNode: true, hubNode: true, jobNode: true };
 
 function isValidConnection(connection: Connection, nodes: Node[]): boolean {
   if (!connection.source || !connection.target) return false;
@@ -159,8 +170,8 @@ function isValidConnection(connection: Connection, nodes: Node[]): boolean {
   if (sourceNode.type === "agentNode" && targetNode.type === "mapPrompt") return true;
 
   // Allow workflow → workflow connections
-  const sourceIsData = DATA_NODE_TYPES.has(sourceNode.type || "");
-  const targetIsData = DATA_NODE_TYPES.has(targetNode.type || "");
+  const sourceIsData = !!(sourceNode.type && DATA_NODE_TYPES[sourceNode.type]);
+  const targetIsData = !!(targetNode.type && DATA_NODE_TYPES[targetNode.type]);
 
   // Block data node → data node connections (except agent→job above)
   if (sourceIsData && targetIsData) return false;
@@ -296,13 +307,13 @@ function AgentMapInner({ agents, tasks, jobs = [], onAssign, onDispatch, executi
     // Connect agents that share the same active job (collaborative chain)
     const commEdges: Edge[] = [];
     const busyAgents = agents.filter(a => a.status === "busy" && a.activeJobName);
-    const jobGroups = new Map<string, string[]>();
+    const jobGroups: Record<string, string[]> = {};
     for (const a of busyAgents) {
       const jobName = a.activeJobName!;
-      if (!jobGroups.has(jobName)) jobGroups.set(jobName, []);
-      jobGroups.get(jobName)!.push(a.id);
+      if (!jobGroups[jobName]) jobGroups[jobName] = [];
+      jobGroups[jobName].push(a.id);
     }
-    for (const [, agentIds] of jobGroups) {
+    for (const agentIds of Object.values(jobGroups)) {
       for (let j = 0; j < agentIds.length - 1; j++) {
         commEdges.push({
           id: `comm-${agentIds[j]}-${agentIds[j + 1]}`,
@@ -984,7 +995,7 @@ function AgentMapInner({ agents, tasks, jobs = [], onAssign, onDispatch, executi
               aria-label={showMiniMap ? "Hide minimap" : "Show minimap"}
               aria-pressed={showMiniMap}
             >
-              <Map className="w-3.5 h-3.5" />
+              <MapPinned className="w-3.5 h-3.5" />
             </button>
             {showMiniMap && (["default", "mono", "warm"] as const).map((c) => (
               <button

@@ -1272,7 +1272,7 @@ We're monitoring other chains for potential bridges:
 - **Memory search is text-based** — The memory system stores and retrieves agent memories from Firestore. There are no vector embeddings or semantic search despite the `vector` type field.
 - **Testnet only** — All smart contracts are deployed to Ethereum Sepolia, Hedera Testnet, and Solana Devnet. No mainnet deployments.
 - **Single-org focus** — While multi-tenant, there is no cross-org communication or federation.
-- **No CI/CD pipeline** — No GitHub Actions. Unit tests exist (Vitest) but no automated CI runs them.
+- **Basic CI/CD** — GitHub Actions runs lint, typecheck, tests (Vitest), and build on push/PR to main. No deployment automation yet (Netlify handles deploys via its own integration).
 - **Cloud Pub/Sub optional** — The WebSocket hub supports horizontal scaling via Google Cloud Pub/Sub, but defaults to single-instance mode if `GCP_PROJECT_ID` is not configured. Multi-region deployment requires Pub/Sub setup.
 - **Thirdweb social API workaround** — The app patches `fetch` with a circuit-breaker interceptor for `social.thirdweb.com`. After 3 consecutive failures, the circuit opens and returns clearly-marked degraded responses (`X-Swarm-Degraded` header, `_degraded` body flag) to prevent infinite retry loops from the Thirdweb SDK. See [`SwarmApp/src/lib/fetch-interceptor.ts`](SwarmApp/src/lib/fetch-interceptor.ts).
 

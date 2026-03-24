@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { Book, ChevronRight, Rocket, Users, FolderKanban, MessageSquare, Shield, Clock, BarChart3, Network, Brain, Package, Coins, Stethoscope, LayoutGrid, HardDrive, Map, Briefcase, Activity, Settings, Terminal, Zap, Lock, Globe, Code, ExternalLink, Store, Palette } from "lucide-react";
+import { Book, ChevronRight, Rocket, Users, FolderKanban, MessageSquare, Shield, Clock, BarChart3, Network, Brain, Package, Coins, Stethoscope, LayoutGrid, HardDrive, Briefcase, Activity, Settings, Terminal, Zap, Lock, Globe, Code, ExternalLink, Store, Palette } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 

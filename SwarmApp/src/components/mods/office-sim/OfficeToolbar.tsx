@@ -1,0 +1,198 @@
+/** OfficeToolbar — Shared toolbar for 2D/3D views with filter, search, demo toggle */
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import {
+  ArrowLeft,
+  Layout,
+  Box,
+  Search,
+  Maximize2,
+  Minimize2,
+} from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { useOffice } from "./office-store";
+import type { AgentVisualStatus } from "./types";
+import { STATUS_LABELS, LAYOUT_TEMPLATES } from "./types";
+
+const STATUS_OPTIONS: (AgentVisualStatus | "all")[] = [
+  "all",
+  "active",
+  "thinking",
+  "tool_calling",
+  "error",
+  "blocked",
+  "idle",
+  "offline",
+];
+
+export function OfficeToolbar({ view }: { view: "2d" | "3d" }) {
+  const { state, dispatch } = useOffice();
+  const { activeCount, errorCount } = state.metrics;
+  const agentCount = state.agents.size;
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState(state.filter.searchQuery);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Debounced search dispatch
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      dispatch({ type: "SET_FILTER", filter: { searchQuery: searchValue } });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchValue, dispatch]);
+
+  // Track fullscreen state
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen?.();
+    }
+  }, []);
+
+  const ViewIcon = view === "2d" ? Layout : Box;
+  const otherView = view === "2d" ? "3d" : "2d";
+  const OtherIcon = view === "2d" ? Box : Layout;
+
+  return (
+    <div className="flex items-center justify-between gap-2 flex-wrap">
+      {/* Left section */}
+      <div className="flex items-center gap-2">
+        <Link href="/mods/office-sim">
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </Link>
+        <div className="flex items-center gap-1.5">
+          <ViewIcon className="h-4 w-4 text-amber-400" />
+          <h1 className="text-sm font-semibold">
+            {view === "2d" ? "2D Office" : "3D Office"}
+          </h1>
+        </div>
+        <Badge variant="outline" className="text-[10px] ml-1">
+          {activeCount} active / {agentCount} total
+        </Badge>
+        {errorCount > 0 && (
+          <Badge
+            variant="outline"
+            className="text-[10px] border-red-500/30 text-red-400"
+          >
+            {errorCount} errors
+          </Badge>
+        )}
+      </div>
+
+      {/* Right section */}
+      <div className="flex items-center gap-2">
+        {/* Status filter */}
+        <select
+          value={state.filter.statusFilter}
+          onChange={(e) =>
+            dispatch({
+              type: "SET_FILTER",
+              filter: {
+                statusFilter: e.target.value as AgentVisualStatus | "all",
+              },
+            })
+          }
+          className="h-8 rounded-md border border-border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+        >
+          {STATUS_OPTIONS.map((s) => (
+            <option key={s} value={s}>
+              {s === "all" ? "All Statuses" : STATUS_LABELS[s]}
+            </option>
+          ))}
+        </select>
+
+        {/* Search */}
+        {searchOpen ? (
+          <input
+            autoFocus
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            onBlur={() => {
+              if (!searchValue) setSearchOpen(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setSearchValue("");
+                setSearchOpen(false);
+              }
+            }}
+            placeholder="Search agents..."
+            className="h-8 w-40 rounded-md border border-border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+          />
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setSearchOpen(true)}
+          >
+            <Search className="h-3.5 w-3.5" />
+          </Button>
+        )}
+
+        {/* Layout selector */}
+        {LAYOUT_TEMPLATES.length > 1 && (
+          <select
+            value={state.layout.id}
+            onChange={(e) => {
+              const tmpl = LAYOUT_TEMPLATES.find((t) => t.id === e.target.value);
+              if (tmpl) dispatch({ type: "SET_LAYOUT", layout: tmpl });
+            }}
+            className="h-8 rounded-md border border-border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+          >
+            {LAYOUT_TEMPLATES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {/* Demo toggle */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground">Demo</span>
+          <Switch
+            checked={state.demoMode}
+            onCheckedChange={() => dispatch({ type: "TOGGLE_DEMO" })}
+            className="scale-75"
+          />
+        </div>
+
+        {/* View switch */}
+        <Link href={`/mods/office-sim/${otherView}`}>
+          <Button variant="outline" size="sm" className="text-xs gap-1.5 h-8">
+            <OtherIcon className="h-3 w-3" />
+            {otherView.toUpperCase()}
+          </Button>
+        </Link>
+
+        {/* Fullscreen */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={toggleFullscreen}
+        >
+          {isFullscreen ? (
+            <Minimize2 className="h-3.5 w-3.5" />
+          ) : (
+            <Maximize2 className="h-3.5 w-3.5" />
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}

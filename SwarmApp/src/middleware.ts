@@ -72,6 +72,7 @@ const PROTECTED_PAGE_PREFIXES = [
   "/logs",
   "/market",
   "/memory",
+  "/summaries",
   "/metrics",
   "/onboarding",
   "/operators",

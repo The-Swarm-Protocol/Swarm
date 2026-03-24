@@ -12,12 +12,14 @@ import { ethereum, avalanche, base } from "thirdweb/chains";
 // Types
 // ═══════════════════════════════════════════════════════════════
 
+export type ChainKey = "ethereum" | "avalanche" | "base" | "hedera" | "filecoin" | "sepolia" | "solana" | "baseSepolia";
+
 export interface ChainConfig {
     /** Internal key */
-    key: "ethereum" | "avalanche" | "base" | "hedera" | "filecoin" | "sepolia";
+    key: ChainKey;
     /** Human-readable name */
     name: string;
-    /** EVM chain ID */
+    /** EVM chain ID (0 for non-EVM chains like Solana) */
     chainId: number;
     /** Thirdweb Chain object for wallet / contract interactions */
     thirdwebChain: Chain;
@@ -48,9 +50,21 @@ export interface ChainConfig {
         linkAgentRegistry?: string;
         linkASNRegistry?: string;
         linkTreasury?: string;
+        /** Platform treasury address for receiving marketplace payments */
+        treasury?: string;
+        /** USDC contract address on this chain */
+        usdc?: string;
+        /** PayStream contract address */
+        paymentStream?: string;
+        /** Agent wallet contract address */
+        agentWallet?: string;
+        /** Billing registry contract address */
+        billingRegistry?: string;
     };
     /** Whether this chain is active in the UI */
     enabled: boolean;
+    /** Whether this chain supports marketplace payments */
+    paymentEnabled: boolean;
     /** Logo path for UI */
     logo: string;
 }
@@ -83,6 +97,19 @@ const sepoliaChain = defineChain({
     rpc: "https://ethereum-sepolia-rpc.publicnode.com",
 });
 
+const baseSepoliaChain = defineChain({
+    id: 84532,
+    name: "Base Sepolia",
+    rpc: "https://sepolia.base.org",
+});
+
+// Solana is non-EVM — we use a sentinel Chain object for type compatibility
+const solanaDevnet = defineChain({
+    id: 0,
+    name: "Solana Devnet",
+    rpc: "https://api.devnet.solana.com",
+});
+
 // ═══════════════════════════════════════════════════════════════
 // Chain Configs
 // ═══════════════════════════════════════════════════════════════
@@ -102,8 +129,12 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
             addressUrl: (a) => `https://etherscan.io/address/${a}`,
             contractUrl: (a) => `https://etherscan.io/address/${a}`,
         },
-        contracts: {},
-        enabled: false, // Future bridge - not production ready
+        contracts: {
+            treasury: process.env.ETHEREUM_TREASURY_ADDRESS || process.env.EVM_TREASURY_ADDRESS,
+            usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        },
+        enabled: false,
+        paymentEnabled: true,
         logo: "/chains/ethereum.svg",
     },
 
@@ -121,8 +152,12 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
             addressUrl: (a) => `https://snowtrace.io/address/${a}`,
             contractUrl: (a) => `https://snowtrace.io/address/${a}`,
         },
-        contracts: {},
-        enabled: false, // Future bridge - not production ready
+        contracts: {
+            treasury: process.env.AVALANCHE_TREASURY_ADDRESS || process.env.EVM_TREASURY_ADDRESS,
+            usdc: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+        },
+        enabled: false,
+        paymentEnabled: true,
         logo: "/chains/avalanche.svg",
     },
 
@@ -140,8 +175,12 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
             addressUrl: (a) => `https://basescan.org/address/${a}`,
             contractUrl: (a) => `https://basescan.org/address/${a}`,
         },
-        contracts: {},
-        enabled: false, // Future bridge - not production ready
+        contracts: {
+            treasury: process.env.BASE_TREASURY_ADDRESS || process.env.EVM_TREASURY_ADDRESS,
+            usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        },
+        enabled: true,
+        paymentEnabled: true,
         logo: "/chains/base.svg",
     },
 
@@ -160,13 +199,14 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
             contractUrl: (a) => `https://hashscan.io/testnet/contract/${a}`,
         },
         contracts: {
-            // Deployed contracts on Hedera Testnet (chain ID 296)
             taskBoard: "0xf97b6900f5573cba7dcE4e58e5118b403E098434",
             agentRegistry: "0xC110E3bB1a898E1A4bd8Cc75a913603601e7c228",
             brandVault: "0x2254185AB8B6AC995F97C769a414A0281B42853b",
             agentTreasury: "0x91D581cFdda6F1AC4cA211d8A05B31BeFcEF2882",
+            treasury: process.env.HEDERA_TREASURY_ADDRESS,
         },
         enabled: true,
+        paymentEnabled: true,
         logo: "/chains/hedera.svg",
     },
 
@@ -185,7 +225,8 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
             contractUrl: (a) => `https://filfox.info/en/address/${a}`,
         },
         contracts: {},
-        enabled: false, // Future bridge - not production ready
+        enabled: false,
+        paymentEnabled: false,
         logo: "/chains/filecoin.svg",
     },
 
@@ -204,15 +245,63 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
             contractUrl: (a) => `https://sepolia.etherscan.io/address/${a}`,
         },
         contracts: {
-            // Experimental Chainlink deployment — see "Future Multi-Chain Bridges" in README
-            // Deploy: cd contracts && npx hardhat run scripts/deploy.ts --network sepolia
             linkAgentRegistry: process.env.NEXT_PUBLIC_LINK_AGENT_REGISTRY || "",
             linkTaskBoard: process.env.NEXT_PUBLIC_LINK_TASK_BOARD || "",
             linkASNRegistry: process.env.NEXT_PUBLIC_LINK_ASN_REGISTRY || "",
             linkTreasury: process.env.NEXT_PUBLIC_LINK_TREASURY || "",
+            treasury: process.env.SEPOLIA_TREASURY_ADDRESS || process.env.EVM_TREASURY_ADDRESS,
+            usdc: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
         },
-        enabled: false, // Experimental - 50,000x more expensive than Hedera
+        enabled: true,
+        paymentEnabled: true,
         logo: "/chains/ethereum.svg",
+    },
+
+    baseSepolia: {
+        key: "baseSepolia",
+        name: "Base Sepolia",
+        chainId: 84532,
+        thirdwebChain: baseSepoliaChain,
+        rpc: "https://sepolia.base.org",
+        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+        explorer: {
+            name: "BaseScan Sepolia",
+            baseUrl: "https://sepolia.basescan.org",
+            txUrl: (h) => `https://sepolia.basescan.org/tx/${h}`,
+            addressUrl: (a) => `https://sepolia.basescan.org/address/${a}`,
+            contractUrl: (a) => `https://sepolia.basescan.org/address/${a}`,
+        },
+        contracts: {
+            paymentStream: "0xc3E0869913FCdbeB59934FfC92C74269c428C834",
+            agentWallet: "0x8F44610D43Db6775e351F22F43bDF0ba7F8D0CEa",
+            billingRegistry: "0x9C34200882C37344A098E0e8B84a533DFB80e552",
+            usdc: "0xEf70C6e8D49DC21b96b02854089B26df9BECE227",
+        },
+        enabled: true,
+        paymentEnabled: false, // testnet only
+        logo: "/chains/base.svg",
+    },
+
+    solana: {
+        key: "solana",
+        name: "Solana Devnet",
+        chainId: 0, // Non-EVM sentinel
+        thirdwebChain: solanaDevnet,
+        rpc: process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com",
+        nativeCurrency: { name: "SOL", symbol: "SOL", decimals: 9 },
+        explorer: {
+            name: "Solscan",
+            baseUrl: "https://solscan.io/?cluster=devnet",
+            txUrl: (h) => `https://solscan.io/tx/${h}?cluster=devnet`,
+            addressUrl: (a) => `https://solscan.io/account/${a}?cluster=devnet`,
+            contractUrl: (a) => `https://solscan.io/account/${a}?cluster=devnet`,
+        },
+        contracts: {
+            treasury: process.env.SOLANA_TREASURY_ADDRESS,
+        },
+        enabled: true,
+        paymentEnabled: true,
+        logo: "/chains/solana.svg",
     },
 };
 
@@ -230,6 +319,7 @@ export const WALLET_CHAINS: Chain[] = [
   base,
   avalanche,
   sepoliaChain,
+  baseSepoliaChain,
 ];
 
 /** Default chain for ConnectButton — Hedera Testnet */
@@ -288,6 +378,19 @@ export function shortAddress(addr: string): string {
     if (!addr || addr === "0x0000000000000000000000000000000000000000") return "—";
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
+
+/** Chains that support marketplace payments */
+export const PAYMENT_CHAINS = Object.values(CHAIN_CONFIGS).filter((c) => c.paymentEnabled);
+
+/** USDC contract addresses per chain (6 decimals everywhere) */
+export const USDC_CONTRACTS: Record<string, string> = Object.fromEntries(
+    Object.entries(CHAIN_CONFIGS)
+        .filter(([, c]) => c.contracts.usdc)
+        .map(([k, c]) => [k, c.contracts.usdc!]),
+);
+
+/** USDC uses 6 decimals on all chains */
+export const USDC_DECIMALS = 6;
 
 /** LINK token contract on Ethereum Sepolia testnet */
 export const LINK_TOKEN_SEPOLIA = "0x779877A7B0D9E8603169DdbD7836e478b4624789";

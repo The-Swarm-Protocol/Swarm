@@ -407,15 +407,8 @@ export async function getDailySummary(
   };
 }
 
-export async function getAllSummaries(orgId: string, limit: number = 30): Promise<DailySummary[]> {
-  const q = query(
-    collection(db, "dailySummaries"),
-    where("orgId", "==", orgId),
-    orderBy("createdAt", "desc")
-  );
-
-  const snap = await getDocs(q);
-  return snap.docs.slice(0, limit).map((d) => {
+export async function getAllSummaries(orgId: string, maxResults: number = 30): Promise<DailySummary[]> {
+  function mapDoc(d: import("firebase/firestore").QueryDocumentSnapshot): DailySummary {
     const data = d.data();
     return {
       id: d.id,
@@ -427,5 +420,31 @@ export async function getAllSummaries(orgId: string, limit: number = 30): Promis
       deliveredTo: data.deliveredTo || [],
       createdAt: data.createdAt?.toDate() || null,
     };
-  });
+  }
+
+  // Try composite index query first (orgId + createdAt desc)
+  try {
+    const q = query(
+      collection(db, "dailySummaries"),
+      where("orgId", "==", orgId),
+      orderBy("createdAt", "desc")
+    );
+    const snap = await getDocs(q);
+    return snap.docs.slice(0, maxResults).map(mapDoc);
+  } catch (err) {
+    // Composite index may not exist — fall back to filter-only query + in-memory sort
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.includes("index") || msg.includes("requires an index")) {
+      console.warn("[daily-summary] Composite index missing for dailySummaries (orgId + createdAt). Falling back to in-memory sort.");
+      const q = query(
+        collection(db, "dailySummaries"),
+        where("orgId", "==", orgId)
+      );
+      const snap = await getDocs(q);
+      const docs = snap.docs.map(mapDoc);
+      docs.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+      return docs.slice(0, maxResults);
+    }
+    throw err;
+  }
 }

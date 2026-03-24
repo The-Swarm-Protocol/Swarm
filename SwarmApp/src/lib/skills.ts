@@ -26,6 +26,10 @@ import { SOLANA_MANIFEST } from "./solana";
 import { METAPLEX_MANIFEST } from "./metaplex";
 import { BITTENSOR_MANIFEST } from "./bittensor";
 import { BRANDMOVER_MANIFEST } from "./brandmover";
+import { PAYSTREAM_MANIFEST } from "./paystream";
+import { BASE_MANIFEST } from "./base";
+import { CDP_MANIFEST } from "./cdp-manifest";
+import type { TokenGateConfig } from "./token-gate";
 
 // ═══════════════════════════════════════════════════════════════
 // Types
@@ -131,6 +135,8 @@ export interface Skill {
     };
     /** Mod manifest — tools, workflows, examples, agent skills */
     modManifest?: ModManifest;
+    /** Optional token gate — hold tokens/NFTs to access instead of paying */
+    tokenGate?: TokenGateConfig;
 }
 
 export interface SkillBundle {
@@ -474,6 +480,75 @@ export const SKILL_REGISTRY: Skill[] = [
             parentModId: "hbar-onchain",
         },
         modManifest: BRANDMOVER_MANIFEST,
+    },
+    {
+        id: "paystream",
+        name: "PayStream",
+        description: "Pay-per-second USDC micropayment streaming for AI services on Base Sepolia. Self-custodial BIP39 agent wallets, 5 billing models, on-chain service marketplace, and real-time stream management with pause/resume.",
+        type: "mod",
+        source: "verified",
+        category: "Web3",
+        icon: "💸",
+        version: "1.0.0",
+        author: "Swarm Core",
+        tags: ["paystream", "usdc", "streaming", "payments", "base", "micropayments", "billing", "agent-wallet"],
+        pricing: { model: "free" },
+        sidebarConfig: {
+            sectionId: "modifications",
+            label: "PayStream",
+            href: "/paystream",
+            iconName: "DollarSign",
+        },
+        modManifest: PAYSTREAM_MANIFEST,
+    },
+    {
+        id: "base-mod",
+        name: "Base",
+        description: "Base chain native integration — Sign in with Base (SIWE + passkeys), one-tap USDC payments, agent sub-accounts, spend permissions, recurring payment setup, typed-data signing, and multi-chain account surface.",
+        type: "mod",
+        source: "verified",
+        category: "Web3",
+        icon: "🔵",
+        version: "1.0.0",
+        author: "Swarm Core",
+        tags: ["base", "coinbase", "usdc", "payments", "siwe", "auth", "sub-accounts", "smart-wallet"],
+        pricing: { model: "free" },
+        sidebarConfig: {
+            sectionId: "modifications",
+            label: "Base",
+            href: "/mods/base",
+            iconName: "Coins",
+        },
+        modManifest: BASE_MANIFEST,
+    },
+    {
+        id: "cdp-addon",
+        name: "CDP Add-On",
+        description: "Coinbase Developer Platform backend infrastructure — server wallets, paymaster gas sponsorship, spend permissions, trade execution, recurring billing, policy enforcement, and secret rotation on Base. Premium add-on that plugs into the Base Mod.",
+        type: "mod",
+        source: "verified",
+        category: "Web3",
+        icon: "🛡️",
+        version: "1.0.0",
+        author: "Coinbase",
+        requires: ["base-mod"],
+        requiredKeys: ["CDP_API_KEY_NAME", "CDP_API_KEY_SECRET"],
+        tags: ["cdp", "coinbase", "base", "paymaster", "gasless", "server-wallet", "billing", "trade", "policy", "spend-permissions"],
+        pricing: {
+            model: "subscription",
+            tiers: [
+                { plan: "monthly", price: 29.99, currency: "USD" },
+                { plan: "yearly", price: 299.99, currency: "USD" },
+            ],
+        },
+        sidebarConfig: {
+            sectionId: "modifications",
+            label: "CDP",
+            href: "/mods/cdp-addon/settings",
+            iconName: "Shield",
+            parentModId: "base-mod",
+        },
+        modManifest: CDP_MANIFEST,
     },
     {
         id: "solana-web3",

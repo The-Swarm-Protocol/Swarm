@@ -45,6 +45,7 @@ import { PERSONA_REGISTRY, PERSONA_CATEGORIES } from "@/lib/personas";
 import { PersonaCard } from "@/components/market/persona-card";
 import { PersonaDetailDialog } from "@/components/market/persona-detail-dialog";
 import { ApplyPersonaDialog } from "@/components/market/apply-persona-dialog";
+import { CryptoCheckoutDialog } from "@/components/marketplace/crypto-checkout-dialog";
 
 // ═══════════════════════════════════════════════════════════════
 // Tab Config
@@ -447,6 +448,10 @@ export default function MarketPage() {
     const [featuredCommunity, setFeaturedCommunity] = useState<CommunityMarketItem[]>([]);
     const [featuredAgents, setFeaturedAgents] = useState<AgentPackage[]>([]);
     const [ratingDialogItem, setRatingDialogItem] = useState<{ id: string; type: "agent" | "community"; name: string } | null>(null);
+    const [cryptoCheckout, setCryptoCheckout] = useState<{
+        itemId: string; itemName: string; itemIcon: string;
+        plan: SubscriptionPlan; priceUsd: number; currency: string;
+    } | null>(null);
 
     const loadInventory = useCallback(async () => {
         if (!currentOrg) return;
@@ -681,20 +686,17 @@ export default function MarketPage() {
                     setSubscribeTarget(null);
                 }
             } else {
-                // Crypto: create payment intent (user handles tx in wallet)
-                const res = await fetch("/api/v1/marketplace/crypto-checkout", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "x-wallet-address": userAddress,
-                    },
-                    body: JSON.stringify({ modId: itemId, plan, orgId: currentOrg.id, chain: "hedera" }),
+                // Open crypto checkout dialog — handles chain selection, signing, and verification
+                const targetItem = allItems.find((s) => s.id === itemId || s.id === `community-${itemId}`);
+                const tier = targetItem?.pricing?.tiers?.find((t) => t.plan === plan);
+                setCryptoCheckout({
+                    itemId,
+                    itemName: targetItem?.name || itemId,
+                    itemIcon: targetItem?.icon || "",
+                    plan,
+                    priceUsd: tier?.price || 0,
+                    currency: tier?.currency || "USD",
                 });
-                const data = await res.json();
-                if (data.ok) {
-                    // Store payment intent ID for later verification
-                    alert(`Send ${data.amount} ${data.currency} to ${data.recipientAddress}\nPayment ID: ${data.paymentId}`);
-                }
             }
         } finally { setBusyId(null); }
     };
@@ -1446,6 +1448,23 @@ export default function MarketPage() {
                 installerAddress={userAddress}
                 onApplied={() => { setApplyPersona(null); loadOrgAgents(); loadAgentInstalls(); }}
             />
+
+            {/* Crypto Checkout Dialog */}
+            {cryptoCheckout && currentOrg && (
+                <CryptoCheckoutDialog
+                    open={!!cryptoCheckout}
+                    onOpenChange={(open) => { if (!open) setCryptoCheckout(null); }}
+                    itemId={cryptoCheckout.itemId}
+                    itemName={cryptoCheckout.itemName}
+                    itemIcon={cryptoCheckout.itemIcon}
+                    plan={cryptoCheckout.plan}
+                    orgId={currentOrg.id}
+                    walletAddress={userAddress}
+                    priceUsd={cryptoCheckout.priceUsd}
+                    currency={cryptoCheckout.currency}
+                    onSuccess={() => { setCryptoCheckout(null); loadSubscriptions(); }}
+                />
+            )}
 
             {/* Rating Dialog */}
             <Dialog open={!!ratingDialogItem} onOpenChange={(open) => { if (!open) setRatingDialogItem(null); }}>

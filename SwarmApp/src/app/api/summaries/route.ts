@@ -62,9 +62,10 @@ export async function GET(request: NextRequest) {
       count: filtered.length,
     });
   } catch (err) {
-    console.error("Get summaries error:", err);
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("Get summaries error:", message);
     return Response.json(
-      { error: "Failed to retrieve summaries" },
+      { error: "Failed to retrieve summaries", detail: message },
       { status: 500 }
     );
   }

@@ -7,7 +7,7 @@ import {
   Search, Command, ArrowRight,
   LayoutDashboard, LayoutGrid, MessageSquare, Users, Briefcase, Settings, Zap,
   Activity, BarChart3, Shield, Clock, Store, FolderKanban, UserCog, Coins,
-  Map as MapIcon, Building2, Brain, HardDrive, FileText, Network, Stethoscope, BookOpen,
+  MapPinned, Building2, Brain, HardDrive, FileText, Network, Stethoscope, BookOpen,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════
@@ -41,7 +41,7 @@ const NAV_ITEMS: CommandItem[] = [
     { id: "activity", label: "Activity", icon: Activity, href: "/activity", section: "Observe" },
     { id: "metrics", label: "Metrics", icon: BarChart3, href: "/metrics", section: "Observe" },
     { id: "usage", label: "Usage", icon: Coins, href: "/usage", section: "Observe" },
-    { id: "agent-map", label: "Agent Map", icon: MapIcon, href: "/agent-map", section: "Observe" },
+    { id: "agent-map", label: "Agent Map", icon: MapPinned, href: "/agent-map", section: "Observe" },
     // Platform
     { id: "organizations", label: "Organizations", icon: Building2, href: "/organizations", section: "Platform" },
     { id: "cerebro", label: "Cerebro", icon: Brain, href: "/cerebro", section: "Platform" },
