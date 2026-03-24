@@ -167,6 +167,10 @@ export interface Agent {
   soulVersion?: string;
   /** When SOUL was last updated */
   soulUpdatedAt?: unknown;
+  /** Whether Hedera memory is enabled for this agent */
+  hederaMemoryEnabled?: boolean;
+  /** Hedera Consensus Service topic ID for persistent memory */
+  hederaMemoryTopicId?: string;
   /** Wallet address that owns/controls this agent */
   walletAddress?: string;
   /** Solana NFT mint address (Metaplex agent identity) */

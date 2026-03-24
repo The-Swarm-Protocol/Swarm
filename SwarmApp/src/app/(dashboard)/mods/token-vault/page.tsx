@@ -73,8 +73,8 @@ type Tab = "connections" | "requests" | "audit";
 const PROVIDERS: OAuthProvider[] = ["google", "github", "slack", "microsoft", "discord"];
 
 export default function TokenVaultPage() {
-  const { org } = useOrg();
-  const { wallet } = useSession();
+  const { currentOrg: org } = useOrg();
+  const { address: wallet } = useSession();
   const searchParams = useSearchParams();
 
   const [tab, setTab] = useState<Tab>("connections");

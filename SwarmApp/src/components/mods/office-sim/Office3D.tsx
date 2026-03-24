@@ -352,7 +352,8 @@ function CollaborationArc({
     }
   });
 
-  return <line ref={ref as React.Ref<THREE.Line>} geometry={geometry} material={material} />;
+  // @ts-expect-error — R3F <line> is THREE.Line, not SVG line element
+  return <line ref={ref} geometry={geometry} material={material} />;
 }
 
 /* ═══════════════════════════════════════════════════════════════

@@ -57,7 +57,6 @@ const JRPG_LABELS: Record<string, string> = {
   Busy: "In Battle",
 
   // ── Admin ──
-  "Dashboard": "Guild Hall",
   "Credit Ops": "Gold Ops",
   Risk: "Threat Level",
 

@@ -143,6 +143,7 @@ export function AgentInstallDialog({
                     txHash = await registerOnChain(
                         `${agentName} | ${ain}`,
                         agentType,
+                        ain,
                         0,
                     );
                     if (txHash) {

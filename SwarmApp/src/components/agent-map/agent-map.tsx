@@ -275,7 +275,7 @@ function AgentMapInner({ agents, tasks, jobs = [], onAssign, onDispatch, executi
     const agentNodes: Node[] = agents.map((agent, i) => {
       const agentTasks = tasks.filter((t) => t.assigneeAgentId === agent.id);
       const agentActive = agentTasks.filter((t) => t.status === "in_progress");
-      const a = agent as Record<string, unknown>;
+      const a = agent as unknown as Record<string, unknown>;
 
       return {
         id: agent.id,
