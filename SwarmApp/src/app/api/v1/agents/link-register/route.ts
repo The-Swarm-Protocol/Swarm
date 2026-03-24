@@ -1,10 +1,8 @@
 /**
  * POST /api/v1/agents/link-register
  *
- * Register an existing Firestore agent on-chain (Sepolia LINK contracts).
- * Uses the platform wallet (SEPOLIA_PLATFORM_KEY) to call:
- *   - registerAgentFor() on SwarmAgentRegistryLink
- *   - registerASNFor() on SwarmASNRegistry
+ * Register an existing Firestore agent on-chain (Hedera Testnet AgentRegistry).
+ * Uses the platform wallet (HEDERA_PLATFORM_KEY) to call registerAgentFor().
  *
  * Body: { agentId: string, orgId: string }
  */
@@ -13,13 +11,11 @@ import { ethers } from "ethers";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { generateASN } from "@/lib/chainlink";
-import {
-    LINK_CONTRACTS,
-    LINK_AGENT_REGISTRY_ABI,
-    LINK_ASN_REGISTRY_ABI,
-    SEPOLIA_RPC_URL,
-} from "@/lib/link-contracts";
+import { HEDERA_CONTRACTS, HEDERA_GAS_LIMIT } from "@/lib/swarm-contracts";
+import { LINK_AGENT_REGISTRY_ABI } from "@/lib/link-contracts";
 import { requireOrgMember, forbidden } from "@/lib/auth-guard";
+
+const HEDERA_RPC = "https://testnet.hashio.io/api";
 
 export async function POST(request: NextRequest) {
     let body: Record<string, unknown>;
@@ -51,7 +47,7 @@ export async function POST(request: NextRequest) {
         return Response.json({ error: "Agent does not belong to this org" }, { status: 403 });
     }
 
-    if (agentData.linkOnChainRegistered && agentData.asnOnChainRegistered) {
+    if (agentData.onChainRegistered) {
         return Response.json({ error: "Agent already registered on-chain" }, { status: 409 });
     }
 
@@ -62,7 +58,6 @@ export async function POST(request: NextRequest) {
     }
 
     const agentName = (agentData.name as string) || "Agent";
-    const agentType = (agentData.type as string) || "agent";
 
     // Build skills string
     const skills: string =
@@ -72,70 +67,43 @@ export async function POST(request: NextRequest) {
         (agentData.capabilities as string[] | undefined)?.join(",") ||
         "general";
 
-    // Setup wallet
-    const privateKey = process.env.SEPOLIA_PLATFORM_KEY;
+    // Setup wallet (Hedera Testnet)
+    const privateKey = process.env.HEDERA_PLATFORM_KEY;
     if (!privateKey) {
         return Response.json({ error: "Platform wallet not configured" }, { status: 500 });
     }
 
-    const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL);
+    const provider = new ethers.JsonRpcProvider(HEDERA_RPC);
     const wallet = new ethers.Wallet(privateKey, provider);
 
-    let agentTxHash: string | null = null;
-    let asnTxHash: string | null = null;
+    let txHash: string | null = null;
 
-    // Register on Agent Registry (sequential to avoid nonce conflicts)
-    if (LINK_CONTRACTS.AGENT_REGISTRY) {
-        try {
-            const registry = new ethers.Contract(
-                LINK_CONTRACTS.AGENT_REGISTRY,
-                LINK_AGENT_REGISTRY_ABI,
-                wallet,
-            );
-            const tx = await registry.registerAgentFor(
-                wallet.address,
-                `${agentName} | ${asn}`,
-                skills,
-                asn,
-                0,
-            );
-            const receipt = await tx.wait();
-            agentTxHash = receipt.hash;
-        } catch (err) {
-            console.error("registerAgentFor failed:", err);
-        }
-    }
-
-    // Register on ASN Registry
-    if (LINK_CONTRACTS.ASN_REGISTRY) {
-        try {
-            const asnRegistry = new ethers.Contract(
-                LINK_CONTRACTS.ASN_REGISTRY,
-                LINK_ASN_REGISTRY_ABI,
-                wallet,
-            );
-            const tx = await asnRegistry.registerASNFor(
-                wallet.address,
-                asn,
-                agentName,
-                agentType,
-            );
-            const receipt = await tx.wait();
-            asnTxHash = receipt.hash;
-        } catch (err) {
-            console.error("registerASNFor failed:", err);
-        }
+    // Register on Hedera AgentRegistry
+    try {
+        const registry = new ethers.Contract(
+            HEDERA_CONTRACTS.AGENT_REGISTRY,
+            LINK_AGENT_REGISTRY_ABI,
+            wallet,
+        );
+        const tx = await registry.registerAgentFor(
+            agentData.walletAddress || wallet.address,
+            `${agentName} | ${asn}`,
+            skills,
+            asn,
+            0,
+            { gasLimit: HEDERA_GAS_LIMIT, type: 0 },
+        );
+        const receipt = await tx.wait();
+        txHash = receipt.hash;
+    } catch (err) {
+        console.error("registerAgentFor on Hedera failed:", err);
     }
 
     // Update Firestore with results
     const update: Record<string, unknown> = { asn };
-    if (agentTxHash) {
-        update.linkOnChainTxHash = agentTxHash;
-        update.linkOnChainRegistered = true;
-    }
-    if (asnTxHash) {
-        update.asnOnChainTxHash = asnTxHash;
-        update.asnOnChainRegistered = true;
+    if (txHash) {
+        update.onChainTxHash = txHash;
+        update.onChainRegistered = true;
     }
     if (!agentData.creditScore) update.creditScore = 680;
     if (!agentData.trustScore) update.trustScore = 50;
@@ -147,9 +115,11 @@ export async function POST(request: NextRequest) {
         agentId,
         asn,
         agentName,
-        agentType,
         creditScore: (agentData.creditScore as number) || 680,
         trustScore: (agentData.trustScore as number) || 50,
-        onChain: { agentTxHash, asnTxHash },
+        onChain: {
+            chain: "hedera-testnet",
+            txHash,
+        },
     });
 }

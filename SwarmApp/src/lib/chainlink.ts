@@ -1354,11 +1354,11 @@ export async function executeRegisterIdentity(): Promise<PlaygroundExecutionResu
     const skills = "chainlink.fetch_price,chainlink.compute_agent_score";
 
     const registry = new ethers.Contract(HEDERA_CONTRACTS.AGENT_REGISTRY, HEDERA_AGENT_REGISTRY_ABI, signer);
-    const tx = await registry.registerAgent(name, skills, 500, { gasLimit: HEDERA_GAS_LIMIT, type: 0 });
+    const asn = generateASN();
+    const tx = await registry.registerAgent(name, skills, asn, 500, { gasLimit: HEDERA_GAS_LIMIT, type: 0 });
     const receipt = await tx.wait();
     const elapsed = Math.round(performance.now() - start);
     const explorerUrl = `https://hashscan.io/testnet/transaction/${receipt.hash}`;
-    const asn = generateASN();
 
     return {
         response: JSON.stringify({
@@ -1407,7 +1407,7 @@ export async function executeLookupAsn(queryAddress?: string): Promise<Playgroun
         };
     }
 
-    const registeredAt = Number(agentData[5]);
+    const registeredAt = Number(agentData[8]);
     const ageDays = Math.floor((Date.now() / 1000 - registeredAt) / 86400);
     const baseScore = Math.min(680 + ageDays * 2, 870);
     const band = getScoreBand(baseScore);
@@ -1418,8 +1418,9 @@ export async function executeLookupAsn(queryAddress?: string): Promise<Playgroun
             agentAddress: agentData[0],
             agentName: agentData[1],
             skills: agentData[2],
-            feeRate: Number(agentData[3]),
-            active: Boolean(agentData[4]),
+            asn: agentData[3],
+            feeRate: Number(agentData[4]),
+            active: Boolean(agentData[7]),
             registeredAt: new Date(registeredAt * 1000).toISOString(),
             registrationAgeDays: ageDays,
             syntheticASN: generateASN(),
@@ -1517,7 +1518,7 @@ export async function executeComputeScore(): Promise<PlaygroundExecutionResult> 
     let baseScore = 580;
 
     if (isReg && agentData) {
-        const ageDays = Math.floor((Date.now() / 1000 - Number(agentData[5])) / 86400);
+        const ageDays = Math.floor((Date.now() / 1000 - Number(agentData[8])) / 86400);
         const skills = (agentData[2] as string).split(",").length;
         breakdown.registration = 90;
         breakdown.balance = Math.min(Math.floor(balance.formatted * 2), 95);
@@ -1613,7 +1614,7 @@ export async function executeTriggerRiskPolicy(): Promise<PlaygroundExecutionRes
             isReg = await registry.isRegistered(walletAddr);
             if (isReg) {
                 const data = await registry.getAgent(walletAddr);
-                const ageDays = Math.floor((Date.now() / 1000 - Number(data[5])) / 86400);
+                const ageDays = Math.floor((Date.now() / 1000 - Number(data[8])) / 86400);
                 score = Math.min(680 + ageDays * 2, 870);
             }
         } catch { /* use default */ }

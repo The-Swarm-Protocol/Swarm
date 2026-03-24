@@ -2,7 +2,7 @@
  * POST /api/v1/credit
  *
  * Update an agent's credit and trust scores — both in Firestore and on-chain
- * (SwarmAgentRegistryLink + SwarmASNRegistry on Sepolia).
+ * (AgentRegistry on Hedera Testnet).
  *
  * Body: { agentId, creditScore, trustScore, reason? }
  *   creditScore — 300–900
@@ -14,61 +14,44 @@ import { ethers } from "ethers";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import {
-    LINK_CONTRACTS,
-    LINK_AGENT_REGISTRY_ABI,
-    LINK_ASN_REGISTRY_ABI,
-    SEPOLIA_RPC_URL,
-} from "@/lib/link-contracts";
+    HEDERA_CONTRACTS,
+    HEDERA_GAS_LIMIT,
+} from "@/lib/swarm-contracts";
+import { LINK_AGENT_REGISTRY_ABI } from "@/lib/link-contracts";
 import { requirePlatformAdmin, forbidden } from "@/lib/auth-guard";
 import { recordCreditAudit } from "@/lib/credit-audit-log";
 import { fireWebhooks } from "@/lib/credit-webhooks";
 import { invalidateCache } from "@/lib/credit-cache";
 
-/** Update credit scores on-chain via platform wallet */
+const HEDERA_RPC = "https://testnet.hashio.io/api";
+
+/** Update credit scores on-chain via platform wallet (Hedera Testnet) */
 async function updateCreditOnChain(
     agentAddr: string,
-    asn: string,
     creditScore: number,
     trustScore: number,
-): Promise<{ agentTxHash?: string; asnTxHash?: string }> {
-    const privateKey = process.env.SEPOLIA_PLATFORM_KEY;
-    if (!privateKey) return {};
+): Promise<{ txHash?: string }> {
+    const privateKey = process.env.HEDERA_PLATFORM_KEY;
+    if (!privateKey || !agentAddr) return {};
 
-    const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL);
-    const wallet = new ethers.Wallet(privateKey, provider);
-    const result: { agentTxHash?: string; asnTxHash?: string } = {};
-
-    if (LINK_CONTRACTS.AGENT_REGISTRY && agentAddr) {
-        try {
-            const registry = new ethers.Contract(
-                LINK_CONTRACTS.AGENT_REGISTRY,
-                LINK_AGENT_REGISTRY_ABI,
-                wallet,
-            );
-            const tx = await registry.updateCredit(agentAddr, creditScore, trustScore);
-            const receipt = await tx.wait();
-            result.agentTxHash = receipt.hash;
-        } catch (err) {
-            console.error("updateCredit on AgentRegistry failed:", err);
-        }
+    try {
+        const provider = new ethers.JsonRpcProvider(HEDERA_RPC);
+        const wallet = new ethers.Wallet(privateKey, provider);
+        const registry = new ethers.Contract(
+            HEDERA_CONTRACTS.AGENT_REGISTRY,
+            LINK_AGENT_REGISTRY_ABI,
+            wallet,
+        );
+        const tx = await registry.updateCredit(agentAddr, creditScore, trustScore, {
+            gasLimit: HEDERA_GAS_LIMIT,
+            type: 0,
+        });
+        const receipt = await tx.wait();
+        return { txHash: receipt.hash };
+    } catch (err) {
+        console.error("updateCredit on Hedera AgentRegistry failed:", err);
+        return {};
     }
-
-    if (LINK_CONTRACTS.ASN_REGISTRY && asn) {
-        try {
-            const asnRegistry = new ethers.Contract(
-                LINK_CONTRACTS.ASN_REGISTRY,
-                LINK_ASN_REGISTRY_ABI,
-                wallet,
-            );
-            const tx = await asnRegistry.updateCredit(asn, creditScore, trustScore);
-            const receipt = await tx.wait();
-            result.asnTxHash = receipt.hash;
-        } catch (err) {
-            console.error("updateCredit on ASNRegistry failed:", err);
-        }
-    }
-
-    return result;
 }
 
 export async function POST(request: NextRequest) {
@@ -154,10 +137,9 @@ export async function POST(request: NextRequest) {
         reason,
     }).catch(err => console.error("[credit] Webhook dispatch error:", err));
 
-    // Update on-chain
+    // Update on-chain (Hedera Testnet)
     const onChainResult = await updateCreditOnChain(
         agentData.walletAddress || "",
-        asn,
         creditScore,
         trustScore,
     );
@@ -169,8 +151,8 @@ export async function POST(request: NextRequest) {
         trustScore,
         reason,
         onChain: {
-            agentTxHash: onChainResult.agentTxHash || null,
-            asnTxHash: onChainResult.asnTxHash || null,
+            chain: "hedera-testnet",
+            txHash: onChainResult.txHash || null,
         },
     });
 }

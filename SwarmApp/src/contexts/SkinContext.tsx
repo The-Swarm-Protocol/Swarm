@@ -26,6 +26,7 @@ export const SKINS: SkinMeta[] = [
 ];
 
 const STORAGE_KEY = "swarm-skin";
+const SCANLINES_KEY = "swarm-scanlines";
 const DEFAULT_SKIN = "classic";
 
 interface SkinContextValue {
@@ -38,6 +39,9 @@ interface SkinContextValue {
   installedSkinIds: Set<string>;
   /** Refresh installed skins (call after marketplace install/uninstall) */
   refreshInstalled: (ownedSkillIds: string[]) => void;
+  /** Whether CRT scan lines are enabled */
+  scanLines: boolean;
+  setScanLines: (enabled: boolean) => void;
 }
 
 const SkinContext = createContext<SkinContextValue>({
@@ -47,6 +51,8 @@ const SkinContext = createContext<SkinContextValue>({
   availableSkins: SKINS.filter((s) => s.builtin),
   installedSkinIds: new Set(),
   refreshInstalled: () => {},
+  scanLines: false,
+  setScanLines: () => {},
 });
 
 function applySkinClass(skinId: string) {
@@ -59,9 +65,19 @@ function applySkinClass(skinId: string) {
   }
 }
 
+function applyScanLinesClass(enabled: boolean) {
+  const root = document.documentElement;
+  if (enabled) {
+    root.classList.add("crt-scanlines");
+  } else {
+    root.classList.remove("crt-scanlines");
+  }
+}
+
 export function SkinProvider({ children }: { children: ReactNode }) {
   const [skin, setSkinState] = useState(DEFAULT_SKIN);
   const [installedSkinIds, setInstalledSkinIds] = useState<Set<string>>(new Set());
+  const [scanLines, setScanLinesState] = useState(false);
 
   const availableSkins = SKINS.filter(
     (s) => s.builtin || (s.marketId && installedSkinIds.has(s.marketId))
@@ -74,6 +90,11 @@ export function SkinProvider({ children }: { children: ReactNode }) {
     const initial = valid ? stored! : DEFAULT_SKIN;
     setSkinState(initial);
     applySkinClass(initial);
+
+    const storedScanLines = localStorage.getItem(SCANLINES_KEY);
+    const scanLinesEnabled = storedScanLines === "true";
+    setScanLinesState(scanLinesEnabled);
+    applyScanLinesClass(scanLinesEnabled);
   }, []);
 
   const setSkin = useCallback((id: string) => {
@@ -81,6 +102,12 @@ export function SkinProvider({ children }: { children: ReactNode }) {
     setSkinState(id);
     localStorage.setItem(STORAGE_KEY, id);
     applySkinClass(id);
+  }, []);
+
+  const setScanLines = useCallback((enabled: boolean) => {
+    setScanLinesState(enabled);
+    localStorage.setItem(SCANLINES_KEY, String(enabled));
+    applyScanLinesClass(enabled);
   }, []);
 
   const refreshInstalled = useCallback((ownedSkillIds: string[]) => {
@@ -100,7 +127,7 @@ export function SkinProvider({ children }: { children: ReactNode }) {
   }, [installedSkinIds, skin, setSkin]);
 
   return (
-    <SkinContext.Provider value={{ skin, setSkin, skins: SKINS, availableSkins, installedSkinIds, refreshInstalled }}>
+    <SkinContext.Provider value={{ skin, setSkin, skins: SKINS, availableSkins, installedSkinIds, refreshInstalled, scanLines, setScanLines }}>
       {children}
     </SkinContext.Provider>
   );

@@ -22,7 +22,7 @@ export default function SettingsPage() {
   const { currentOrg, refreshOrgs } = useOrg();
   const account = useActiveAccount();
   const address = account?.address;
-  const { skin, setSkin, skins, availableSkins, refreshInstalled } = useSkin();
+  const { skin, setSkin, skins, availableSkins, refreshInstalled, scanLines, setScanLines } = useSkin();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -282,6 +282,21 @@ export default function SettingsPage() {
                   </button>
                 );
               })}
+            </div>
+
+            <div className="mt-5 pt-5 border-t border-border">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">CRT Scan Lines</p>
+                  <p className="text-xs text-muted-foreground">
+                    Retro CRT monitor effect with scan lines overlay
+                  </p>
+                </div>
+                <Switch
+                  checked={scanLines}
+                  onCheckedChange={setScanLines}
+                />
+              </div>
             </div>
           </CardContent>
         </Card>

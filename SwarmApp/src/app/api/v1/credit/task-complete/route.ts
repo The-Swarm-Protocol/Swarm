@@ -5,8 +5,7 @@
  *   - Increments credit score by +5 (capped at 900)
  *   - Increments trust score by +1 (capped at 100)
  *   - Updates Firestore
- *   - Calls updateCredit on AgentRegistryLink + ASNRegistry (on-chain)
- *   - Calls recordTaskCompletion on ASNRegistry (on-chain)
+ *   - Calls updateCredit on Hedera Testnet AgentRegistry
  *
  * Body: { agentId, volumeUsd? }
  */
@@ -15,85 +14,43 @@ import { ethers } from "ethers";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import {
-    LINK_CONTRACTS,
-    LINK_AGENT_REGISTRY_ABI,
-    LINK_ASN_REGISTRY_ABI,
-    SEPOLIA_RPC_URL,
-} from "@/lib/link-contracts";
+    HEDERA_CONTRACTS,
+    HEDERA_GAS_LIMIT,
+} from "@/lib/swarm-contracts";
+import { LINK_AGENT_REGISTRY_ABI } from "@/lib/link-contracts";
 import { requirePlatformAdminOrAgent, unauthorized } from "@/lib/auth-guard";
 import { recordCreditAudit } from "@/lib/credit-audit-log";
 import { fireWebhooks } from "@/lib/credit-webhooks";
 import { invalidateCache } from "@/lib/credit-cache";
 
-/** Update credit scores on-chain via platform wallet */
+const HEDERA_RPC = "https://testnet.hashio.io/api";
+
+/** Update credit scores on-chain via platform wallet (Hedera Testnet) */
 async function updateCreditOnChain(
     agentAddr: string,
-    asn: string,
     creditScore: number,
     trustScore: number,
-): Promise<{ agentTxHash?: string; asnTxHash?: string }> {
-    const privateKey = process.env.SEPOLIA_PLATFORM_KEY;
-    if (!privateKey) return {};
-
-    const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL);
-    const wallet = new ethers.Wallet(privateKey, provider);
-    const result: { agentTxHash?: string; asnTxHash?: string } = {};
-
-    if (LINK_CONTRACTS.AGENT_REGISTRY && agentAddr) {
-        try {
-            const registry = new ethers.Contract(
-                LINK_CONTRACTS.AGENT_REGISTRY,
-                LINK_AGENT_REGISTRY_ABI,
-                wallet,
-            );
-            const tx = await registry.updateCredit(agentAddr, creditScore, trustScore);
-            const receipt = await tx.wait();
-            result.agentTxHash = receipt.hash;
-        } catch (err) {
-            console.error("updateCredit on AgentRegistry failed:", err);
-        }
-    }
-
-    if (LINK_CONTRACTS.ASN_REGISTRY && asn) {
-        try {
-            const asnRegistry = new ethers.Contract(
-                LINK_CONTRACTS.ASN_REGISTRY,
-                LINK_ASN_REGISTRY_ABI,
-                wallet,
-            );
-            const tx = await asnRegistry.updateCredit(asn, creditScore, trustScore);
-            const receipt = await tx.wait();
-            result.asnTxHash = receipt.hash;
-        } catch (err) {
-            console.error("updateCredit on ASNRegistry failed:", err);
-        }
-    }
-
-    return result;
-}
-
-/** Record task completion on ASN registry */
-async function recordTaskCompletionOnChain(
-    asn: string,
-    volumeWei: bigint,
-): Promise<string | null> {
-    const privateKey = process.env.SEPOLIA_PLATFORM_KEY;
-    if (!privateKey || !LINK_CONTRACTS.ASN_REGISTRY || !asn) return null;
+): Promise<{ txHash?: string }> {
+    const privateKey = process.env.HEDERA_PLATFORM_KEY;
+    if (!privateKey || !agentAddr) return {};
 
     try {
-        const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL);
+        const provider = new ethers.JsonRpcProvider(HEDERA_RPC);
         const wallet = new ethers.Wallet(privateKey, provider);
-        const asnRegistry = new ethers.Contract(
-            LINK_CONTRACTS.ASN_REGISTRY,
-            LINK_ASN_REGISTRY_ABI,
+        const registry = new ethers.Contract(
+            HEDERA_CONTRACTS.AGENT_REGISTRY,
+            LINK_AGENT_REGISTRY_ABI,
             wallet,
         );
-        const tx = await asnRegistry.recordTaskCompletion(asn, volumeWei);
+        const tx = await registry.updateCredit(agentAddr, creditScore, trustScore, {
+            gasLimit: HEDERA_GAS_LIMIT,
+            type: 0,
+        });
         const receipt = await tx.wait();
-        return receipt.hash;
+        return { txHash: receipt.hash };
     } catch (err) {
-        console.error("recordTaskCompletion failed:", err);
-        return null;
+        console.error("updateCredit on Hedera AgentRegistry failed:", err);
+        return {};
     }
 }
 
@@ -128,9 +85,6 @@ export async function POST(request: NextRequest) {
 
     const agentData = agentSnap.data();
     const asn = (agentData.asn as string) || "";
-
-    const volumeUsd = typeof body.volumeUsd === "number" ? body.volumeUsd : 0;
-    const volumeWei = ethers.parseEther(String(volumeUsd || 0));
 
     // Bump credit score: +5 per task, capped at 900
     const currentCredit = (agentData.creditScore as number) || 680;
@@ -211,11 +165,12 @@ export async function POST(request: NextRequest) {
         console.warn("[credit/task-complete] Fee multiplier calc failed (non-blocking):", err);
     }
 
-    // Update on-chain credit + record task completion in parallel
-    const [creditResult, taskTxHash] = await Promise.all([
-        updateCreditOnChain(agentData.walletAddress || "", asn, newCredit, newTrust),
-        recordTaskCompletionOnChain(asn, volumeWei),
-    ]);
+    // Update on-chain credit (Hedera Testnet)
+    const creditResult = await updateCreditOnChain(
+        agentData.walletAddress || "",
+        newCredit,
+        newTrust,
+    );
 
     return Response.json({
         agentId,
@@ -225,9 +180,8 @@ export async function POST(request: NextRequest) {
         delta: { credit: newCredit - currentCredit, trust: newTrust - currentTrust },
         ...(resolvedTier ? { policyTier: resolvedTier, feeMultiplier } : {}),
         onChain: {
-            agentTxHash: creditResult.agentTxHash || null,
-            asnTxHash: creditResult.asnTxHash || null,
-            taskCompletionTxHash: taskTxHash,
+            chain: "hedera-testnet",
+            txHash: creditResult.txHash || null,
         },
     });
 }

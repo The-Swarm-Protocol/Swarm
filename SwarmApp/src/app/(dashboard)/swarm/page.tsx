@@ -130,6 +130,38 @@ export default function SwarmPage() {
     setSelectedSlot(null);
   }
 
+  async function assignAgentToAll(agentId: string) {
+    if (!currentOrg) return;
+    setSaving(true);
+    const updated: Record<string, { agentId: string; assignedAt: unknown } | null> = {};
+    for (const slot of PROTOCOL_SLOTS) {
+      updated[slot.id] = { agentId, assignedAt: new Date() };
+    }
+    try {
+      await updateOrganization(currentOrg.id, { swarmSlots: updated } as Partial<typeof currentOrg>);
+      setAssignments(updated);
+
+      const agent = agents.find(a => a.id === agentId);
+      if (agent) {
+        ensureAgentGroupChat(currentOrg.id).then(hub => {
+          sendMessage({
+            channelId: hub.id,
+            senderId: "system",
+            senderName: "Swarm Protocol",
+            senderType: "agent",
+            content: `⚡ **@${agent.name}** has been assigned to **all ${PROTOCOL_SLOTS.length} protocol roles**.\n\nThis agent is now responsible for: ${PROTOCOL_SLOTS.map(s => s.name).join(", ")}.\n\nFull swarm operations active.`,
+            orgId: currentOrg.id,
+            createdAt: new Date(),
+          });
+        }).catch(() => {});
+      }
+    } catch (err) {
+      console.error("Failed to assign agent to all slots:", err);
+    }
+    setSaving(false);
+    setSelectedSlot(null);
+  }
+
   async function unassignAgent(slotId: string) {
     if (!currentOrg) return;
     setSaving(true);
@@ -238,17 +270,20 @@ export default function SwarmPage() {
             const styles = SLOT_STYLES[slot.color];
 
             if (agent) {
-              // Filled slot
+              // Filled slot — click to swap agent
               return (
                 <SpotlightCard
                   key={slot.id}
-                  className="p-0 group"
+                  className="p-0 group cursor-pointer"
                   spotlightColor={`rgba(${slot.rgb}, 0.1)`}
                 >
-                  <div className={cn(
-                    "p-4 rounded-xl border relative overflow-hidden min-h-[160px] flex flex-col",
-                    styles.border, styles.bg
-                  )}>
+                  <div
+                    className={cn(
+                      "p-4 rounded-xl border relative overflow-hidden min-h-[160px] flex flex-col",
+                      styles.border, styles.bg
+                    )}
+                    onClick={() => setSelectedSlot(slot.id)}
+                  >
                     {/* Glow gradient */}
                     <div className={cn("absolute inset-0 bg-gradient-to-br to-transparent opacity-60", styles.glow)} />
 
@@ -263,7 +298,7 @@ export default function SwarmPage() {
                           variant="ghost"
                           size="sm"
                           className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => unassignAgent(slot.id)}
+                          onClick={(e) => { e.stopPropagation(); unassignAgent(slot.id); }}
                           disabled={saving}
                         >
                           <X className="h-3 w-3" />
@@ -286,6 +321,10 @@ export default function SwarmPage() {
                           </div>
                         </div>
                       </div>
+
+                      <p className="text-[10px] text-muted-foreground/40 text-center mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        Click to swap agent
+                      </p>
                     </div>
                   </div>
                 </SpotlightCard>
@@ -330,24 +369,21 @@ export default function SwarmPage() {
               <p className="text-xs text-muted-foreground/50 text-center py-4">No agents found</p>
             )}
             {filteredAgents.map(agent => {
-              const isAssigned = assignedAgentIds.has(agent.id);
+              const equippedSlotCount = PROTOCOL_SLOTS.filter(s => assignments[s.id]?.agentId === agent.id).length;
               return (
                 <button
                   key={agent.id}
-                  disabled={isAssigned}
                   onClick={() => {
-                    if (!selectedSlot) {
-                      // Find first empty slot and assign
-                      const emptySlot = PROTOCOL_SLOTS.find(s => !assignments[s.id]?.agentId);
-                      if (emptySlot) setSelectedSlot(emptySlot.id);
+                    // Find first empty slot, or first slot not assigned to this agent
+                    const emptySlot = PROTOCOL_SLOTS.find(s => !assignments[s.id]?.agentId);
+                    if (emptySlot) {
+                      setSelectedSlot(emptySlot.id);
+                    } else {
+                      // All filled — let user pick which to swap
+                      setSelectedSlot(PROTOCOL_SLOTS[0].id);
                     }
                   }}
-                  className={cn(
-                    "w-full flex items-center gap-2.5 p-2.5 rounded-lg border transition-all text-left",
-                    isAssigned
-                      ? "opacity-35 cursor-not-allowed border-border"
-                      : "border-border hover:border-muted-foreground/30 hover:bg-muted/30 cursor-pointer"
-                  )}
+                  className="w-full flex items-center gap-2.5 p-2.5 rounded-lg border border-border hover:border-muted-foreground/30 hover:bg-muted/30 cursor-pointer transition-all text-left"
                 >
                   <img
                     src={agent.avatarUrl || getAgentAvatarUrl(agent.name, agent.type)}
@@ -359,8 +395,10 @@ export default function SwarmPage() {
                     <p className="text-[10px] text-muted-foreground">{agent.type}</p>
                   </div>
                   <span className={cn("w-2 h-2 rounded-full shrink-0", STATUS_DOT[agent.status] || STATUS_DOT.offline)} />
-                  {isAssigned && (
-                    <Badge variant="outline" className="text-[9px] shrink-0">Equipped</Badge>
+                  {equippedSlotCount > 0 && (
+                    <Badge variant="outline" className="text-[9px] shrink-0">
+                      {equippedSlotCount === PROTOCOL_SLOTS.length ? "All" : equippedSlotCount} Slot{equippedSlotCount !== 1 ? "s" : ""}
+                    </Badge>
                   )}
                 </button>
               );
@@ -373,7 +411,7 @@ export default function SwarmPage() {
       <Dialog open={!!selectedSlot} onOpenChange={() => setSelectedSlot(null)}>
         <DialogHeader>
           <DialogTitle>
-            Assign Agent to {selectedSlotInfo?.name}
+            {selectedSlotInfo ? `Assign Agent to ${selectedSlotInfo.name}` : "Assign Agent"}
           </DialogTitle>
         </DialogHeader>
         <DialogContent>
@@ -381,34 +419,56 @@ export default function SwarmPage() {
             <p className="text-xs text-muted-foreground mb-3">{selectedSlotInfo.description}</p>
           )}
           <div className="space-y-1.5 max-h-[40vh] overflow-y-auto">
-            {agents.filter(a => !assignedAgentIds.has(a.id)).map(agent => (
-              <button
-                key={agent.id}
-                className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:border-amber-500/30 hover:bg-amber-500/5 transition-all text-left"
-                onClick={() => assignAgent(selectedSlot!, agent.id)}
-                disabled={saving}
-              >
-                <img
-                  src={agent.avatarUrl || getAgentAvatarUrl(agent.name, agent.type)}
-                  alt={agent.name}
-                  className="w-9 h-9 rounded-full"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{agent.name}</p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className={cn("w-2 h-2 rounded-full", STATUS_DOT[agent.status] || STATUS_DOT.offline)} />
-                    <span className="text-[10px] text-muted-foreground">{agent.status}</span>
-                    <Badge variant="outline" className="text-[9px] ml-1">{agent.type}</Badge>
-                  </div>
-                  {agent.bio && (
-                    <p className="text-[10px] text-muted-foreground/70 mt-1 line-clamp-1">{agent.bio}</p>
-                  )}
+            {agents.map(agent => {
+              const currentlyInSlot = selectedSlot && assignments[selectedSlot]?.agentId === agent.id;
+              return (
+                <div key={agent.id} className="flex items-center gap-2">
+                  <button
+                    className={cn(
+                      "flex-1 flex items-center gap-3 p-3 rounded-lg border transition-all text-left",
+                      currentlyInSlot
+                        ? "border-amber-500/40 bg-amber-500/10 opacity-60"
+                        : "border-border hover:border-amber-500/30 hover:bg-amber-500/5"
+                    )}
+                    onClick={() => !currentlyInSlot && assignAgent(selectedSlot!, agent.id)}
+                    disabled={saving || !!currentlyInSlot}
+                  >
+                    <img
+                      src={agent.avatarUrl || getAgentAvatarUrl(agent.name, agent.type)}
+                      alt={agent.name}
+                      className="w-9 h-9 rounded-full"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{agent.name}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className={cn("w-2 h-2 rounded-full", STATUS_DOT[agent.status] || STATUS_DOT.offline)} />
+                        <span className="text-[10px] text-muted-foreground">{agent.status}</span>
+                        <Badge variant="outline" className="text-[9px] ml-1">{agent.type}</Badge>
+                      </div>
+                      {agent.bio && (
+                        <p className="text-[10px] text-muted-foreground/70 mt-1 line-clamp-1">{agent.bio}</p>
+                      )}
+                    </div>
+                    {currentlyInSlot && (
+                      <Badge className="text-[9px] bg-amber-500/20 text-amber-400 border-amber-500/30 shrink-0">Current</Badge>
+                    )}
+                  </button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 text-[10px] h-8 px-2"
+                    onClick={() => assignAgentToAll(agent.id)}
+                    disabled={saving}
+                    title={`Assign ${agent.name} to all slots`}
+                  >
+                    All Slots
+                  </Button>
                 </div>
-              </button>
-            ))}
-            {agents.filter(a => !assignedAgentIds.has(a.id)).length === 0 && (
+              );
+            })}
+            {agents.length === 0 && (
               <p className="text-xs text-muted-foreground/50 text-center py-4">
-                All agents are already assigned to slots
+                No agents available. Register agents first.
               </p>
             )}
           </div>

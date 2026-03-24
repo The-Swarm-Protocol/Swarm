@@ -96,12 +96,12 @@ describe("ABI consistency", () => {
     expect(registerFn).toContain("string asn");
   });
 
-  it("HEDERA_AGENT_REGISTRY_ABI has registerAgent without asn param", () => {
+  it("HEDERA_AGENT_REGISTRY_ABI matches primary ABI (unified)", () => {
     const registerFn = HEDERA_AGENT_REGISTRY_ABI.find((s: string) =>
       s.includes("function registerAgent(")
     );
     expect(registerFn).toBeDefined();
-    expect(registerFn).not.toContain("string asn");
+    expect(registerFn).toContain("string asn");
   });
 
   it("TASK_BOARD_ABI has postTask function", () => {

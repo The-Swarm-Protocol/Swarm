@@ -177,7 +177,8 @@ function isAdminAddress(addr: string | null | undefined): boolean {
   const lower = addr.toLowerCase();
   return lower === PLATFORM_ADMIN_ADDRESS
     || lower === "0x723708273e811a07d90d2e81e799b9ab27f0b549"
-    || lower === "0x116c28e6dcabca363f83217c712d79dce168d90e";
+    || lower === "0x116c28e6dcabca363f83217c712d79dce168d90e"
+    || lower === "0xeab03556443e0b852a8efe836a004bc02cff2974";
 }
 
 const ADMIN_SECTION: NavSection = {

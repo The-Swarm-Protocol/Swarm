@@ -16,13 +16,8 @@ import { PLATFORM_BRIEFING } from "../briefing";
 import { getAgentAvatarUrl } from "@/lib/agent-avatar";
 import { agentCheckIn, getOrganization, type Agent } from "@/lib/firestore";
 import { generateASN } from "@/lib/chainlink";
-import { HEDERA_CONTRACTS, HEDERA_AGENT_REGISTRY_ABI, HEDERA_GAS_LIMIT } from "@/lib/swarm-contracts";
-import {
-    LINK_CONTRACTS,
-    LINK_AGENT_REGISTRY_ABI,
-    LINK_ASN_REGISTRY_ABI,
-    SEPOLIA_RPC_URL,
-} from "@/lib/link-contracts";
+import { HEDERA_CONTRACTS, HEDERA_GAS_LIMIT } from "@/lib/swarm-contracts";
+import { LINK_AGENT_REGISTRY_ABI } from "@/lib/link-contracts";
 import { db } from "@/lib/firebase";
 import {
     collection,
@@ -70,42 +65,8 @@ async function registerOnChain(
     try {
         const provider = new ethers.JsonRpcProvider(HEDERA_TESTNET_RPC);
         const wallet = new ethers.Wallet(privateKey, provider);
-        const registry = new ethers.Contract(HEDERA_CONTRACTS.AGENT_REGISTRY, HEDERA_AGENT_REGISTRY_ABI, wallet);
-
-        // Derive unique agent address from public key
-        const agentAddress = deriveAgentAddress(publicKey);
-
-        // Note: Hedera AgentRegistry.registerAgent uses msg.sender, so we register
-        // with agent metadata but the platform wallet will be recorded as owner.
-        // To fix this properly, the contract would need a registerAgentFor method.
-        const tx = await registry.registerAgent(
-            `${agentName} | ${asn} | ${agentAddress}`,
-            skills,
-            0,
-            { gasLimit: HEDERA_GAS_LIMIT, type: 0 },
-        );
-        const receipt = await tx.wait();
-        return { txHash: receipt.hash };
-    } catch (err) {
-        console.error("On-chain registration failed (non-fatal):", err);
-        return null;
-    }
-}
-
-/** Attempt on-chain registration on Hedera using platform wallet */
-async function registerOnChainLink(
-    agentName: string,
-    asn: string,
-    skills: string,
-    publicKey: string,
-): Promise<{ txHash: string } | null> {
-    const privateKey = process.env.SEPOLIA_PLATFORM_KEY;
-    if (!privateKey || !LINK_CONTRACTS.AGENT_REGISTRY) return null;
-    try {
-        const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL);
-        const wallet = new ethers.Wallet(privateKey, provider);
         const registry = new ethers.Contract(
-            LINK_CONTRACTS.AGENT_REGISTRY,
+            HEDERA_CONTRACTS.AGENT_REGISTRY,
             LINK_AGENT_REGISTRY_ABI,
             wallet,
         );
@@ -113,54 +74,19 @@ async function registerOnChainLink(
         // Derive unique agent address from public key
         const agentAddress = deriveAgentAddress(publicKey);
 
-        // Register agent with unique derived address instead of platform wallet
+        // Use registerAgentFor to register with the agent's derived address
         const tx = await registry.registerAgentFor(
             agentAddress,
             `${agentName} | ${asn}`,
             skills,
             asn,
             0,
+            { gasLimit: HEDERA_GAS_LIMIT, type: 0 },
         );
         const receipt = await tx.wait();
         return { txHash: receipt.hash };
     } catch (err) {
-        console.error("LINK on-chain registration failed (non-fatal):", err);
-        return null;
-    }
-}
-
-/** Register ASN on-chain via SwarmASNRegistry on Sepolia */
-async function registerASNOnChain(
-    asn: string,
-    agentName: string,
-    agentType: string,
-    publicKey: string,
-): Promise<{ txHash: string } | null> {
-    const privateKey = process.env.SEPOLIA_PLATFORM_KEY;
-    if (!privateKey || !LINK_CONTRACTS.ASN_REGISTRY) return null;
-    try {
-        const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL);
-        const wallet = new ethers.Wallet(privateKey, provider);
-        const asnRegistry = new ethers.Contract(
-            LINK_CONTRACTS.ASN_REGISTRY,
-            LINK_ASN_REGISTRY_ABI,
-            wallet,
-        );
-
-        // Derive unique agent address from public key
-        const agentAddress = deriveAgentAddress(publicKey);
-
-        // Register ASN with unique derived address instead of platform wallet
-        const tx = await asnRegistry.registerASNFor(
-            agentAddress,
-            asn,
-            agentName,
-            agentType,
-        );
-        const receipt = await tx.wait();
-        return { txHash: receipt.hash };
-    } catch (err) {
-        console.error("ASN on-chain registration failed (non-fatal):", err);
+        console.error("On-chain registration failed (non-fatal):", err);
         return null;
     }
 }
@@ -481,26 +407,6 @@ export async function POST(request: NextRequest) {
             }
         }).catch(() => {});
 
-        // Attempt on-chain registration on Hedera (non-blocking)
-        registerOnChainLink(agentName, asn, skillStr, publicKey).then(async (result) => {
-            if (result) {
-                await updateDoc(doc(db, "agents", ref.id), {
-                    linkOnChainTxHash: result.txHash,
-                    linkOnChainRegistered: true,
-                });
-            }
-        }).catch(() => {});
-
-        // Register ASN on-chain via SwarmASNRegistry on Sepolia (non-blocking)
-        registerASNOnChain(asn, agentName, agentType || "agent", publicKey).then(async (result) => {
-            if (result) {
-                await updateDoc(doc(db, "agents", ref.id), {
-                    asnOnChainTxHash: result.txHash,
-                    asnOnChainRegistered: true,
-                });
-            }
-        }).catch(() => {});
-
         // Post check-in greeting to Agent Hub
         const newAgent = { id: ref.id, name: agentName, type: agentType || "agent", orgId } as Agent;
         agentCheckIn(newAgent, orgId, skills.length > 0 ? skills : undefined, bio).catch(() => {});
@@ -518,10 +424,7 @@ export async function POST(request: NextRequest) {
             registered: true,
             existing: false,
             reportedSkills: skills.length,
-            chains: {
-                hedera: { registered: true },
-                sepolia: { registered: !!LINK_CONTRACTS.AGENT_REGISTRY },
-            },
+            chain: "hedera-testnet",
             briefing: PLATFORM_BRIEFING,
             ...(preRestoreResult.restored ? {
                 restored: true,

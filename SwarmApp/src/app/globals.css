@@ -357,7 +357,8 @@ body {
   100% { transform: translateY(100vh); }
 }
 
-.scan-line-overlay {
+/* Scan line sweep — only visible when CRT scan lines are toggled on */
+.crt-scanlines .scan-line-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -874,8 +875,9 @@ body::after {
   background: radial-gradient(circle, rgba(255, 106, 0, 0.02) 0%, transparent 70%);
 }
 
-/* CRT scanlines overlay */
-.skin-retro-terminal::after {
+/* CRT scanlines overlay — only when scan lines are enabled */
+.crt-scanlines.skin-retro-terminal::after,
+.crt-scanlines .skin-retro-terminal::after {
   content: '';
   position: fixed;
   inset: 0;
@@ -890,14 +892,31 @@ body::after {
   z-index: 9998;
 }
 
-/* CRT vignette */
-.skin-retro-terminal::before {
+/* CRT vignette — only when scan lines are enabled */
+.crt-scanlines.skin-retro-terminal::before,
+.crt-scanlines .skin-retro-terminal::before {
   content: '';
   position: fixed;
   inset: 0;
   background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.4) 100%);
   pointer-events: none;
   z-index: 9997;
+}
+
+/* Generic CRT scanlines for any skin (when enabled) */
+.crt-scanlines:not(.skin-retro-terminal)::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.08) 2px,
+    rgba(0, 0, 0, 0.08) 4px
+  );
+  pointer-events: none;
+  z-index: 9998;
 }
 
 .skin-retro-terminal.dark .text-glow {
