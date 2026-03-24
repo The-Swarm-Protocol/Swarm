@@ -308,33 +308,64 @@ export class StubComputeProvider implements ComputeProvider {
 
 import type { ProviderKey } from "./types";
 
+// ═══════════════════════════════════════════════════════════════
+// Provider Credential Error
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Thrown when a specific compute provider is requested but the
+ * required credentials are missing. This prevents silent fallback
+ * to the stub provider, which would create phantom instances.
+ */
+export class ProviderCredentialError extends Error {
+  public readonly provider: string;
+  public readonly missingEnvVar: string;
+
+  constructor(provider: string, missingEnvVar: string) {
+    super(
+      `Compute provider "${provider}" was requested but ${missingEnvVar} is not set. ` +
+      `Set the required environment variable or remove the explicit provider selection to use auto-detection.`
+    );
+    this.name = "ProviderCredentialError";
+    this.provider = provider;
+    this.missingEnvVar = missingEnvVar;
+  }
+}
+
+const PROVIDER_CREDENTIALS: Record<string, { envVar: string; label: string }> = {
+  e2b:   { envVar: "E2B_API_KEY",                    label: "E2B_API_KEY" },
+  azure: { envVar: "AZURE_SUBSCRIPTION_ID",           label: "AZURE_SUBSCRIPTION_ID" },
+  aws:   { envVar: "AWS_ACCESS_KEY_ID",               label: "AWS_ACCESS_KEY_ID" },
+  gcp:   { envVar: "GOOGLE_APPLICATION_CREDENTIALS",  label: "GOOGLE_APPLICATION_CREDENTIALS" },
+};
+
 const providerCache = new Map<string, ComputeProvider>();
 
 /**
  * Get a compute provider instance by key.
  * Providers are cached — one instance per key.
  *
+ * If a specific provider is requested (via argument or COMPUTE_PROVIDER env var)
+ * but credentials are missing, a ProviderCredentialError is thrown instead of
+ * silently falling back to the stub provider.
+ *
+ * The stub provider is only used when no provider is explicitly requested
+ * and no credentials are detected (i.e. pure auto-detection in dev).
+ *
  * @param providerKey — Explicit provider key. Falls back to env detection.
  * @param azureProduct — For Azure provider, specify which product (vm, aci, spot, etc.)
  */
 export function getComputeProvider(providerKey?: ProviderKey | string, azureProduct?: string): ComputeProvider {
-  let key = providerKey
-    || process.env.COMPUTE_PROVIDER
-    || (process.env.E2B_API_KEY ? "e2b" : "stub");
+  const explicitKey = providerKey || process.env.COMPUTE_PROVIDER;
+  const key = explicitKey || (process.env.E2B_API_KEY ? "e2b" : "stub");
 
-  // Fallbacks to stub for cloud providers if keys are missing
-  if (key === "e2b" && !process.env.E2B_API_KEY) {
-    console.warn("E2B_API_KEY is missing. Falling back from 'e2b' to 'stub' provider.");
-    key = "stub";
-  } else if (key === "azure" && !process.env.AZURE_SUBSCRIPTION_ID) {
-    console.warn("AZURE_SUBSCRIPTION_ID is missing. Falling back from 'azure' to 'stub' provider.");
-    key = "stub";
-  } else if (key === "aws" && !process.env.AWS_ACCESS_KEY_ID) {
-    console.warn("AWS_ACCESS_KEY_ID is missing. Falling back from 'aws' to 'stub' provider.");
-    key = "stub";
-  } else if (key === "gcp" && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    console.warn("GOOGLE_APPLICATION_CREDENTIALS is missing. Falling back from 'gcp' to 'stub' provider.");
-    key = "stub";
+  // If a provider was explicitly requested, validate credentials exist.
+  // Throw instead of silently falling back to stub — phantom instances are worse than errors.
+  if (explicitKey) {
+    const cred = PROVIDER_CREDENTIALS[key];
+    if (cred && !process.env[cred.envVar]) {
+      throw new ProviderCredentialError(key, cred.label);
+    }
   }
 
   // For Azure, include product type in cache key

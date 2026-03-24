@@ -189,9 +189,16 @@ export interface VerifiedItemFilters {
     featured?: boolean;
 }
 
+// Track whether auto-seed has been triggered this process lifetime
+let autoSeedTriggered = false;
+
 /**
  * Get all verified items from Firestore.
- * Falls back to SKILL_REGISTRY if collection is empty (not yet seeded).
+ *
+ * If the collection is empty (not yet seeded), returns SKILL_REGISTRY items
+ * as a temporary fallback and triggers a background auto-seed so subsequent
+ * calls hit Firestore directly. This fallback is deprecated and will be
+ * removed once all environments have been seeded.
  */
 export async function getVerifiedItems(filters?: VerifiedItemFilters): Promise<VerifiedItem[]> {
     const constraints = [];
@@ -204,8 +211,30 @@ export async function getVerifiedItems(filters?: VerifiedItemFilters): Promise<V
 
     const snap = await getDocs(q);
 
-    // Fallback to static registry if collection is empty
+    // DEPRECATED FALLBACK: Return static data while auto-seeding Firestore.
+    // This path should only fire on fresh environments that haven't been seeded yet.
     if (snap.empty) {
+        console.warn(
+            "[verified-registry] Firestore collection is empty — returning static SKILL_REGISTRY fallback. " +
+            "This is deprecated and will be removed in a future release. " +
+            "Run seedVerifiedItems() or call the admin seed endpoint to populate Firestore."
+        );
+
+        // Auto-seed in the background so subsequent requests hit Firestore
+        if (!autoSeedTriggered) {
+            autoSeedTriggered = true;
+            seedVerifiedItems()
+                .then(({ seeded }) => {
+                    if (seeded > 0) {
+                        console.info(`[verified-registry] Auto-seeded ${seeded} items into Firestore.`);
+                    }
+                })
+                .catch((err) => {
+                    console.error("[verified-registry] Auto-seed failed:", err);
+                    autoSeedTriggered = false; // Allow retry on next request
+                });
+        }
+
         let items = SKILL_REGISTRY.map(skillToVerifiedItem);
         if (filters?.type) items = items.filter((i) => i.type === filters.type);
         if (filters?.category) items = items.filter((i) => i.category === filters.category);
@@ -233,6 +262,7 @@ export async function getAllVerifiedItems(): Promise<VerifiedItem[]> {
     const snap = await getDocs(query(collection(db, COLLECTION)));
 
     if (snap.empty) {
+        console.warn("[verified-registry] getAllVerifiedItems: Firestore empty — using static fallback (deprecated).");
         return SKILL_REGISTRY.map(skillToVerifiedItem);
     }
 
@@ -251,8 +281,11 @@ export async function getVerifiedItem(id: string): Promise<VerifiedItem | null> 
         return docToVerifiedItem(snap.id, snap.data());
     }
 
-    // Fallback to static registry
+    // Deprecated fallback to static registry
     const staticItem = SKILL_REGISTRY.find((s) => s.id === id);
+    if (staticItem) {
+        console.warn(`[verified-registry] getVerifiedItem("${id}"): not in Firestore — using static fallback (deprecated).`);
+    }
     return staticItem ? skillToVerifiedItem(staticItem) : null;
 }
 

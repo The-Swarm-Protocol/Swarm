@@ -10,9 +10,10 @@ interface PriceSummaryProps {
   agentCount: number;
   onExecute: () => void;
   executing: boolean;
+  isPreview?: boolean;
 }
 
-export function PriceSummary({ validation, agentCount, onExecute, executing }: PriceSummaryProps) {
+export function PriceSummary({ validation, agentCount, onExecute, executing, isPreview }: PriceSummaryProps) {
   return (
     <div className="border-t border-border bg-card px-4 py-3 flex items-center justify-between gap-4">
       <div className="flex items-center gap-4">
@@ -31,13 +32,22 @@ export function PriceSummary({ validation, agentCount, onExecute, executing }: P
             {validation.errors[0]}
           </Badge>
         )}
+        {isPreview && (
+          <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-xs">
+            Preview — execution engine coming soon
+          </Badge>
+        )}
       </div>
       <Button
         onClick={onExecute}
         disabled={!validation.isValid || executing}
         className="bg-amber-600 hover:bg-amber-700 text-black disabled:opacity-50"
       >
-        {executing ? 'Executing...' : `Execute Swarm (${formatCostCents(validation.totalCostCents)})`}
+        {executing
+          ? 'Executing...'
+          : isPreview
+            ? `Save Preview (${formatCostCents(validation.totalCostCents)})`
+            : `Execute Swarm (${formatCostCents(validation.totalCostCents)})`}
       </Button>
     </div>
   );

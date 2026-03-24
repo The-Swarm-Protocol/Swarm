@@ -180,7 +180,7 @@ Built for solo founders, startups, and teams who need to command multiple AI age
 | **Unified Publishing API** | Shipped | `POST /api/v1/marketplace/publish` + `GET /api/v1/marketplace/my-items` — agents, humans, and companies can publish and manage marketplace items programmatically. |
 | **Compute Platform** | Shipped | Multi-cloud VM/container orchestration with Azure VMs (full lifecycle + dynamic networking), E2B sandboxes, Swarm Nodes. Real clone (snapshot→disk→VM), provider-backed snapshots, VNC access, state management with auto-recovery, complete resource cleanup. |
 | **Chainlink CRE Workflow** | Partial | Workflow defined; simulation-ready, not deployed to production |
-| **Payment Processing** | Planned | Pricing models defined (USD/HBAR); no Stripe/PayPal integration |
+| **Payment Processing (Stripe)** | Shipped | Stripe Checkout for subscriptions (monthly/yearly/lifetime), webhook handler for lifecycle events (activate, renew, cancel), transaction recording with platform fee calculation |
 | **Slack / Email / Calendar** | Planned | Referenced in types; no implementation |
 
 ## Use Cases
@@ -233,7 +233,7 @@ A runtime capability registration system for extending agent capabilities. Ships
 - **Capability Resolver** — `getAgentCapabilities(agentId, orgId)` merges org mod installations with agent assignments to produce a clean tool list for each agent.
 - **Permission Scopes** — Every capability declares what it needs: `read`, `write`, `execute`, `external_api`, `wallet_access`, `webhook_access`, `cross_chain_message`, `sensitive_data_access`.
 - **Community Submissions** — Submit custom mods, plugins, skills, skins, and agent personas with approval workflow. Type-specific fields (skin colors, mod manifests, SOUL templates) for rich submissions.
-- **Subscriptions** — Monthly, yearly, or lifetime pricing with USD/HBAR support *(pricing models defined, no payment processor connected)*
+- **Subscriptions** — Monthly, yearly, or lifetime pricing via Stripe Checkout with webhook-driven activation, renewal, and cancellation. USD/HBAR pricing models defined.
 - **Mod Detail Pages** — Click any marketplace item to see full feature breakdowns: tools, workflows, agent skills, code examples, and registered capabilities with permission scope badges
 - **Sidebar Modifications Section** — Installed mods appear in a dedicated sidebar section with accent-colored theming
 
@@ -821,7 +821,7 @@ The deploy script auto-updates `SwarmApp/.env.local` with contract addresses.
 | `AZURE_CLIENT_SECRET` | Azure service principal secret | Azure provider disabled |
 | `E2B_API_KEY` | E2B API key for sandbox provisioning | E2B provider disabled |
 
-**Note:** If Azure credentials are missing, the provider factory silently falls back to stub mode. Set `AZURE_SUBSCRIPTION_ID` at minimum to enable real Azure VM provisioning. See [COMPUTE_REALITY_CHECK.md](COMPUTE_REALITY_CHECK.md) for the stub provider risk assessment.
+**Note:** If cloud provider credentials are missing when a specific provider is requested, the factory throws a `ProviderCredentialError` instead of silently falling back to stub mode. Set the required env vars for your chosen provider. The stub provider is only used when no provider is explicitly requested and no credentials are detected. See [COMPUTE_REALITY_CHECK.md](COMPUTE_REALITY_CHECK.md) for details.
 
 #### Smart Contracts (SwarmApp/.env.local)
 
@@ -1265,8 +1265,8 @@ We're monitoring other chains for potential bridges:
 - **No built-in LLM** — Swarm is coordination infrastructure, not an AI runtime. Agents bring their own reasoning capabilities via OpenClaw or any LLM framework. The platform does not make LLM API calls.
 - **Agent coordination is human-managed** — Agents do not autonomously delegate tasks to each other or self-organize. Humans assign agents to projects, channels, and tasks. There is no automatic skill-based task routing.
 - **Swarm Protocol slots are notification-only** — Assigning an agent to a slot sends a message to the Agent Hub but does not trigger automated execution. The agent must independently act on its role.
-- **Marketplace is static** — The mod/capability framework is complete and ships 6 official mods via a static `SKILL_REGISTRY`. There is no dynamic community marketplace or external mod submission pipeline yet.
-- **No payment processing** — Pricing models are defined in the type system but no payment processor (Stripe, PayPal) is integrated. On-chain LINK/HBAR payments work via smart contracts for task bounties only.
+- **Official catalog seeds from static data** — The verified marketplace is backed by Firestore but seeds from a static `SKILL_REGISTRY` on first load and falls back to it if Firestore is empty. Community submissions are live via the publish API, but the official/verified catalog depends on seed data until fully migrated.
+- **Payment processing is Stripe-only** — Stripe Checkout handles marketplace subscriptions (monthly/yearly/lifetime) with webhook-driven lifecycle management. No PayPal or direct crypto payment integration yet. On-chain LINK/HBAR payments work via smart contracts for task bounties only.
 - **Gateway feature is registry-only** — You can register and track gateways, but there is no runtime for executing agents on remote gateways.
 - **Workflow builder is visual-only** — The drag-and-drop canvas works and validates node connections, but there is no execution engine to run workflows.
 - **Memory search is text-based** — The memory system stores and retrieves agent memories from Firestore. There are no vector embeddings or semantic search despite the `vector` type field.

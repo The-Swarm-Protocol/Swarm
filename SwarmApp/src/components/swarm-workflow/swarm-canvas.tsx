@@ -36,7 +36,7 @@ function SwarmCanvasInner({ agents }: SwarmCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReturnType<typeof Object> | null>(null);
-  const [executing, setExecuting] = useState(false);
+  const [showPreviewBanner, setShowPreviewBanner] = useState(false);
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -90,12 +90,10 @@ function SwarmCanvasInner({ agents }: SwarmCanvasProps) {
 
   const agentNodeCount = nodes.filter(n => n.type === 'agent').length;
 
-  const handleExecute = async () => {
+  const handleSavePreview = () => {
     if (!validation.isValid) return;
-    setExecuting(true);
-    // Future: serialize workflow to Firestore, trigger backend execution
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setExecuting(false);
+    setShowPreviewBanner(true);
+    setTimeout(() => setShowPreviewBanner(false), 4000);
   };
 
   return (
@@ -146,11 +144,18 @@ function SwarmCanvasInner({ agents }: SwarmCanvasProps) {
         <NodePalette agents={agents} />
       </div>
 
+      {showPreviewBanner && (
+        <div className="bg-amber-50 border-t border-amber-200 px-4 py-2 text-sm text-amber-800 text-center">
+          Workflow validated and saved as preview. Execution engine coming soon.
+        </div>
+      )}
+
       <PriceSummary
         validation={validation}
         agentCount={agentNodeCount}
-        onExecute={handleExecute}
-        executing={executing}
+        onExecute={handleSavePreview}
+        executing={false}
+        isPreview
       />
     </div>
   );

@@ -1,49 +1,69 @@
-# OpenClaw Office Sim — Product Requirements Document
+# OpenClaw Office Sim Studio — Product Requirements Document
 
-**Status:** Draft v1.0
+**Status:** Draft v2.0 (post-audit revision)
 **Date:** 2026-03-24
 **Author:** Swarm Core
-**Mod ID:** `mod-openclaw-office-sim`
-**Pricing:** Paid (Premium Mod)
+**Mod ID:** `openclaw-office-sim`
+**Pricing:** Tiered (Free 2D / Premium 3D+Studio)
 
 ---
 
 ## 1. Executive Summary
 
-OpenClaw Office Sim is a paid Swarm mod that transforms the dashboard into a living virtual office where OpenClaw multi-agent workflows are visualized as employees working in a spatial environment. Users watch their AI agents collaborate in real-time across 2D isometric and 3D immersive views — sitting at desks, attending meetings, training skills, and delivering completed work — while retaining full operational control through integrated management panels.
+OpenClaw Office Sim Studio is a Swarm mod that transforms the dashboard into a living virtual office. AI agents become visible employees — sitting at desks, walking to meetings, blocked at whiteboards, sprinting through tool calls. Two synchronized views serve distinct needs: a **2D command-center map** for operational clarity, and a **3D immersive simulation** for cinematic explainability.
 
-The mod bridges the gap between Swarm's existing agent management (fleet, tasks, scheduler) and the emerging "office-as-metaphor" visualization paradigm pioneered by openclaw-office, Claw3D, tenacitOS, and claw-empire. It is the first Swarm mod to combine spatial agent visualization with production ops tooling in a single premium experience.
+The premium tier adds a **generative design studio** where users create custom office environments: ComfyUI powers visual concept generation (themes, avatar portraits, VFX), and Meshy converts approved concepts into production 3D assets (GLB/GLTF). The result is an office that looks the way *you* designed it.
+
+### Architecture Decision: Single Base + Donor Components
+
+This mod is built on **one base project** with **targeted borrowing** from three donor projects — not a mashup of four frontends.
+
+| Layer | Source | What We Take |
+|-------|--------|-------------|
+| **Base shell** | [openclaw-office](https://github.com/WW-AI-Lab/openclaw-office) | Perception engine, event pipeline (classify → aggregate → narrate → hold), dual 2D/3D rendering model, Zustand store shape, gateway adapter pattern, speech bubbles with streaming Markdown |
+| **3D ideas** | [Claw3D](https://github.com/iamlukethedev/Claw3D) | Functional room semantics (gym=training, server=infra), credential-safe proxy architecture (browser → server → gateway), layout editor concept |
+| **Ops panels** | [tenacitOS](https://github.com/carlosazaustre/tenacitOS) | Cost tracking pipeline pattern, session transcript viewer, heatmap activity feeds, multiple art style support |
+| **Behavioral semantics** | [claw-empire](https://github.com/GreenSheep01201/claw-empire) | Department-based spatial organization, workflow packs, CEO oversight metaphor for task delegation, XP/progression concepts |
+| **Premium differentiator** | ComfyUI + Meshy | Generative concept art → 3D asset pipeline. No other office-sim mod has this. |
+
+**Why this split:**
+- openclaw-office has the most architecturally mature event model. Building on its perception engine means one coherent state machine instead of gluing together four incompatible event systems.
+- The other three repos contribute *design patterns and UX ideas*, not code. We don't import their frontends — we re-implement their best concepts within the openclaw-office architecture.
+- ComfyUI + Meshy is the premium moat. The open-source repos are free. Our value-add is the generative studio.
 
 ---
 
 ## 2. Problem
 
 ### For Swarm Users
-- **Agent activity is invisible.** Current dashboard shows agent lists and status badges, but there is no spatial or temporal representation of what agents are actually doing, who they're collaborating with, or how work flows between them.
-- **Multi-agent coordination is opaque.** When 3-6 agents run concurrently on sub-tasks, users cannot see the parent-child hierarchy, collaboration sessions, or task handoff patterns without digging through logs.
-- **No ambient monitoring.** Users must actively check dashboards. There is no "leave it running on a second monitor" experience that passively communicates system health and agent activity.
-- **Status is binary.** Agents are "online" or "offline." There is no visual distinction between thinking, tool-calling, waiting, spawning sub-agents, or encountering errors.
+- **Agent activity is invisible.** Current dashboard shows agent lists and status badges — no spatial or temporal representation of what agents are doing, who they're collaborating with, or how work flows between them.
+- **Multi-agent coordination is opaque.** When 3–6 agents run concurrently on sub-tasks, users cannot see parent-child hierarchy, collaboration sessions, or task handoff patterns without digging through logs.
+- **No ambient monitoring.** Users must actively check dashboards. No "leave it on a second monitor" experience that passively communicates system health.
+- **Status is binary.** Agents are "online" or "offline." No visual distinction between thinking, tool-calling, waiting, spawning sub-agents, or encountering errors.
 
 ### For the Market
-- The open-source ecosystem (openclaw-office, Claw3D, tenacitOS, claw-empire) proves strong demand for office-metaphor agent visualization, with 2,800+ combined stars in under 5 weeks.
-- These projects are standalone tools tightly coupled to OpenClaw's gateway protocol. No equivalent exists as an embeddable mod within an existing agent management platform.
-- Users who want this experience today must self-host a separate application, manage a WebSocket gateway, and context-switch between their agent platform and the visualization tool.
+- The open-source ecosystem (2,800+ combined stars in <5 weeks) proves demand. But every project is standalone, tightly coupled to OpenClaw's gateway. None embeds into an existing agent management platform.
+- Users wanting this experience today must self-host a separate app, manage a WebSocket gateway, and context-switch between platforms.
 
 ---
 
 ## 3. Solution
 
-A premium Swarm mod that provides:
+### Tier 1: Free — "Watch Your Agents Work"
+1. **2D Command-Center Map** — SVG floor plan, agent desks, status indicators, speech bubbles, collaboration lines, zone layout. Information-dense, low-resource, always-on.
+2. **Agent Detail Drawer** — Click any agent to inspect status, current task, model, tool call count, logs.
+3. **Basic Status Mapping** — 9 visual states (idle, active, thinking, tool_calling, speaking, error, blocked, offline, spawning).
 
-1. **2D Isometric Office** — Lightweight SVG/CSS view showing agents at desks with status indicators, speech bubbles, collaboration lines, and zone-based spatial layout. Information-dense, low-resource, always-on.
+### Tier 2: Premium ($9.99/mo) — "Run Your Office"
+4. **3D Immersive Office** — React Three Fiber scene with procedural avatars, furnished rooms, A* pathfinding, ambient animations, spawn/despawn effects. Background mode pins the scene behind dashboard content.
+5. **Ops Overlay Panels** — Slide-in panels for task board, cost metrics, terminal stream, session transcripts. Patterns borrowed from tenacitOS's ops dashboard approach.
+6. **Functional Room Semantics** — Desk Area (working), Meeting Room (collaboration), Server Room (infra tasks), Break Room (idle), Gym (training/fine-tuning). Zone assignments driven by agent state — concept from Claw3D.
+7. **Office Builder** — Drag-and-drop 2D editor for arranging desks, rooms, furniture. Snap-to-grid, rotation, templates. Persisted per-org.
 
-2. **3D Immersive Office** — React Three Fiber scene with procedural voxel avatars, furniture-filled rooms (desks, meeting areas, server room, break room), A* pathfinding, and ambient animations. Cinematic and engaging.
-
-3. **Ops Overlay Panels** — Slide-in panels for agent details, task progress, live terminal output, session transcripts, and cost tracking — accessible by clicking agents or objects in either view.
-
-4. **Real-Time Event Pipeline** — Connects to Swarm's existing agent API and WebSocket events, transforms raw events through a perception engine (classify → aggregate → narrate → render), and drives all visual updates.
-
-5. **Office Customization** — Drag-and-drop office builder for arranging desks, rooms, and furniture. Persisted per-org. Multiple floor plan templates included.
+### Tier 3: Studio ($19.99/mo) — "Design Your Office"
+8. **ComfyUI Concept Generator** — Node-based generative workflow for office themes, avatar portraits, VFX concepts, texture ideation. Runs on user's ComfyUI instance or Swarm's hosted endpoint.
+9. **Meshy Asset Generator** — Text-to-3D and image-to-3D conversion. Approved ComfyUI concepts → production GLB/GLTF assets for the office scene.
+10. **Asset Placement & Theme Manager** — Place generated assets in the office, save themes, share via marketplace.
 
 ---
 
@@ -52,152 +72,185 @@ A premium Swarm mod that provides:
 | Criterion | Assessment |
 |-----------|-----------|
 | **Required for base functionality?** | No. Swarm's agent management works without spatial visualization. |
-| **Resource footprint** | 3D rendering (Three.js, R3F) adds ~500KB+ to bundle and continuous GPU usage. Not appropriate for all users. |
-| **Audience** | Power users and teams running 3+ concurrent agents who benefit from ambient monitoring. Not needed for single-agent or occasional users. |
-| **Maintenance surface** | 3D scenes, pathfinding, avatar systems, and office builders require specialized maintenance separate from core dashboard concerns. |
-| **Revenue opportunity** | Premium visualization is a proven SaaS upsell. Users who derive value from ambient monitoring will pay for it. |
-| **Precedent** | All four reference projects (openclaw-office, Claw3D, tenacitOS, claw-empire) ship as standalone applications, confirming this is a discrete product surface. |
+| **Resource footprint** | 3D rendering adds ~500KB+ to bundle + continuous GPU. Not appropriate for all users. |
+| **Audience** | Power users running 3+ concurrent agents. Single-agent users don't need this. |
+| **Maintenance surface** | 3D scenes, pathfinding, avatar systems, generative pipelines — all orthogonal to core dashboard. |
+| **Revenue opportunity** | Three-tier pricing captures casual users (free 2D), power users ($9.99 3D+ops), and creative users ($19.99 studio). |
+| **Precedent** | All four reference projects ship as standalone apps, confirming this is a discrete product surface. |
 
 ---
 
 ## 5. Target Users
 
-### Primary: Multi-Agent Power Users
-- Run 3-6+ agents concurrently across tasks
-- Need ambient monitoring on a second screen or background tab
-- Want to understand collaboration patterns and bottleneck sources
-- Currently context-switch between Swarm dashboard and terminal/logs
+### P1 — Solo Developer ("The Builder")
+- Runs 3–10 agents locally or on a single VPS
+- Wants to **see** what each agent is doing without reading logs
+- Needs quick context switches: "which agent is stuck?" → click → inspect → unblock
+- **Tier:** Free (2D) or Premium (3D)
 
-### Secondary: Team Leads and Org Admins
-- Oversee agent fleets across an organization
-- Need at-a-glance understanding of agent utilization and health
-- Want shareable visual status for stakeholder communication
-- Value the "wow factor" for demos and presentations
+### P2 — Ops/Admin ("The Operator")
+- Manages 10–50+ agents across an organization
+- Needs filtering, search, batch operations, alerting
+- Uses 2D view as command center — multiple monitors, always-on
+- Cares about uptime, error rates, cost attribution
+- **Tier:** Premium (ops panels + cost tracking)
 
-### Tertiary: Enthusiast/Hobbyist Users
-- Enjoy the office-sim aesthetic and gamification layer
-- Want to customize their office environment
-- Engage with avatar customization and ambient office life
+### P3 — Demo/Pitch Presenter ("The Storyteller")
+- Showing the system to investors, customers, executives
+- Needs the 3D view to create a "wow" moment
+- Wants cinematic experience: smooth camera, clean UI
+- **Tier:** Premium (3D + background mode)
+
+### P4 — Creative Designer ("The Worldbuilder")
+- Wants the office to reflect a unique brand or aesthetic
+- Explores style directions (cyberpunk, cozy startup, space station)
+- Rapid iteration: prompt → generate → preview → approve → place
+- **Tier:** Studio (ComfyUI + Meshy)
 
 ---
 
 ## 6. Functional Requirements
 
-### 6.1 Office Views
+### 6.1 Base Layer (from openclaw-office architecture)
 
-#### FR-1: 2D Isometric Office
-- SVG-rendered isometric floor plan with configurable desk zones
-- Agent avatars placed at assigned desks with deterministic appearance from agent ID
-- Real-time status indicators: idle (pulse), thinking (spin), tool-calling (flash), speaking (wave), error (shake)
-- Speech bubbles showing current activity summary (truncated, 60-char max)
-- Collaboration lines between agents sharing a session (animated dash, opacity decays after 60s inactivity)
-- Zone labels: Work Area, Meeting Room, Break Room, Server Room
-- Click agent → slide-in detail panel
-- Minimum 6, maximum 24 agent capacity
+#### FR-1: Perception Engine
+The core event-processing pipeline. All visual behavior derives from this.
 
-#### FR-2: 3D Immersive Office
-- React Three Fiber scene with orbit controls (default) and first-person WASD (toggle)
-- Procedural voxel avatars with customizable body, hair, clothing, and accessories
-- Furniture from primitive geometries: desks, chairs, monitors, server racks, plants, coffee machine, whiteboard
-- Room types with functional semantics:
-  - **Desk Area** — agents "working" (active task execution)
-  - **Meeting Room** — agents in shared sessions cluster here with collaboration lines
-  - **Server Room** — agents performing infrastructure/deployment tasks
-  - **Break Room** — idle agents with no active tasks
-  - **Gym** — agents "training" (skill installation or model fine-tuning)
-- A* grid-based pathfinding with collision avoidance around furniture
-- Smooth position interpolation (lerp 0.15) and rotation interpolation (lerp 0.12)
-- Spawn animation (portal effect) when agents come online
-- Despawn animation (walk to corridor, fade) when agents go offline
-- Day/night ambient lighting cycle (optional, configurable)
-- Canvas at configurable opacity (default 100% for dedicated view, 35% for background mode)
-- `powerPreference: "low-power"`, fog fade, code-split via `dynamic({ ssr: false })`
+```
+Swarm Agent API (HTTP poll 5s / future WebSocket)
+        │
+        ▼
+    Event Ingestion (normalize raw events to OfficeEvent schema)
+        │
+        ▼
+    Event Classifier (lifecycle | tool | assistant | error × severity)
+        │
+        ▼
+    Event Aggregator (group related events in 2s window)
+        │
+        ▼
+    Narrative Generator (human-readable speech bubbles)
+        │
+        ▼
+    Hold Controller (minimum 3s display, anti-flicker)
+        │
+        ▼
+    State Machine (debounced agent state transitions)
+        │
+        ▼
+    Office Store (Zustand → React components)
+```
 
-#### FR-3: View Toggle
-- Seamless switch between 2D and 3D views with state preservation
-- "Background mode" toggle pins the 3D view behind dashboard content at reduced opacity (reuses Mecha LaunchPad pattern)
-- View preference persisted per-user
+This is the single most important architectural decision. The perception engine is what makes an office sim feel *alive* rather than a status dashboard with sprites. openclaw-office's pipeline is the most mature implementation. We adopt its classify → aggregate → narrate → hold pattern exactly, replacing only the ingestion adapter (OpenClaw Gateway → Swarm Agent API).
 
-### 6.2 Agent Visualization
-
-#### FR-4: Agent Status Mapping
+#### FR-2: Agent Status Mapping
 Map Swarm agent states to visual behaviors:
 
-| Swarm State | Office Behavior | Visual Cue |
-|-------------|----------------|------------|
-| `online` + idle | Sitting at desk, relaxed pose | Green pulse |
-| `online` + active task | Sitting at desk, typing animation | Blue glow |
-| `online` + thinking | Leaning back, thought bubble | Yellow spin |
-| `online` + tool call | Reaching for tools, screen flash | Cyan flash |
-| `online` + speaking/streaming | Animated speech bubble | White wave |
-| `online` + error | Red desk highlight, error icon | Red shake |
-| `busy` | In meeting room or server room | Yellow indicator |
-| `offline` | Empty desk, chair pushed back | Gray, no avatar |
-| `spawning` | Walking from corridor to desk | Portal spawn effect |
-| `retiring` | Walking from desk to corridor | Fade out |
+| Swarm State | Zone | Visual Cue | Speech Bubble |
+|-------------|------|------------|---------------|
+| `online` + idle | Desk (relaxed) | Green pulse | — |
+| `online` + active task | Desk (typing) | Blue glow | "Working on: {task}" |
+| `online` + thinking | Desk (leaned back) | Yellow spin | "Thinking..." |
+| `online` + tool call | Desk (reaching) | Cyan flash | "Using {toolName}" |
+| `online` + speaking | Desk (speech bubble) | White wave | Streaming content |
+| `online` + error | Desk (red highlight) | Red shake | Error message |
+| `busy` | Meeting/Server Room | Yellow indicator | "In session with {agents}" |
+| `offline` | Empty desk | Gray, no avatar | — |
+| `spawning` | Corridor → Desk | Portal spawn FX | "Initializing..." |
+| `blocked` | Desk (frozen) | Amber pulse | "Waiting on: {reason}" |
 
-#### FR-5: Agent Hierarchy Visualization
-- Parent-child relationships rendered as connecting lines (2D: SVG paths, 3D: tube geometry)
-- Sub-agents spawn at "hot desks" near their parent's desk
-- Minimum residency period (configurable, default 30s) before sub-agent retirement animation
-- Hierarchy depth indicated by line thickness (d=1 thick, d=2 medium, d=3 thin)
+#### FR-3: 2D Command-Center Map (Free Tier)
+- SVG-rendered floor plan with configurable desk zones
+- Agent avatars at assigned desks with deterministic appearance from agent ID hash
+- Real-time status animations (pulse, spin, flash, wave, shake)
+- Speech bubbles with narrative summaries (60-char max)
+- Collaboration lines between agents sharing sessions (animated dash, opacity decay at 60s)
+- Zone labels: Work Area, Meeting Room, Break Room, Server Room, Error Bay
+- Click agent → Agent Detail Drawer
+- Capacity: 6–24 agents (overflow to paginated list)
+- Zoom/pan with scroll wheel + drag
 
-#### FR-6: Collaboration Links
-- When multiple agents share a session/task, animated collaboration lines connect them
-- Line strength (opacity, thickness) proportional to interaction frequency
-- Links decay after 60s of inactivity
-- Collaboration triggers meeting-room gathering: agents pathfind to meeting area
+#### FR-4: Agent Detail Drawer (Free Tier)
+- Slide-in panel from right (400px)
+- Shows: name, ASN, status badge, current task, assigned model, uptime, tool call count, last active
+- Quick actions: retry, pause, view logs, reassign task
+- Parent/child agent relationships
+- Accessible from both 2D and 3D views
 
-### 6.3 Ops Overlay Panels
+### 6.2 Premium Layer
 
-#### FR-7: Agent Detail Panel
-- Triggered by clicking an agent in either view
-- Shows: name, status, current task, assigned model, uptime, tool call count, last activity
-- Live terminal output stream (last 50 lines, auto-scroll)
-- Session transcript viewer (user/assistant/tool_use messages as styled bubbles)
-- Quick actions: pause, resume, reassign task, kill process
+#### FR-5: 3D Immersive Office
+- React Three Fiber scene with orbit controls (default), first-person WASD (toggle)
+- Procedural avatars: torso, head, arms, legs with status-colored emissive materials
+- Furniture primitives: desks, chairs, monitors, server racks, plants, coffee machine, whiteboard
+- A* grid-based pathfinding with furniture collision avoidance
+- Smooth position lerp (0.15) and rotation lerp (0.12)
+- Spawn animation (portal) on agent connect, despawn (fade) on disconnect
+- Canvas at configurable opacity (100% dedicated, 35% background mode)
+- `powerPreference: "low-power"`, fog, code-split via `dynamic({ ssr: false })`
+- Day/night ambient lighting cycle (optional)
 
-#### FR-8: Task Board Overlay
-- Kanban-style overlay (Inbox → Planned → In Progress → Review → Done)
-- Drag-and-drop task assignment to agents
-- Task cards show: title, assigned agent avatar, status badge, elapsed time
-- Click task → highlights assigned agent in office view
+#### FR-6: Functional Room Semantics (from Claw3D)
+Agents don't just sit at desks — they move to rooms based on what they're doing:
 
-#### FR-9: Cost & Metrics Panel
-- Token usage by agent (bar chart)
-- Cost trend line (daily, hourly)
-- Model breakdown (pie chart)
-- Budget threshold alerts
-- Uses existing Swarm usage API
+| Agent Activity | Room | Animation |
+|---------------|------|-----------|
+| Active task execution | Desk Area | Typing, screen glow |
+| Shared session / collaboration | Meeting Room | Cluster around table, collaboration lines |
+| Infrastructure / deployment tasks | Server Room | Interact with server racks |
+| Idle, no tasks | Break Room | Relaxed pose, coffee machine |
+| Skill installation / fine-tuning | Gym | Exercise/training animation |
+| Error state | Error Bay | Red glow, distress animation |
 
-### 6.4 Office Customization
+Movement between rooms uses A* pathfinding with walk animations.
 
-#### FR-10: Office Builder
-- 2D drag-and-drop editor for arranging desk positions, rooms, and furniture
-- Snap-to-grid placement with rotation controls
-- Multiple floor plan templates: "Startup Loft" (open plan), "Corporate Floor" (cubicles), "Tech Lab" (server-heavy), "Creative Studio" (lounge-heavy)
+#### FR-7: Ops Overlay Panels (patterns from tenacitOS)
+- **Task Board Overlay** — Kanban (Inbox → Planned → In Progress → Review → Done), drag-and-drop agent assignment, click task → highlight agent
+- **Cost & Metrics Panel** — Token usage by agent (bar), cost trend (line), model breakdown (pie), budget alerts. Uses existing Swarm usage APIs.
+- **Terminal Stream** — Live agent terminal output, last 100 lines, auto-scroll
+- **Session Transcript Viewer** — Styled message bubbles (user/assistant/tool) with search and filter
+
+#### FR-8: Office Builder
+- 2D drag-and-drop editor for desk positions, rooms, furniture
+- Snap-to-grid, rotation controls
+- Templates: "Startup Loft" (open), "Corporate Floor" (cubicles), "Tech Lab" (server-heavy), "Creative Studio" (lounge-heavy)
 - Persisted per-org to Firestore
-- Export/import office layouts as JSON
+- Export/import layouts as JSON
 
-#### FR-11: Avatar Customization
-- Per-agent avatar editor accessible from agent detail panel
-- Customizable: skin tone (6), hair style (4) + color (8), clothing top/bottom/shoes (8 colors each), accessories (glasses, headset, hat, backpack)
-- Deterministic default from agent ID hash, fully overridable
-- Live 3D preview in editor modal
+#### FR-9: Collaboration & Hierarchy (from claw-empire behavioral semantics)
+- Parent-child relationships as connecting lines (2D: SVG paths, 3D: tube geometry)
+- Sub-agents spawn at hot desks near parent
+- Hierarchy depth → line thickness (d=1 thick, d=2 medium, d=3 thin)
+- Workflow pack awareness: agents grouped by department/workflow type
+- Task delegation visualization: CEO metaphor for orchestrator agents dispatching sub-tasks
 
-### 6.5 Real-Time Pipeline
+### 6.3 Studio Layer (ComfyUI + Meshy — Premium Differentiator)
 
-#### FR-12: Event Ingestion
-- Connect to Swarm agent API (`/api/agents?orgId=`) for initial state
-- Poll for updates every 5s (HTTP) or subscribe via WebSocket when available
-- Event types consumed: agent status change, task assignment, task completion, error, session start/end
+#### FR-10: ComfyUI Concept Generator
+- Node-based visual workflow embedded in the Studio tab
+- Prompt categories:
+  - **Office Themes** — "cyberpunk office", "cozy startup loft", "space station command center"
+  - **Avatar Portraits** — Agent-specific portraits from name + role + style prompt
+  - **Furniture Concepts** — "neon desk with holographic monitors", "wooden farmhouse table"
+  - **VFX Concepts** — Spawn effects, status auras, collaboration beam styles
+  - **Texture Ideation** — Floor tiles, wall materials, ceiling patterns
+- Connects to user's local ComfyUI instance or Swarm's hosted endpoint
+- Gallery view of generated concepts with approve/reject/regenerate actions
+- Approved concepts tagged for Meshy conversion
 
-#### FR-13: Perception Engine
-- **Event Classifier** — categorize events by type (lifecycle, tool, assistant, error) and severity (info, warning, error, critical)
-- **Event Aggregator** — group related events within 2s window (e.g., rapid tool calls become "using 3 tools")
-- **Narrative Generator** — produce human-readable summaries for speech bubbles ("Analyzing codebase...", "Writing test suite...", "Deploying to staging...")
-- **Hold Controller** — enforce minimum 3s display duration to prevent visual flicker on rapid state changes
-- **State Machine** — manage agent behavioral transitions with debounce (prevent thrashing between states)
+#### FR-11: Meshy Asset Generator
+- Text-to-3D: generate 3D meshes from text descriptions
+- Image-to-3D: convert approved ComfyUI concept art to GLB/GLTF
+- Preview in 3D viewport before placement
+- LOD (Level of Detail) variants for performance: high (editor), medium (3D view), low (background mode)
+- Asset library: saved generated assets reusable across offices
+
+#### FR-12: Asset Placement & Theme Manager
+- Place generated 3D assets into the office via drag-and-drop
+- Theme system: bundle of assets + layout + lighting into a named theme
+- Theme gallery with preview thumbnails
+- Publish themes to Swarm marketplace for other users
+- Import community themes
 
 ---
 
@@ -206,119 +259,98 @@ Map Swarm agent states to visual behaviors:
 ### 7.1 Module Structure
 
 ```
-src/mods/openclaw-office-sim/
-├── manifest.json
-├── README.md
-├── components/
-│   ├── office-2d/           # 2D isometric SVG components
-│   │   ├── FloorPlan.tsx
-│   │   ├── DeskUnit.tsx
-│   │   ├── AgentAvatar2D.tsx
-│   │   ├── CollaborationLine.tsx
-│   │   ├── SpeechBubble.tsx
-│   │   └── ZoneLabel.tsx
-│   ├── office-3d/           # 3D React Three Fiber components
-│   │   ├── OfficeScene.tsx
-│   │   ├── AgentModel.tsx
-│   │   ├── FurnitureModels.tsx
-│   │   ├── RoomManager.tsx
-│   │   ├── SpawnPortal.tsx
-│   │   ├── CollaborationTube.tsx
-│   │   ├── FirstPersonControls.tsx
-│   │   └── DayNightCycle.tsx
-│   ├── panels/              # Slide-in overlay panels
-│   │   ├── AgentDetailPanel.tsx
-│   │   ├── TaskBoardOverlay.tsx
-│   │   ├── CostMetricsPanel.tsx
-│   │   └── TerminalStream.tsx
-│   ├── builder/             # Office layout editor
-│   │   ├── OfficeBuilder.tsx
-│   │   ├── FurniturePalette.tsx
-│   │   └── GridCanvas.tsx
-│   ├── avatars/             # Avatar system
-│   │   ├── AvatarGenerator.ts
-│   │   ├── AvatarEditor.tsx
-│   │   └── AvatarPreview3D.tsx
-│   └── shared/              # Shared UI
-│       ├── ViewToggle.tsx
-│       ├── StatusBadge.tsx
-│       └── OfficeSidebar.tsx
-├── engine/                  # Perception & state engine
-│   ├── perception.ts        # Event classification + aggregation
-│   ├── narrative.ts         # Human-readable activity summaries
-│   ├── state-machine.ts     # Agent behavioral state transitions
-│   ├── hold-controller.ts   # Minimum display duration enforcement
-│   └── office-store.ts      # Zustand store for office state
-├── navigation/              # Pathfinding
-│   ├── pathfinding.ts       # A* grid-based navigation
-│   ├── nav-grid.ts          # Collision grid builder
-│   └── movement.ts          # Smooth interpolation + zone transitions
-├── layouts/                 # Floor plan templates
-│   ├── startup-loft.json
-│   ├── corporate-floor.json
-│   ├── tech-lab.json
-│   └── creative-studio.json
-└── types.ts                 # Shared type definitions
+src/components/mods/office-sim/
+├── types.ts                    # Shared type definitions
+├── office-store.ts             # React Context + useReducer store
+├── OfficeProvider.tsx           # Provider: data fetching, polling, state dispatch
+├── Office2D.tsx                # 2D SVG command-center view
+├── Office3D.tsx                # 3D React Three Fiber scene
+├── AgentDetailDrawer.tsx       # Agent inspection panel
+├── engine/
+│   ├── perception.ts           # Event classification + aggregation
+│   ├── narrative.ts            # Human-readable activity summaries
+│   ├── state-machine.ts        # Agent behavioral state transitions
+│   └── hold-controller.ts      # Anti-flicker display duration
+├── panels/
+│   ├── TaskBoardOverlay.tsx    # Kanban task management
+│   ├── CostMetricsPanel.tsx    # Usage/cost analytics
+│   ├── TerminalStream.tsx      # Live terminal output
+│   └── TranscriptViewer.tsx    # Session transcript
+├── builder/
+│   ├── OfficeBuilder.tsx       # Drag-and-drop layout editor
+│   ├── FurniturePalette.tsx    # Furniture selection
+│   └── GridCanvas.tsx          # Snap-to-grid placement
+├── studio/                     # Premium: ComfyUI + Meshy
+│   ├── ConceptGenerator.tsx    # ComfyUI workflow runner
+│   ├── AssetGenerator.tsx      # Meshy text/image-to-3D
+│   ├── AssetPlacer.tsx         # 3D drag-and-drop placement
+│   └── ThemeManager.tsx        # Theme bundle CRUD
+├── navigation/
+│   ├── pathfinding.ts          # A* grid navigation
+│   └── movement.ts             # Smooth interpolation
+└── layouts/
+    ├── startup-loft.json
+    ├── corporate-floor.json
+    ├── tech-lab.json
+    └── creative-studio.json
+
+src/app/(dashboard)/mods/office-sim/
+├── page.tsx                    # Home dashboard
+├── 2d/page.tsx                 # 2D office view
+├── 3d/page.tsx                 # 3D office view
+├── builder/page.tsx            # Office builder (premium)
+├── studio/page.tsx             # Generative studio (studio tier)
+└── replay/page.tsx             # Replay mode (premium)
 ```
 
 ### 7.2 Integration Points
 
-| Swarm System | Integration Method | Data Flow |
-|-------------|-------------------|-----------|
-| Agent Status | `GET /api/agents?orgId=` | Poll every 5s → office-store |
-| Task Management | Existing task/job APIs | Read task assignments, write reassignments |
+| Swarm System | Integration | Data Flow |
+|-------------|------------|-----------|
+| Agent Status | `GET /api/agents?orgId=` | Poll 5s → perception engine → store |
+| Task Management | Existing task/job APIs | Read assignments, write reassignments |
 | Session/Logs | Existing log APIs | Stream to terminal panel |
 | Usage/Cost | Existing usage APIs | Feed cost metrics panel |
 | Org Context | `useOrg()` hook | Office layout scoped per-org |
-| Skin System | `SkinContext` + `dashboard-shell.tsx` | Registered as mod with sidebar entry |
-| Firestore | Existing Firestore client | Persist office layouts, avatar customizations |
+| Mod System | `skills.ts` + sidebar | Registered with sidebarConfig |
+| Firestore | Existing client | Persist layouts, avatar customizations, themes |
+| ComfyUI | REST API (user-hosted or Swarm endpoint) | Concept generation requests/results |
+| Meshy | REST API (API key stored per-org) | 3D asset generation requests/results |
 
 ### 7.3 State Management
 
-```
-Swarm Agent API (HTTP polling / future WebSocket)
-        |
-        v
-    Event Ingestion Layer
-        |
-        v
-    Perception Engine (classify → aggregate → narrate → hold)
-        |
-        v
-    Office Zustand Store (agents Map, collaboration links, office layout, metrics)
-        |
-        v
-    React Components (2D / 3D / Panels / Builder)
-```
-
-**Store shape:**
+Based on openclaw-office's Zustand-style store, adapted to React Context + useReducer (matching Swarm's existing patterns):
 
 ```typescript
 interface OfficeState {
   agents: Map<string, VisualAgent>;
   collaborationLinks: CollaborationLink[];
-  officeLayout: OfficeLayout;
+  layout: OfficeLayout;
+  viewMode: "2d" | "3d" | "background";
   activePanel: PanelType | null;
   selectedAgentId: string | null;
-  viewMode: "2d" | "3d" | "background";
-  metrics: { totalTokens: number; activeTasks: number; errorCount: number };
+  connected: boolean;
+  metrics: {
+    activeCount: number;
+    taskCount: number;
+    errorCount: number;
+  };
 }
 
 interface VisualAgent {
   id: string;
   name: string;
   status: AgentVisualStatus;
-  position: { x: number; y: number };
-  targetPosition: { x: number; y: number };
-  path: { x: number; y: number }[];
-  zone: "desk" | "meeting" | "server" | "break" | "gym" | "corridor";
+  position: Position;
+  targetPosition: Position;
+  zone: AgentZone;
   currentTask: string | null;
   speechBubble: string | null;
-  avatar: AvatarProfile;
   parentAgentId: string | null;
   childAgentIds: string[];
   lastActiveAt: number;
   toolCallCount: number;
+  model: string | null;
 }
 ```
 
@@ -326,93 +358,96 @@ interface VisualAgent {
 
 | Metric | Target | Strategy |
 |--------|--------|----------|
-| Bundle size (mod) | < 800KB gzipped | Code-split via `dynamic({ ssr: false })`, tree-shake Three.js |
-| Initial load | < 2s on 4G | Lazy-load 3D scene, 2D view loads first |
-| Frame rate (3D) | 30fps minimum | Low-poly primitives, 8-segment cylinders, fog culling, `powerPreference: "low-power"` |
-| Memory (3D) | < 150MB | Dispose materials/geometries on unmount, shared material instances |
-| API polling | 5s interval | Batch agent + task status in single request, debounce store updates |
-| Agent capacity | 24 agents | Beyond 24, switch to paginated list with top-6 in office view |
+| Bundle size (mod) | < 800KB gzipped | Code-split 3D via `dynamic({ ssr: false })`, tree-shake Three.js |
+| Initial load (2D) | < 1s | SVG renders instantly, data polling starts async |
+| Initial load (3D) | < 3s | Lazy-load after 2D, progressive scene build |
+| Frame rate (3D) | 30fps min | Low-poly primitives, 8-segment cylinders, fog culling, `powerPreference: "low-power"` |
+| Memory (3D) | < 150MB | Shared materials, dispose on unmount |
+| API polling | 5s interval | Batch agent + task in single request, debounce store |
+| Agent capacity | 24 agents | Beyond 24, paginated list with top-8 in office view |
 
 ### 7.5 Dependencies
 
-All already installed in Swarm:
-- `three` (0.183), `@react-three/fiber` (9.5), `@react-three/drei` — 3D rendering
-- `zustand` — state management (add if not present, or use existing React context pattern)
-- No new dependencies required for MVP
+Already installed in Swarm:
+- `three` (0.183), `@react-three/fiber` (9.5) — 3D rendering
+- React Context + useReducer — state management (no Zustand needed)
+
+New dependencies (Studio tier only, code-split):
+- ComfyUI client SDK — REST API wrapper for workflow execution
+- Meshy SDK — text-to-3D / image-to-3D API wrapper
 
 ---
 
-## 8. MVP (v1.0) — "Watch Your Agents Work"
+## 8. MVP Scope (v1.0) — "Watch Your Agents Work"
 
-**Goal:** Deliver the core "living office" experience with enough visual fidelity and operational utility to justify a premium price point.
+**Goal:** Ship the free tier (2D + detail drawer) and core premium tier (3D office) with enough visual fidelity and operational utility to justify the premium price.
 
 ### Included in MVP
 
-| Feature | Priority | Complexity |
-|---------|----------|------------|
-| 2D isometric office with agent status | P0 | Medium |
-| 3D immersive office with procedural avatars | P0 | High |
-| View toggle (2D / 3D / background) | P0 | Low |
-| Agent status mapping (6 states) | P0 | Medium |
-| Agent detail panel (click to inspect) | P0 | Medium |
-| Speech bubbles with narrative summaries | P1 | Medium |
-| Collaboration lines between session-sharing agents | P1 | Medium |
-| A* pathfinding with furniture collision | P1 | Medium |
-| Spawn/despawn animations | P1 | Low |
-| 2 floor plan templates (startup loft, corporate floor) | P1 | Low |
-| Background mode (3D behind dashboard) | P1 | Low |
-| Cost metrics panel | P2 | Low (reuses existing APIs) |
+| Feature | Tier | Priority | Status |
+|---------|------|----------|--------|
+| 2D command-center map with status | Free | P0 | Done (basic) |
+| Agent detail drawer | Free | P0 | Done (basic) |
+| Status mapping (9 states) | Free | P0 | Done |
+| 3D office with procedural avatars | Premium | P0 | Done (basic) |
+| View toggle (2D / 3D) | Free | P0 | Done |
+| Home dashboard with overview cards | Free | P0 | Done |
+| Perception engine (classify → narrate) | Free | P1 | Pending |
+| Speech bubbles with narratives | Free | P1 | Pending |
+| Collaboration lines | Free | P1 | Pending |
+| A* pathfinding (3D) | Premium | P1 | Pending |
+| Spawn/despawn animations | Premium | P1 | Pending |
+| Background mode (3D behind dashboard) | Premium | P1 | Pending |
+| Cost metrics panel | Premium | P2 | Pending |
+| 2 floor plan templates | Free | P2 | Done (1 template) |
 
-### Excluded from MVP (deferred to v2)
+### Excluded from MVP
 
-- Office builder (drag-and-drop editor)
-- Avatar customization UI
-- First-person WASD controls
-- Task board overlay with drag-and-drop
-- Sub-agent hierarchy visualization
-- Day/night cycle
-- Meeting-room gathering behavior
-- Terminal stream panel
-- Gym/server-room functional semantics
-
-### MVP Milestones
-
-| Milestone | Deliverables | Est. Effort |
-|-----------|-------------|-------------|
-| M1: Foundation | Types, Zustand store, perception engine, event ingestion | Backend |
-| M2: 2D Office | FloorPlan, DeskUnit, AgentAvatar2D, StatusBadge, CollaborationLine | Frontend |
-| M3: 3D Office | OfficeScene, AgentModel (procedural), FurnitureModels, pathfinding, spawn FX | Frontend (heavy) |
-| M4: Panels | AgentDetailPanel, CostMetricsPanel, ViewToggle | Frontend |
-| M5: Integration | Mod registration (skills.ts, dashboard-shell), Firestore persistence, floor plans | Integration |
-| M6: Polish | Performance optimization, responsive layout, error boundaries, loading states | QA |
+- Office builder (v2.0)
+- Functional room semantics with pathfinding (v2.0)
+- Task board overlay (v2.0)
+- Terminal stream / session transcript (v2.1)
+- ComfyUI concept generator (v3.0)
+- Meshy asset generator (v3.0)
+- Theme manager / marketplace publishing (v3.0)
+- Replay mode (v2.1)
+- Avatar customization (v2.0)
+- First-person WASD controls (v2.0)
 
 ---
 
-## 9. V2 Roadmap — "Run Your Office"
+## 9. Roadmap
 
-### v2.0: Office Management
-- **Office Builder** — Drag-and-drop 2D editor with furniture palette, snap-to-grid, rotation, multi-floor support
-- **Avatar Customization** — Full editor modal with 6 body dimensions, 8 colors, 4 hair styles, accessories, live 3D preview
-- **Task Board Overlay** — Kanban overlay with drag-and-drop task-to-agent assignment
-- **First-Person Mode** — WASD + mouse fly-through of the 3D office
+### v1.0: "Watch" (Free + Premium Core)
+MVP as scoped above. 2D floor plan, 3D scene, agent detail drawer, basic perception engine.
 
-### v2.1: Deep Ops Integration
-- **Terminal Stream** — Live agent terminal output in slide-in panel (last 100 lines, auto-scroll)
-- **Session Transcript Viewer** — Styled message bubbles (user/assistant/tool) with search and filter
-- **Sub-Agent Hierarchy** — Visual parent-child lines, hot desk assignment, animated spawn/retire lifecycle
-- **Meeting Gathering** — Agents in shared sessions auto-cluster in meeting room with animated walk
+### v2.0: "Run" (Full Premium)
+- **Perception Engine v2** — Full classify → aggregate → narrate → hold pipeline with configurable hold durations and custom narrative templates
+- **Functional Room Semantics** — Agents move between rooms based on activity (from Claw3D patterns)
+- **Office Builder** — Drag-and-drop layout editor with furniture palette
+- **Ops Panels** — Task board, cost metrics, terminal stream (from tenacitOS patterns)
+- **Behavioral Semantics** — Department grouping, workflow packs, task delegation visualization (from claw-empire patterns)
+- **Avatar Customization** — Skin tone, hair, clothing, accessories
+- **First-Person Mode** — WASD + mouse walk-through
 
-### v2.2: Advanced Visualization
-- **Day/Night Cycle** — Ambient lighting shifts based on real clock or configurable schedule
-- **Gym Semantics** — Agents "training" during skill installation with exercise animations
-- **Server Room** — Agents performing deployment tasks enter server room with door sequence animation
-- **Interactive Furniture** — Click whiteboard → roadmap view, click coffee machine → energy/mood metrics, click file cabinet → memory browser
+### v2.1: "Observe"
+- **Replay Mode** — Timeline scrubbing, playback speed control, event-by-event stepping
+- **Session Transcripts** — Styled message bubbles (user/assistant/tool) with search
+- **Meeting Gathering** — Agents auto-cluster in meeting room during shared sessions
+- **Sub-Agent Hierarchy** — Animated spawn/retire lifecycle with hot desk assignment
 
-### v2.3: Social & Sharing
-- **Office Snapshots** — Capture and share office state as image/video
-- **Visitor Mode** — Read-only shareable link for stakeholders to watch the office
-- **Ambient Sound** — Optional office ambiance (typing, murmur, coffee machine) with volume control
-- **Achievement Badges** — Gamification layer for agent milestones (100 tasks, 1000 tool calls, etc.)
+### v3.0: "Create" (Studio Tier)
+- **ComfyUI Integration** — Concept generator for themes, avatars, furniture, VFX
+- **Meshy Integration** — Text/image-to-3D asset generation pipeline
+- **Asset Placement** — Drag-and-drop generated assets into office
+- **Theme Manager** — Bundle assets + layout + lighting into named themes
+- **Marketplace Publishing** — Share/sell themes via Swarm marketplace
+
+### v3.1: "Share"
+- **Office Snapshots** — Capture and share state as image/video
+- **Visitor Mode** — Read-only shareable link for stakeholders
+- **Ambient Sound** — Optional office ambiance with volume control
+- **Day/Night Cycle** — Real-clock or configurable lighting shifts
 
 ---
 
@@ -420,83 +455,90 @@ All already installed in Swarm:
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|-----------|
-| **3D performance on low-end devices** | High | Medium | 2D mode as fallback, `powerPreference: "low-power"`, configurable quality settings, agent cap at 24 |
-| **API polling latency** | Medium | Medium | 5s polling is sufficient for office metaphor (not real-time trading); migrate to WebSocket in v2 when Swarm supports it |
-| **Three.js bundle size** | Medium | Low | Already installed in Swarm (Mecha mod, FoidMommy). Code-split ensures non-users pay zero cost |
-| **Office metaphor feels gimmicky** | Medium | High | Ensure ops panels provide genuine utility beyond visualization. The office is the hook; the panels are the value |
-| **Scope creep toward full tenacitOS/Claw3D** | High | High | Strict MVP scoping. Office builder and advanced features gated behind v2. Ship the core loop first |
-| **Firestore costs for layout persistence** | Low | Low | Office layouts are small JSON documents (~2KB). One read/write per session |
-| **Mobile/tablet experience** | Medium | Medium | 2D mode works on mobile. 3D mode requires desktop. Progressive enhancement strategy |
+| **3D performance on low-end devices** | High | Medium | 2D free tier as fallback, `powerPreference: "low-power"`, agent cap at 24 |
+| **Perception engine complexity** | Medium | High | Start with simplified mapping (v1), iterate to full pipeline (v2). The engine is the product — invest here |
+| **ComfyUI/Meshy API stability** | Medium | Medium | Studio tier is v3.0, giving time for APIs to mature. Abstract behind adapter layer |
+| **Office metaphor feels gimmicky** | Medium | High | Ops panels provide genuine utility. The office is the hook; the panels are the value |
+| **Scope creep** | High | High | Strict tier gating. Ship free+premium before touching Studio |
+| **Free tier cannibalization** | Low | Medium | 2D is useful but limited. 3D and ops panels are clearly premium value |
+| **ComfyUI self-hosting barrier** | Medium | Low | Offer Swarm-hosted endpoint alongside BYO. Meshy is cloud-only (simpler) |
 
 ---
 
 ## 11. Key Performance Indicators
 
 ### Adoption
-- **Mod activation rate** — % of eligible orgs (3+ agents) that install the mod
-- **Daily active mod users** — unique users who open the office view per day
-- **View mode preference** — 2D vs 3D vs background mode split
-- **Session duration** — average time spent with office view open (target: 15min+ indicates ambient monitoring)
+- **Mod activation rate** — % of eligible orgs (3+ agents) that install
+- **Tier conversion** — Free → Premium → Studio conversion rates
+- **Daily active users** per tier
+- **View mode split** — 2D vs 3D vs background
 
 ### Engagement
-- **Panel interaction rate** — % of sessions where user clicks an agent to open detail panel
-- **Office builder usage** — % of users who customize their office layout (v2)
-- **Avatar customization rate** — % of agents with custom (non-default) avatars (v2)
+- **Session duration** — target 15min+ (ambient monitoring signal)
+- **Panel interaction rate** — % of sessions with agent detail clicks
+- **Studio generation count** — concepts generated per studio user per month
 
 ### Revenue
-- **Conversion rate** — free trial → paid subscription
-- **Churn rate** — monthly mod uninstall rate (target: < 5%)
-- **Revenue per user** — monthly revenue attributed to this mod
+- **MRR per tier** — Premium and Studio monthly recurring
+- **Churn rate** — target <5% monthly
+- **Studio asset marketplace GMV** — if/when theme selling launches
 
 ### Technical Health
-- **3D frame rate p50/p95** — measured via `requestAnimationFrame` timing
-- **Time to interactive** — office view fully loaded and agents visible
-- **Error rate** — perception engine failures, render errors, API timeouts
+- **3D frame rate p50/p95** — via `requestAnimationFrame` timing
+- **Time to interactive** — office view fully loaded
+- **Perception engine latency** — event ingestion → visual update delay
+- **Error rate** — render errors, API timeouts, perception failures
 
 ---
 
-## 12. Open Questions
+## 12. Resolved Questions (from v1.0 audit)
 
-1. **Pricing model** — One-time purchase, monthly subscription, or tiered (basic 2D free, 3D premium)? The reference projects are all free/open-source, so the value proposition must clearly exceed what's freely available.
+1. **Architecture approach** — Single base (openclaw-office) + donor patterns (Claw3D, tenacitOS, claw-empire). Not a mashup of four frontends. **Resolved.**
 
-2. **WebSocket vs polling** — Swarm currently uses HTTP polling for agent status. Should this mod introduce WebSocket infrastructure for real-time updates, or is 5s polling acceptable for the office metaphor?
+2. **Pricing model** — Three tiers: Free (2D), Premium $9.99/mo (3D + ops), Studio $19.99/mo (generative pipeline). **Resolved.**
 
-3. **Agent capacity ceiling** — openclaw-office supports 6 agents, Claw3D supports 6 desks, claw-empire scales higher with departments. What's the right maximum for Swarm's use case? Recommendation: 24 (4 rows of 6) with overflow to paginated list.
+3. **Premium differentiator** — ComfyUI + Meshy generative studio. No other office-sim mod has this. All reference repos are free/open-source, so our value proposition must exceed what's freely available — generative customization does this. **Resolved.**
 
-4. **Cross-mod interaction** — Should the office sim respect active skin themes (Mecha, JRPG, Pokemon)? E.g., mecha-themed office furniture, pixel-art office style. This adds significant scope but could be a powerful differentiator.
+4. **Agent capacity** — 24 max in office view, paginated list for overflow. **Resolved.**
 
-5. **Offline/demo mode** — Should the mod include a mock data mode for demos and screenshots when no agents are running? All four reference projects support this (openclaw-office's `VITE_MOCK=true`, Claw3D's mock adapter).
+5. **WebSocket vs polling** — Start with 5s HTTP polling (sufficient for office metaphor). Add WebSocket adapter in v2 when Swarm supports it. **Resolved.**
 
-6. **Sound** — Ambient office audio (typing, murmurs, notification chimes) would enhance immersion but adds bundle size and may annoy users. Ship silent with opt-in audio in v2?
+## 13. Open Questions
 
-7. **OpenClaw Gateway compatibility** — Should this mod speak the OpenClaw Gateway WebSocket protocol natively (enabling use with actual OpenClaw installations), or only work with Swarm's internal agent API? Supporting both expands the addressable market but increases integration complexity.
+1. **Demo/mock mode** — Should the mod include mock data for demos when no agents are running? All reference projects support this. Likely yes, but scope TBD.
+
+2. **Cross-skin integration** — Should the office sim respect active skin themes (Mecha, JRPG, Pokemon)? E.g., mecha-themed furniture. High-impact but high-scope.
+
+3. **ComfyUI hosting** — Swarm-hosted endpoint vs BYO-only for Studio tier. Hosting adds infrastructure cost but lowers adoption barrier.
+
+4. **OpenClaw Gateway compatibility** — Should this mod speak the OpenClaw Gateway WebSocket protocol natively? Expands addressable market but increases complexity.
+
+5. **Sound** — Ambient office audio. Ship silent, add opt-in in v3.1?
 
 ---
 
-## Appendix A: Reference Repository Analysis
+## Appendix A: Reference Repository Roles
 
-### A.1 openclaw-office (WW-AI-Lab)
-- **Best for:** Perception engine architecture, event pipeline design, three visualization tiers (2D/3D/Living Office), gateway adapter pattern
-- **Stars:** 419 | **Age:** 25 days | **License:** MIT
-- **Key insight:** The perception pipeline (classify → aggregate → narrate → hold) is the most architecturally mature approach to translating raw agent events into coherent visual behavior. Adopt this pattern.
+### A.1 openclaw-office (WW-AI-Lab) — **BASE SHELL**
+- **Role:** Primary architecture source. We adopt its perception engine, event pipeline, dual rendering model, and store shape.
+- **Stars:** 419 | **License:** MIT
+- **What we take:** classify → aggregate → narrate → hold pipeline, VisualAgent interface, gateway adapter pattern (rewritten for Swarm API), speech bubble streaming, 2D/3D view toggle architecture.
+- **What we don't take:** OpenClaw-specific gateway protocol, React-specific UI components (we have our own design system).
 
-### A.2 Claw3D (iamlukethedev)
-- **Best for:** Advanced 3D office with A* pathfinding, procedural voxel avatars, immersive screen overlays, office builder (Phaser-based)
-- **Stars:** 633 | **Age:** 9 days | **License:** MIT
-- **Key insight:** The two-hop WebSocket proxy (browser → studio server → gateway) keeps credentials server-side. The functional room semantics (gym = training, QA lab = testing, server room = infra) encode real workflow states into spatial metaphors.
+### A.2 Claw3D (iamlukethedev) — **3D & BUILDER DONOR**
+- **Role:** Design inspiration for 3D office features and layout editing.
+- **Stars:** 633 | **License:** MIT
+- **What we take:** Functional room semantics (zone = agent activity), credential-safe proxy pattern, A* pathfinding concept, immersive screen overlay ideas.
+- **What we don't take:** Phaser rendering engine (we use R3F), voxel avatar system (we use procedural primitives), WebSocket proxy architecture (Swarm has its own auth).
 
-### A.3 tenacitOS (carlosazaustre)
-- **Best for:** Comprehensive ops dashboard (30+ API routes), cost tracking pipeline, session transcript viewer, multiple 2D office art styles (Habbo, Stardew, Zelda)
-- **Stars:** 909 | **Age:** 31 days | **License:** MIT
-- **Key insight:** The cost tracking pipeline (collection script → SQLite → query layer → projections) is the most production-ready ops feature. The multiple art style experiments (Habbo, Stardew, Zelda) suggest user demand for themeable office aesthetics.
+### A.3 tenacitOS (carlosazaustre) — **OPS PANELS DONOR**
+- **Role:** Design patterns for operational dashboard features.
+- **Stars:** 909 | **License:** MIT
+- **What we take:** Cost tracking pipeline concept, session transcript viewer pattern, heatmap activity feed design, multiple art style support as inspiration for theme system.
+- **What we don't take:** 30+ API routes (we use Swarm's existing APIs), SQLite storage (we use Firestore), OS-desktop metaphor (we use office metaphor).
 
-### A.4 claw-empire (GreenSheep01201)
-- **Best for:** Company-sim interaction patterns (CEO metaphor, departments, Kanban, meetings, XP), multi-provider agent orchestration, PixiJS pixel-art rendering
-- **Stars:** 850 | **Age:** 5 weeks | **License:** Apache 2.0
-- **Key insight:** The CEO/company metaphor with departments, task delegation, and meeting minutes creates a compelling management game layer on top of agent orchestration. The workflow pack system (development, novel, report, video, research, roleplay) shows how to scope agent behavior to context.
-
-### Combined Ecosystem Metrics
-- **Total stars:** 2,811
-- **Total forks:** 519
-- **Average age:** 22 days
-- **Signal:** Explosive early interest in office-metaphor agent visualization. Market timing is now.
+### A.4 claw-empire (GreenSheep01201) — **BEHAVIORAL SEMANTICS DONOR**
+- **Role:** Design patterns for agent interaction and task management visualization.
+- **Stars:** 850 | **License:** Apache 2.0
+- **What we take:** Department-based spatial organization concept, workflow pack scoping, CEO oversight metaphor for orchestrator agents, task delegation visualization patterns.
+- **What we don't take:** PixiJS renderer (we use R3F), company-sim game mechanics, XP system (deferred exploration).
