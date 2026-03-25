@@ -11,6 +11,7 @@ import {
   sendToAgent as pubsubSendToAgent,
   closePubSub,
   isPubSubHealthy,
+  isPubSubEnabled,
   INSTANCE_ID,
 } from "./pubsub-client.mjs";
 import { routeMessage } from "./message-router.mjs";
@@ -26,8 +27,6 @@ import {
   unsubscribeAllChannels,
   getChannelSubscribers,
   checkRateLimit as redisCheckRateLimit,
-  publishToInstances,
-  subscribeToInstances,
   getInstanceId,
   checkRedisHealth,
 } from "./redis-state.mjs";
@@ -264,28 +263,30 @@ async function broadcastToAgent(agentId, message) {
     }
   }
 
-  // If not sent locally, check if agent is on another instance via Redis
+  // Cross-instance delivery via GCP Pub/Sub (at-least-once, ordered per agent).
+  // If agent is on another instance, that instance receives and delivers locally.
+  // Even if sent locally, we publish to Pub/Sub so that all instances tracking
+  // this agent's state stay aware (e.g. for logging, analytics).
   if (!sent) {
     try {
-      const agentInstance = await getAgentInstance(agentId);
-      if (agentInstance && agentInstance !== getInstanceId()) {
-        // Route to other instance via Redis pub/sub
-        await publishToInstances("websocket:broadcast", {
-          type: "send_to_agent",
-          agentId,
-          payload: typeof message === "string" ? JSON.parse(message) : message,
-        });
-        sent = true;
-      }
+      await pubsubSendToAgent(agentId, typeof message === "string" ? JSON.parse(message) : message);
     } catch (err) {
-      log("warn", "Failed to route message via Redis", { agentId, error: err.message });
+      log("warn", "Pub/Sub sendToAgent failed", { agentId, error: err.message });
+
+      // Fallback: check Redis for agent instance location and log warning
+      try {
+        const agentInstance = await getAgentInstance(agentId);
+        if (agentInstance && agentInstance !== getInstanceId()) {
+          log("warn", "Agent on another instance but Pub/Sub delivery failed", {
+            agentId,
+            targetInstance: agentInstance,
+          });
+        }
+      } catch {
+        // Redis also down — agent message dropped
+      }
     }
   }
-
-  // Cross-instance broadcast via Pub/Sub (fire-and-forget)
-  // Agent may be connected to a different instance
-  pubsubSendToAgent(agentId, typeof message === "string" ? JSON.parse(message) : message)
-    .catch(err => log("warn", "Pub/Sub sendToAgent failed", { agentId, error: err.message }));
 
   return sent;
 }
@@ -618,10 +619,10 @@ app.get("/health", async (_req, res) => {
   let totalConnections = 0;
   for (const conns of agentConnections.values()) totalConnections += conns.size;
 
-  // Check Pub/Sub health
-  const pubsubHealthy = await isPubSubHealthy();
+  // Check Pub/Sub health (primary cross-instance messaging)
+  const pubsubHealth = await isPubSubHealthy();
 
-  // Check Redis health
+  // Check Redis health (state store: presence, subscriptions, rate limits)
   const redisHealth = await checkRedisHealth();
 
   res.json({
@@ -631,10 +632,9 @@ app.get("/health", async (_req, res) => {
     agents: agentConnections.size,
     connections: totalConnections,
     channels: channelSubscribers.size,
-    pubsub: {
-      enabled: pubsubHealthy,
-      instanceId: INSTANCE_ID,
-    },
+    pubsub: typeof pubsubHealth === "object"
+      ? pubsubHealth
+      : { enabled: !!pubsubHealth, instanceId: INSTANCE_ID },
     redis: {
       healthy: redisHealth.healthy,
       instanceId: getInstanceId(),
@@ -1296,26 +1296,11 @@ log("info", "Assignment notification listener started");
 
 // ── Redis Initialization ────────────────────────────────────────────────────
 
-// Initialize Redis for distributed state management
+// Initialize Redis for distributed state management (presence, subscriptions, rate limits).
+// Cross-instance messaging is handled by GCP Pub/Sub (at-least-once delivery).
 try {
   await initRedis();
   log("info", `Redis initialized — instance: ${getInstanceId()}`);
-
-  // Subscribe to cross-instance WebSocket messages
-  await subscribeToInstances("websocket:broadcast", (message) => {
-    if (message.type === "send_to_agent" && message.agentId && message.payload) {
-      // Route message to local agent connections
-      const sockets = agentConnections.get(message.agentId);
-      if (sockets) {
-        const data = JSON.stringify(message.payload);
-        for (const ws of sockets) {
-          if (ws.readyState === 1) {
-            ws.send(data);
-          }
-        }
-      }
-    }
-  });
 } catch (err) {
   log("error", "Redis initialization failed — falling back to in-memory state", { error: err.message });
   log("warn", "Multi-instance scaling disabled");
@@ -1323,14 +1308,13 @@ try {
 
 // ── Pub/Sub Initialization ─────────────────────────────────────────────────
 
-// Initialize Pub/Sub client (optional - only if GCP_PROJECT_ID is set)
-const pubsubClient = initPubSub();
-if (pubsubClient) {
-  // Subscribe to messages from other hub instances
+// Initialize Pub/Sub (primary cross-instance messaging — at-least-once delivery)
+const pubsubReady = await initPubSub();
+if (pubsubReady) {
   subscribeToMessages(handleCrossInstanceMessage);
-  log("info", `Pub/Sub enabled — instance: ${INSTANCE_ID}`);
+  log("info", `Pub/Sub enabled — instance: ${INSTANCE_ID}, at-least-once delivery active`);
 } else {
-  log("warn", "Pub/Sub disabled — multi-instance broadcasting unavailable");
+  log("warn", "Pub/Sub disabled — cross-instance messaging unavailable (single-instance mode)");
 }
 
 // Graceful shutdown handler

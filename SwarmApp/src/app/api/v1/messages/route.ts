@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const sinceParam = searchParams.get("since") || "0";
     const sig = searchParams.get("sig");
 
-    const limited = rateLimit(agentId || "anon");
+    const limited = await rateLimit(agentId || "anon");
     if (limited) return limited;
 
     if (!agentId || !sig) {

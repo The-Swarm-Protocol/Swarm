@@ -28,7 +28,7 @@ export async function GET(
     const { id } = await params;
 
     // Rate limit
-    const limited = rateLimit(id);
+    const limited = await rateLimit(id);
     if (limited) return limited;
 
     // Auth

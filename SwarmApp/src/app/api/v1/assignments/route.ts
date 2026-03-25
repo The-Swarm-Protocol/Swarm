@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Rate limiting (60 requests/minute)
-    const rateLimitResponse = rateLimit(verified.agentId);
+    const rateLimitResponse = await rateLimit(verified.agentId);
     if (rateLimitResponse) return rateLimitResponse;
 
     // Parse request body
@@ -185,7 +185,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Rate limiting (60 requests/minute)
-    const rateLimitResponse = rateLimit(verified.agentId);
+    const rateLimitResponse = await rateLimit(verified.agentId);
     if (rateLimitResponse) return rateLimitResponse;
 
     // Get query params

@@ -24,7 +24,7 @@ const VALID_EVENT_TYPES = new Set([
 
 export async function POST(request: NextRequest) {
     // Rate limit
-    const limited = rateLimit("simulate");
+    const limited = await rateLimit("simulate");
     if (limited) return limited;
 
     // Auth

@@ -24,7 +24,7 @@ const MAX_WEBHOOKS_PER_AGENT = 10;
 // ─── POST: Register a webhook ──────────────────────────────────
 
 export async function POST(request: NextRequest) {
-    const limited = rateLimit("webhook-register");
+    const limited = await rateLimit("webhook-register");
     if (limited) return limited;
 
     const auth = await requirePlatformAdminOrAgent(request, "POST:/v1/credit/webhooks");
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
 // ─── GET: List webhooks ────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
-    const limited = rateLimit("webhook-list");
+    const limited = await rateLimit("webhook-list");
     if (limited) return limited;
 
     const auth = await requirePlatformAdminOrAgent(request, "GET:/v1/credit/webhooks");
@@ -174,7 +174,7 @@ export async function GET(request: NextRequest) {
 // ─── DELETE: Remove a webhook ──────────────────────────────────
 
 export async function DELETE(request: NextRequest) {
-    const limited = rateLimit("webhook-delete");
+    const limited = await rateLimit("webhook-delete");
     if (limited) return limited;
 
     const auth = await requirePlatformAdminOrAgent(request, "DELETE:/v1/credit/webhooks");

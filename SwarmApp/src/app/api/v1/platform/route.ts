@@ -22,7 +22,7 @@ import { getPlatformSnapshot } from "@/lib/firestore";
 export async function GET(req: NextRequest) {
     const url = req.nextUrl;
 
-    const limited = rateLimit(url.searchParams.get("agent") || url.searchParams.get("agentId") || "anon");
+    const limited = await rateLimit(url.searchParams.get("agent") || url.searchParams.get("agentId") || "anon");
     if (limited) return limited;
 
     // Try Ed25519 auth first

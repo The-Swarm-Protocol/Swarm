@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status') || 'active';
     const coordinatorId = searchParams.get('coordinatorId');
 
-    const limited = rateLimit(agentId || 'anon');
+    const limited = await rateLimit(agentId || 'anon');
     if (limited) return limited;
 
     if (!agentId || !sig || !ts) {
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     const sig = searchParams.get('sig');
     const ts = searchParams.get('ts');
 
-    const limited = rateLimit(agentId || 'anon');
+    const limited = await rateLimit(agentId || 'anon');
     if (limited) return limited;
 
     if (!agentId || !sig || !ts) {

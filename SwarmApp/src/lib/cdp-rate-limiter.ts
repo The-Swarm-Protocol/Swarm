@@ -1,113 +1,201 @@
 /**
- * CDP Rate Limiter — Sliding window per agent per capability
+ * CDP Rate Limiter — Sliding window per agent per capability.
  *
- * In-memory rate limiter with sliding window counters.
- * Resets on cold starts (acceptable for serverless; Firestore-backed
- * durability can be added later if needed).
+ * Primary: Upstash Redis (ZSET sliding window, shared across instances).
+ * Fallback: in-memory Map (when Redis is not configured).
  */
 
-// ═══════════════════════════════════════════════════════════════
-// Types
-// ═══════════════════════════════════════════════════════════════
+import { getRedis } from "@/lib/redis";
+
+// ── Types ────────────────────────────────────────────────────────────────────
 
 interface RateLimits {
-    maxPerMinute: number;
-    maxPerHour: number;
-    maxPerDay: number;
+  maxPerMinute: number;
+  maxPerHour: number;
+  maxPerDay: number;
 }
 
 interface RateLimitResult {
-    allowed: boolean;
-    remaining: number;
-    resetAt: number;
+  allowed: boolean;
+  remaining: number;
+  resetAt: number;
 }
 
-// ═══════════════════════════════════════════════════════════════
-// In-memory store
-// ═══════════════════════════════════════════════════════════════
+// ── Key helpers ──────────────────────────────────────────────────────────────
 
-/** Key: "agentId:capabilityKey", Value: array of timestamps (ms) */
+const KEY_PREFIX = "rl:cdp:";
+
+function redisKey(agentId: string, capabilityKey: string): string {
+  return `${KEY_PREFIX}${agentId}:${capabilityKey}`;
+}
+
+function memKey(agentId: string, capabilityKey: string): string {
+  return `${agentId}:${capabilityKey}`;
+}
+
+// ── In-memory fallback ───────────────────────────────────────────────────────
+
 const usageWindows = new Map<string, number[]>();
 
-function getKey(agentId: string, capabilityKey: string): string {
-    return `${agentId}:${capabilityKey}`;
-}
-
 function pruneOld(timestamps: number[], windowMs: number): number[] {
-    const cutoff = Date.now() - windowMs;
-    return timestamps.filter((t) => t > cutoff);
+  const cutoff = Date.now() - windowMs;
+  return timestamps.filter((t) => t > cutoff);
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Public API
-// ═══════════════════════════════════════════════════════════════
-
-export function checkRateLimit(
-    agentId: string,
-    capabilityKey: string,
-    limits: RateLimits,
+function fallbackCheck(
+  agentId: string,
+  capabilityKey: string,
+  limits: RateLimits,
 ): RateLimitResult {
-    const key = getKey(agentId, capabilityKey);
-    const timestamps = usageWindows.get(key) || [];
-    const now = Date.now();
+  const key = memKey(agentId, capabilityKey);
+  const timestamps = usageWindows.get(key) || [];
+  const now = Date.now();
 
-    // Check per-minute
-    const lastMinute = timestamps.filter((t) => t > now - 60_000);
-    if (lastMinute.length >= limits.maxPerMinute) {
-        const oldestInWindow = Math.min(...lastMinute);
-        return {
-            allowed: false,
-            remaining: 0,
-            resetAt: oldestInWindow + 60_000,
-        };
+  const lastMinute = timestamps.filter((t) => t > now - 60_000);
+  if (lastMinute.length >= limits.maxPerMinute) {
+    return { allowed: false, remaining: 0, resetAt: Math.min(...lastMinute) + 60_000 };
+  }
+
+  const lastHour = timestamps.filter((t) => t > now - 3_600_000);
+  if (lastHour.length >= limits.maxPerHour) {
+    return { allowed: false, remaining: 0, resetAt: Math.min(...lastHour) + 3_600_000 };
+  }
+
+  const lastDay = timestamps.filter((t) => t > now - 86_400_000);
+  if (lastDay.length >= limits.maxPerDay) {
+    return { allowed: false, remaining: 0, resetAt: Math.min(...lastDay) + 86_400_000 };
+  }
+
+  const remaining = Math.min(
+    limits.maxPerMinute - lastMinute.length,
+    limits.maxPerHour - lastHour.length,
+    limits.maxPerDay - lastDay.length,
+  );
+
+  return { allowed: true, remaining, resetAt: 0 };
+}
+
+function fallbackRecord(agentId: string, capabilityKey: string): void {
+  const key = memKey(agentId, capabilityKey);
+  const timestamps = usageWindows.get(key) || [];
+  timestamps.push(Date.now());
+  usageWindows.set(key, pruneOld(timestamps, 86_400_000));
+}
+
+// ── Redis implementation ─────────────────────────────────────────────────────
+
+async function redisCheck(
+  agentId: string,
+  capabilityKey: string,
+  limits: RateLimits,
+): Promise<RateLimitResult> {
+  const redis = getRedis()!;
+  const key = redisKey(agentId, capabilityKey);
+  const now = Date.now();
+
+  try {
+    // Count entries in each window
+    const pipe = redis.pipeline();
+    pipe.zcount(key, now - 60_000, "+inf");    // last minute
+    pipe.zcount(key, now - 3_600_000, "+inf"); // last hour
+    pipe.zcount(key, now - 86_400_000, "+inf"); // last day
+
+    const [minCount, hourCount, dayCount] = (await pipe.exec()) as number[];
+
+    if (minCount >= limits.maxPerMinute) {
+      // Get oldest in minute window for resetAt
+      const oldest = await redis.zrange(key, now - 60_000, "+inf", { byScore: true, offset: 0, count: 1 });
+      const resetAt = oldest.length > 0
+        ? (await redis.zscore(key, oldest[0]) as number) + 60_000
+        : now + 60_000;
+      return { allowed: false, remaining: 0, resetAt };
     }
 
-    // Check per-hour
-    const lastHour = timestamps.filter((t) => t > now - 3_600_000);
-    if (lastHour.length >= limits.maxPerHour) {
-        const oldestInWindow = Math.min(...lastHour);
-        return {
-            allowed: false,
-            remaining: 0,
-            resetAt: oldestInWindow + 3_600_000,
-        };
+    if (hourCount >= limits.maxPerHour) {
+      const oldest = await redis.zrange(key, now - 3_600_000, "+inf", { byScore: true, offset: 0, count: 1 });
+      const resetAt = oldest.length > 0
+        ? (await redis.zscore(key, oldest[0]) as number) + 3_600_000
+        : now + 3_600_000;
+      return { allowed: false, remaining: 0, resetAt };
     }
 
-    // Check per-day
-    const lastDay = timestamps.filter((t) => t > now - 86_400_000);
-    if (lastDay.length >= limits.maxPerDay) {
-        const oldestInWindow = Math.min(...lastDay);
-        return {
-            allowed: false,
-            remaining: 0,
-            resetAt: oldestInWindow + 86_400_000,
-        };
+    if (dayCount >= limits.maxPerDay) {
+      const oldest = await redis.zrange(key, now - 86_400_000, "+inf", { byScore: true, offset: 0, count: 1 });
+      const resetAt = oldest.length > 0
+        ? (await redis.zscore(key, oldest[0]) as number) + 86_400_000
+        : now + 86_400_000;
+      return { allowed: false, remaining: 0, resetAt };
     }
 
-    // Calculate remaining (most restrictive)
     const remaining = Math.min(
-        limits.maxPerMinute - lastMinute.length,
-        limits.maxPerHour - lastHour.length,
-        limits.maxPerDay - lastDay.length,
+      limits.maxPerMinute - minCount,
+      limits.maxPerHour - hourCount,
+      limits.maxPerDay - dayCount,
     );
 
     return { allowed: true, remaining, resetAt: 0 };
+  } catch (err) {
+    console.warn("[cdp-rate-limiter] Redis error, falling back to in-memory:", err);
+    return fallbackCheck(agentId, capabilityKey, limits);
+  }
 }
 
-export function recordUsage(agentId: string, capabilityKey: string): void {
-    const key = getKey(agentId, capabilityKey);
-    const timestamps = usageWindows.get(key) || [];
+async function redisRecord(agentId: string, capabilityKey: string): Promise<void> {
+  const redis = getRedis()!;
+  const key = redisKey(agentId, capabilityKey);
+  const now = Date.now();
 
-    // Add current timestamp
-    timestamps.push(Date.now());
-
-    // Prune entries older than 24h to prevent unbounded growth
-    const pruned = pruneOld(timestamps, 86_400_000);
-    usageWindows.set(key, pruned);
+  try {
+    const pipe = redis.pipeline();
+    // Add timestamped entry
+    pipe.zadd(key, {
+      score: now,
+      member: `${now}:${Math.random().toString(36).slice(2, 8)}`,
+    });
+    // Remove entries older than 24h
+    pipe.zremrangebyscore(key, 0, now - 86_400_000);
+    // Expire key after 25h (safety net)
+    pipe.expire(key, 90_000);
+    await pipe.exec();
+  } catch (err) {
+    console.warn("[cdp-rate-limiter] Redis record error:", err);
+    fallbackRecord(agentId, capabilityKey);
+  }
 }
 
-/** Reset rate limit counters for an agent (used in tests or admin override) */
-export function resetRateLimit(agentId: string, capabilityKey: string): void {
-    const key = getKey(agentId, capabilityKey);
-    usageWindows.delete(key);
+// ── Public API ───────────────────────────────────────────────────────────────
+
+export async function checkRateLimit(
+  agentId: string,
+  capabilityKey: string,
+  limits: RateLimits,
+): Promise<RateLimitResult> {
+  const redis = getRedis();
+  if (redis) return redisCheck(agentId, capabilityKey, limits);
+  return fallbackCheck(agentId, capabilityKey, limits);
+}
+
+export async function recordUsage(
+  agentId: string,
+  capabilityKey: string,
+): Promise<void> {
+  const redis = getRedis();
+  if (redis) return redisRecord(agentId, capabilityKey);
+  fallbackRecord(agentId, capabilityKey);
+}
+
+/** Reset rate limit counters for an agent (used in tests or admin override). */
+export async function resetRateLimit(
+  agentId: string,
+  capabilityKey: string,
+): Promise<void> {
+  const redis = getRedis();
+  if (redis) {
+    try {
+      await redis.del(redisKey(agentId, capabilityKey));
+    } catch {
+      // fall through
+    }
+  }
+  usageWindows.delete(memKey(agentId, capabilityKey));
 }

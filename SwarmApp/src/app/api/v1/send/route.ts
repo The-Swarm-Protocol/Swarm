@@ -10,6 +10,7 @@
 import { NextRequest } from "next/server";
 import { verifyAgentRequest, unauthorized } from "../verify";
 import { rateLimit } from "../rate-limit";
+import { getRedis } from "@/lib/redis";
 import { db } from "@/lib/firebase";
 import crypto from "crypto";
 import {
@@ -21,22 +22,63 @@ import {
 } from "firebase/firestore";
 
 // ── Replay Protection ────────────────────────────────────────────────────────
-// In-memory nonce tracking with TTL-based expiry.
-// LIMITATION: in-memory only — nonces are lost on server restart or across
-// multiple instances. For production multi-instance deployments, replace with
-// Redis (SET nonce EX <ttl> NX) or a Firestore TTL collection.
-const NONCE_TTL_MS = 10 * 60 * 1000; // 10 minutes — nonces older than this are evictable
-const MAX_NONCES = 50_000;
-const NONCE_SWEEP_INTERVAL_MS = 60 * 1000; // sweep expired nonces every 60s
-const usedNonces = new Map<string, number>(); // nonce → timestamp when recorded
+// Primary: Upstash Redis (SET NX EX — atomic, shared across instances).
+// Fallback: in-memory Map when Redis is not configured.
+const NONCE_TTL_SEC = 600; // 10 minutes
+const NONCE_TTL_MS = NONCE_TTL_SEC * 1000;
+const NONCE_KEY_PREFIX = "nonce:v1:";
 
-// Periodic sweep of expired nonces (prevents unbounded growth)
-setInterval(() => {
-    const cutoff = Date.now() - NONCE_TTL_MS;
-    for (const [nonce, ts] of usedNonces) {
-        if (ts < cutoff) usedNonces.delete(nonce);
+// In-memory fallback
+const MAX_NONCES = 50_000;
+const NONCE_SWEEP_INTERVAL_MS = 60 * 1000;
+const fallbackNonces = new Map<string, number>();
+
+let nonceSweepTimer: ReturnType<typeof setInterval> | null = null;
+function ensureNonceSweep() {
+    if (nonceSweepTimer) return;
+    nonceSweepTimer = setInterval(() => {
+        const cutoff = Date.now() - NONCE_TTL_MS;
+        for (const [nonce, ts] of fallbackNonces) {
+            if (ts < cutoff) fallbackNonces.delete(nonce);
+        }
+    }, NONCE_SWEEP_INTERVAL_MS);
+    nonceSweepTimer.unref();
+}
+
+/**
+ * Check and record a nonce atomically.
+ * Returns true if nonce was already used (replay detected).
+ */
+async function checkAndRecordNonce(nonce: string): Promise<boolean> {
+    const redis = getRedis();
+    if (redis) {
+        try {
+            // SET NX EX — sets only if key doesn't exist, with TTL
+            // Returns "OK" if set (nonce is fresh), null if already exists (replay)
+            const result = await redis.set(`${NONCE_KEY_PREFIX}${nonce}`, "1", {
+                nx: true,
+                ex: NONCE_TTL_SEC,
+            });
+            return result === null; // null = key existed = replay
+        } catch (err) {
+            console.warn("[nonce] Redis error, falling back to in-memory:", err);
+            // Fall through to in-memory
+        }
     }
-}, NONCE_SWEEP_INTERVAL_MS).unref();
+
+    // In-memory fallback
+    ensureNonceSweep();
+    if (fallbackNonces.has(nonce)) return true; // replay
+    fallbackNonces.set(nonce, Date.now());
+    if (fallbackNonces.size > MAX_NONCES) {
+        const iterator = fallbackNonces.keys();
+        for (let i = 0; i < 1000; i++) {
+            const key = iterator.next().value;
+            if (key) fallbackNonces.delete(key);
+        }
+    }
+    return false;
+}
 
 export async function POST(request: NextRequest) {
     let body: Record<string, unknown>;
@@ -50,7 +92,7 @@ export async function POST(request: NextRequest) {
 
     // Rate limit by agentId (falls back to "anon" for malformed requests —
     // those will fail validation below anyway)
-    const limited = rateLimit(agentId || "anon");
+    const limited = await rateLimit(agentId || "anon");
     if (limited) return limited;
 
     const channelId = body.channelId as string | undefined;
@@ -94,7 +136,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Check nonce hasn't been used (replay protection)
-    if (usedNonces.has(nonce)) {
+    const isReplay = await checkAndRecordNonce(nonce);
+    if (isReplay) {
         return Response.json(
             { error: "Nonce already used (replay detected)" },
             { status: 409 }
@@ -115,16 +158,7 @@ export async function POST(request: NextRequest) {
     const agentData = await verifyAgentRequest(agentId, signedMessage, sig);
     if (!agentData) return unauthorized();
 
-    // Record nonce with current timestamp for TTL-based expiry
-    usedNonces.set(nonce, Date.now());
-    if (usedNonces.size > MAX_NONCES) {
-        // Emergency eviction: drop oldest entries by insertion order
-        const iterator = usedNonces.keys();
-        for (let i = 0; i < 1000; i++) {
-            const key = iterator.next().value;
-            if (key) usedNonces.delete(key);
-        }
-    }
+    // Nonce already recorded atomically in checkAndRecordNonce above
 
     try {
         const messageData: Record<string, unknown> = {

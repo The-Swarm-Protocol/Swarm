@@ -27,7 +27,7 @@ export async function PATCH(
     const sig = searchParams.get('sig');
     const ts = searchParams.get('ts');
 
-    const limited = rateLimit(agentId || 'anon');
+    const limited = await rateLimit(agentId || 'anon');
     if (limited) return limited;
 
     if (!agentId || !sig || !ts) {
@@ -121,7 +121,7 @@ export async function GET(
     const sig = searchParams.get('sig');
     const ts = searchParams.get('ts');
 
-    const limited = rateLimit(agentId || 'anon');
+    const limited = await rateLimit(agentId || 'anon');
     if (limited) return limited;
 
     if (!agentId || !sig || !ts) {

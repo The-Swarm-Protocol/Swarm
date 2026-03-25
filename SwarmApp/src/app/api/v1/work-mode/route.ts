@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Rate limiting (60 requests/minute)
-    const rateLimitResponse = rateLimit(verified.agentId);
+    const rateLimitResponse = await rateLimit(verified.agentId);
     if (rateLimitResponse) return rateLimitResponse;
 
     // Get work mode
@@ -110,7 +110,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Rate limiting (60 requests/minute)
-    const rateLimitResponse = rateLimit(verified.agentId);
+    const rateLimitResponse = await rateLimit(verified.agentId);
     if (rateLimitResponse) return rateLimitResponse;
 
     // Parse request body

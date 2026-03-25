@@ -44,7 +44,7 @@ export async function POST(
     }
 
     // Rate limiting (60 requests/minute)
-    const rateLimitResponse = rateLimit(verified.agentId);
+    const rateLimitResponse = await rateLimit(verified.agentId);
     if (rateLimitResponse) return rateLimitResponse;
 
     // Parse request body (required reason)

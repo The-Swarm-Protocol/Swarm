@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
         return Response.json({ error: "org parameter is required" }, { status: 400 });
     }
 
-    const limited = rateLimit(url.searchParams.get("agent") || url.searchParams.get("agentId") || "anon");
+    const limited = await rateLimit(url.searchParams.get("agent") || url.searchParams.get("agentId") || "anon");
     if (limited) return limited;
 
     // Authenticate — try Ed25519 first

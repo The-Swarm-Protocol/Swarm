@@ -74,7 +74,7 @@ export async function evaluateCdpPolicy(ctx: PolicyEvalContext): Promise<PolicyE
     // 3. Rate limit rules
     for (const rule of matching.filter((r) => r.action === CdpPolicyAction.RateLimit)) {
         if (rule.rateLimit) {
-            const check = checkRateLimit(ctx.agentId, ctx.capabilityKey, rule.rateLimit);
+            const check = await checkRateLimit(ctx.agentId, ctx.capabilityKey, rule.rateLimit);
             if (!check.allowed) {
                 return {
                     allowed: false,
@@ -142,7 +142,7 @@ export async function evaluateCdpPolicy(ctx: PolicyEvalContext): Promise<PolicyE
     }
 
     // 6. Default: allow — record usage for rate limiting
-    recordUsage(ctx.agentId, ctx.capabilityKey);
+    await recordUsage(ctx.agentId, ctx.capabilityKey);
     return { allowed: true, action: CdpPolicyAction.Allow };
 }
 
