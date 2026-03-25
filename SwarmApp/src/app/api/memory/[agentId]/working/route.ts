@@ -18,17 +18,29 @@ import {
 } from "@/lib/memory-templates";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getWalletAddress, requireOrgMember } from "@/lib/auth-guard";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }
 ) {
+  const wallet = getWalletAddress(request);
+  if (!wallet) {
+    return Response.json({ error: "Authentication required" }, { status: 401 });
+  }
+
   const { agentId } = await params;
   const { searchParams } = new URL(request.url);
   const orgId = searchParams.get("orgId");
 
   if (!orgId) {
     return Response.json({ error: "orgId is required" }, { status: 400 });
+  }
+
+  // Verify caller is a member of the org
+  const orgAuth = await requireOrgMember(request, orgId);
+  if (!orgAuth.ok) {
+    return Response.json({ error: orgAuth.error }, { status: orgAuth.status || 403 });
   }
 
   try {
@@ -79,6 +91,11 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }
 ) {
+  const wallet = getWalletAddress(request);
+  if (!wallet) {
+    return Response.json({ error: "Authentication required" }, { status: 401 });
+  }
+
   const { agentId } = await params;
   let body: Record<string, unknown>;
   try {
@@ -94,6 +111,12 @@ export async function PUT(
       { error: "orgId and content are required" },
       { status: 400 }
     );
+  }
+
+  // Verify caller is a member of the org
+  const orgAuth = await requireOrgMember(request, orgId as string);
+  if (!orgAuth.ok) {
+    return Response.json({ error: orgAuth.error }, { status: orgAuth.status || 403 });
   }
 
   try {

@@ -108,7 +108,7 @@ export interface Agent {
   id: string;
   orgId: string;
   name: string;
-  type: 'Research' | 'Trading' | 'Operations' | 'Support' | 'Analytics' | 'Scout' | 'Security' | 'Creative' | 'Engineering' | 'DevOps' | 'Marketing' | 'Finance' | 'Data' | 'Coordinator' | 'Legal' | 'Communication';
+  type: string;
   description: string;
   capabilities: string[];
   status: 'online' | 'offline' | 'busy' | 'paused';

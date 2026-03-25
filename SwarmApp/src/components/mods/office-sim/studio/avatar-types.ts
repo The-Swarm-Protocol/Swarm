@@ -40,15 +40,23 @@ export interface MeshyPipelineState {
 
 export interface ComfyUIPipelineState {
   promptId?: string;
-  status: "pending" | "generating" | "uploading" | "done" | "failed";
+  /** Prompt ID for the sprite sheet generation (animated walk cycle) */
+  spriteSheetPromptId?: string;
+  status: "pending" | "generating" | "generating_sheet" | "uploading" | "uploading_sheet" | "done" | "failed";
   error?: string;
   progress?: number;
-  /** Temporary ComfyUI output URL */
+  /** Temporary ComfyUI output URL (static sprite) */
   pngUrl?: string;
-  /** Permanent Storacha CID */
+  /** Temporary ComfyUI output URL (sprite sheet) */
+  sheetPngUrl?: string;
+  /** Permanent Storacha CID (static sprite) */
   storachaCid?: string;
-  /** Storacha gateway URL */
+  /** Storacha gateway URL (static sprite) */
   gatewayUrl?: string;
+  /** Permanent Storacha CID (sprite sheet) */
+  sheetStorachaCid?: string;
+  /** Storacha gateway URL (sprite sheet) */
+  sheetGatewayUrl?: string;
 }
 
 export interface AvatarGenerationTask {

@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useRef, type DragEvent } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useOrg } from "@/contexts/OrgContext";
 import { useSession } from "@/contexts/SessionContext";
@@ -17,6 +17,7 @@ import {
   Link as LinkIcon, Zap, Palette, Megaphone, Wrench, Plug, Puzzle, Sparkles,
   Monitor, Globe, Code as CodeIcon, Bot, ShieldAlert, Flag, Package, History,
   TrendingUp, DollarSign, Settings2, Database,
+  Star, Search, X, Hexagon, Upload, Layers,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { MaturityBadge } from "@/components/ui/maturity-badge";
@@ -123,7 +124,7 @@ export const DEFAULT_SECTIONS: NavSection[] = [
       { id: "operators", href: "/operators", label: "Team", icon: UserCog, maturity: "production" },
       { id: "compute-overview", href: "/compute", label: "Compute", icon: Monitor, maturity: "production" },
       { id: "compute-computers", href: "/compute/computers", label: "Computers", icon: HardDrive, maturity: "production" },
-      { id: "compute-workspaces", href: "/compute/workspaces", label: "Workspaces", icon: FolderKanban, maturity: "beta" },
+      { id: "compute-workspaces", href: "/compute/workspaces", label: "Workspaces", icon: Layers, maturity: "beta" },
     ],
   },
   {
@@ -149,14 +150,14 @@ export const DEFAULT_SECTIONS: NavSection[] = [
       { id: "usage", href: "/usage", label: "Usage & Billing", icon: Coins, maturity: "beta" },
       { id: "storage", href: "/usage/storage", label: "Storage", icon: Database, maturity: "production" },
       { id: "cerebro", href: "/cerebro", label: "Cerebro", icon: Brain, maturity: "production" },
-      { id: "publisher", href: "/market/publisher", label: "Publisher", icon: TrendingUp, maturity: "production" },
+      { id: "publisher", href: "/market/publisher", label: "Publisher", icon: Upload, maturity: "production" },
     ],
   },
   {
     id: "modifications",
     label: "Modifications",
     items: [
-      { id: "mod-hbar-onchain", href: "/hbar", label: "HBAR", icon: Coins, maturity: "production" },
+      { id: "mod-hbar-onchain", href: "/hbar", label: "HBAR", icon: Hexagon, maturity: "production" },
     ],
     accentColor: "cyan",
     collapsible: true,
@@ -340,6 +341,36 @@ export function Sidebar() {
   const [dragging, setDragging] = useState<DragState | null>(null);
   const [dropTarget, setDropTarget] = useState<{ sectionId: string; itemId?: string } | null>(null);
   const orgIdRef = useRef<string | null>(null);
+  const router = useRouter();
+
+  // Favorites
+  const [favorites, setFavorites] = useState<Set<string>>(() => {
+    const saved = loadJSON<string[]>("swarm-sidebar-favorites");
+    return saved ? new Set(saved) : new Set();
+  });
+  const toggleFavorite = useCallback((itemId: string) => {
+    setFavorites(prev => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      saveJSON("swarm-sidebar-favorites", [...next]);
+      return next;
+    });
+  }, []);
+
+  // Sidebar search/filter
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Keyboard navigation
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const navItemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
+
+  // DnD onboarding hint
+  const [dndHintSeen, setDndHintSeen] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("swarm-sidebar-dnd-hint-seen") === "true";
+  });
 
   // Section collapse state
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
@@ -666,27 +697,239 @@ export function Sidebar() {
     setDropTarget(null);
   };
 
+  // ── Search filter ──
+  const normalizedQuery = searchQuery.toLowerCase().trim();
+  const filteredSections = normalizedQuery
+    ? sections.map(s => ({
+        ...s,
+        items: s.items.filter(item =>
+          item.label.toLowerCase().includes(normalizedQuery) ||
+          item.children?.some(c => c.label.toLowerCase().includes(normalizedQuery))
+        ),
+      })).filter(s => s.items.length > 0)
+    : sections;
+
+  // ── Favorites ──
+  const allItems: NavItem[] = [
+    ...sections.flatMap(s => s.items.flatMap(i => [i, ...(i.children || [])])),
+    ...PINNED_ITEMS,
+  ];
+  const favoritedItems = allItems.filter(item =>
+    favorites.has(item.id) &&
+    (!normalizedQuery || item.label.toLowerCase().includes(normalizedQuery))
+  );
+
+  // ── Keyboard navigation ──
+  // Build flat list of navigable items for arrow key support
+  const flatNavItems: { id: string; href: string }[] = [];
+  for (const item of favoritedItems) flatNavItems.push({ id: `fav-${item.id}`, href: item.href });
+  for (const section of filteredSections) {
+    if (section.items.length === 0) continue;
+    const isSectionHidden = !normalizedQuery && section.collapsible && collapsedSections.has(section.id);
+    if (!isSectionHidden || collapsed) {
+      for (const item of section.items) {
+        flatNavItems.push({ id: item.id, href: item.href });
+        if (item.children && !collapsed) {
+          for (const child of item.children) flatNavItems.push({ id: child.id, href: child.href });
+        }
+      }
+    }
+  }
+  for (const item of PINNED_ITEMS) flatNavItems.push({ id: item.id, href: item.href });
+
+  // Reset ref array each render
+  navItemRefs.current = [];
+
+  const handleNavKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if ((e.target as HTMLElement).tagName === "INPUT") return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      setFocusedIndex(prev => {
+        const max = flatNavItems.length - 1;
+        if (max < 0) return -1;
+        const next = e.key === "ArrowDown"
+          ? (prev < max ? prev + 1 : 0)
+          : (prev > 0 ? prev - 1 : max);
+        navItemRefs.current[next]?.focus();
+        return next;
+      });
+    }
+    if (e.key === "Enter" && focusedIndex >= 0 && focusedIndex < flatNavItems.length) {
+      e.preventDefault();
+      router.push(flatNavItems[focusedIndex].href);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flatNavItems, focusedIndex, router]);
+
+  let navCounter = 0; // incremented per rendered nav link for keyboard focus tracking
+
   return (
     <TooltipProvider delayDuration={0}>
-    <aside className={cn(
-      "h-full border-r border-border shrink-0 transition-all duration-300 flex flex-col",
-      "bg-card/50 backdrop-blur-xl",
-      collapsed ? "w-[52px]" : "w-56"
-    )}>
+    <aside
+      aria-label="Sidebar"
+      className={cn(
+        "h-full border-r border-border shrink-0 transition-all duration-300 flex flex-col",
+        "bg-card/50 backdrop-blur-xl",
+        collapsed ? "w-[52px]" : "w-56"
+      )}
+    >
       {/* Sections */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-1 scrollbar-thin">
-        {sections.map((section) => {
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-1 scrollbar-thin" role="navigation" aria-label="Main navigation" onKeyDown={handleNavKeyDown}>
+        {/* Sidebar filter */}
+        {!collapsed ? (
+          <div className="px-2 pt-1 pb-0.5">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/50" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Filter..."
+                className="w-full pl-7 pr-7 py-1 text-xs bg-muted/30 border border-border/50 rounded-md text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-amber-500/40 focus:ring-1 focus:ring-amber-500/20"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => {
+                  setCollapsed(false);
+                  try { localStorage.setItem(COLLAPSED_KEY, "false"); } catch {}
+                  setTimeout(() => searchInputRef.current?.focus(), 350);
+                }}
+                className="w-full flex justify-center p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors rounded-lg"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right" sideOffset={8}>Filter navigation</TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* DnD onboarding hint */}
+        {!collapsed && !dndHintSeen && !normalizedQuery && (
+          <div className="mx-2 mb-1 px-2 py-1.5 rounded-lg bg-muted/50 border border-border/50 flex items-center gap-2 text-[10px] text-muted-foreground">
+            <GripVertical className="h-3 w-3 shrink-0" />
+            <span>Drag items and sections to reorder</span>
+            <button
+              onClick={() => {
+                setDndHintSeen(true);
+                try { localStorage.setItem("swarm-sidebar-dnd-hint-seen", "true"); } catch {}
+              }}
+              className="ml-auto text-muted-foreground/60 hover:text-foreground"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        )}
+
+        {/* Favorites section */}
+        {favoritedItems.length > 0 && (
+          <div className="transition-all">
+            {!collapsed ? (
+              <div className="flex items-center gap-1 px-3 pt-2 pb-0.5 select-none">
+                <Star className="h-3 w-3 text-amber-400/60 shrink-0" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/40">
+                  Favorites
+                </span>
+              </div>
+            ) : (
+              <div className="flex justify-center py-1">
+                <Star className="h-3.5 w-3.5 text-amber-400/40" />
+              </div>
+            )}
+            <div className={cn("space-y-0.5", collapsed ? "px-1" : "px-2")}>
+              {favoritedItems.map(item => {
+                const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                const colors = SECTION_COLORS.amber;
+                const idx = navCounter++;
+                return (
+                  <div key={`fav-${item.id}`} className="relative group/item">
+                    {collapsed ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Link
+                            ref={(el) => { navItemRefs.current[idx] = el; }}
+                            tabIndex={focusedIndex === idx ? 0 : -1}
+                            href={item.href}
+                            aria-current={isActive ? "page" : undefined}
+                            className={cn(
+                              "relative flex items-center gap-2.5 rounded-lg text-sm font-medium transition-all duration-200 justify-center p-2",
+                              "focus-visible:ring-2 focus-visible:ring-amber-500/40 focus-visible:outline-none",
+                              isActive
+                                ? `${colors.activeBg} ${colors.activeText} border ${colors.activeBorder}`
+                                : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent"
+                            )}
+                          >
+                            {isActive && <span className={cn("absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 rounded-full", colors.activeBar)} />}
+                            <item.icon className="shrink-0 h-4.5 w-4.5" />
+                          </Link>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" sideOffset={8}>{item.label}</TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <Link
+                        ref={(el) => { navItemRefs.current[idx] = el; }}
+                        tabIndex={focusedIndex === idx ? 0 : -1}
+                        href={item.href}
+                        aria-current={isActive ? "page" : undefined}
+                        className={cn(
+                          "relative flex items-center gap-2.5 rounded-lg text-sm font-medium transition-all duration-200 px-2.5 py-1.5",
+                          "focus-visible:ring-2 focus-visible:ring-amber-500/40 focus-visible:outline-none",
+                          isActive
+                            ? `${colors.activeBg} ${colors.activeText} border ${colors.activeBorder}`
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent"
+                        )}
+                      >
+                        {isActive && <span className={cn("absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 rounded-full", colors.activeBar)} />}
+                        <item.icon className="shrink-0 h-4 w-4" />
+                        <span className="truncate">{item.label}</span>
+                        <button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleFavorite(item.id); }}
+                          className="ml-auto text-amber-400 hover:text-amber-300"
+                        >
+                          <Star className="h-3 w-3 fill-current" />
+                        </button>
+                      </Link>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {/* Divider after favorites */}
+            {collapsed ? (
+              <div className="mx-2 my-1 border-t border-border/40" />
+            ) : (
+              <div className="mx-3 my-1 border-t border-border/20" />
+            )}
+          </div>
+        )}
+
+        {filteredSections.map((section, sectionIndex) => {
           // Hide empty sections (e.g., Modifications with no installed mods)
           if (section.items.length === 0) return null;
           // With Tailwind v4 color remap, amber classes auto-transform per skin.
           // Only the modifications section keeps its own accent when using classic skin.
           const colorKey = skin === "classic" ? (section.accentColor || "amber") : "amber";
           const colors = SECTION_COLORS[colorKey];
-          const isSectionCollapsed = section.collapsible && collapsedSections.has(section.id);
+          // Auto-expand sections when searching
+          const isSectionCollapsed = !normalizedQuery && section.collapsible && collapsedSections.has(section.id);
           return (
           <div
             key={section.id}
-            draggable={!collapsed && dragging?.kind !== "item"}
+            role="group"
+            aria-label={section.label}
+            draggable={!collapsed && !normalizedQuery && dragging?.kind !== "item"}
             onDragStart={onSectionDragStart(section.id)}
             onDragOver={(e) => {
               onSectionDragOver(section.id)(e);
@@ -706,6 +949,7 @@ export function Sidebar() {
             onDragEnd={onDragEnd}
             className={cn(
               "transition-all",
+              collapsed && sectionIndex > 0 && !(dropTarget?.sectionId === section.id && !dropTarget?.itemId) && "mt-1 pt-1 border-t border-border/30",
               dropTarget?.sectionId === section.id && !dropTarget?.itemId && `border-t-2 ${colors.dropIndicator}`,
               dragging?.kind === "section" && dragging.sectionId === section.id && "opacity-40"
             )}
@@ -742,11 +986,12 @@ export function Sidebar() {
                   const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                   const isBeingDragged = dragging?.kind === "item" && dragging.itemId === item.id;
                   const isDropTarget = dropTarget?.sectionId === section.id && dropTarget?.itemId === item.id;
+                  const idx = navCounter++;
 
                   const elements = [
                     <div
                       key={item.id}
-                      draggable={!collapsed}
+                      draggable={!collapsed && !normalizedQuery}
                       onDragStart={onItemDragStart(section.id, item.id)}
                       onDragOver={onItemDragOver(section.id, item.id)}
                       onDrop={onItemDrop(section.id, item.id)}
@@ -761,10 +1006,14 @@ export function Sidebar() {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Link
+                              ref={(el) => { navItemRefs.current[idx] = el; }}
+                              tabIndex={focusedIndex === idx ? 0 : -1}
                               href={item.href}
+                              aria-current={isActive ? "page" : undefined}
                               className={cn(
                                 "relative flex items-center gap-2.5 rounded-lg text-sm font-medium transition-all duration-200",
                                 "justify-center p-2",
+                                "focus-visible:ring-2 focus-visible:ring-amber-500/40 focus-visible:outline-none",
                                 isActive
                                   ? `${colors.activeBg} ${colors.activeText} border ${colors.activeBorder}`
                                   : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent"
@@ -780,10 +1029,14 @@ export function Sidebar() {
                         </Tooltip>
                       ) : (
                         <Link
+                          ref={(el) => { navItemRefs.current[idx] = el; }}
+                          tabIndex={focusedIndex === idx ? 0 : -1}
                           href={item.href}
+                          aria-current={isActive ? "page" : undefined}
                           className={cn(
                             "relative flex items-center gap-2.5 rounded-lg text-sm font-medium transition-all duration-200",
                             "px-2.5 py-1.5",
+                            "focus-visible:ring-2 focus-visible:ring-amber-500/40 focus-visible:outline-none",
                             isActive
                               ? `${colors.activeBg} ${colors.activeText} border ${colors.activeBorder}`
                               : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent"
@@ -792,16 +1045,27 @@ export function Sidebar() {
                           {isActive && (
                             <span className={cn("absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 rounded-full", colors.activeBar)} />
                           )}
-                          <GripVertical className="h-2.5 w-2.5 text-muted-foreground/0 group-hover/item:text-muted-foreground/40 transition-colors shrink-0 cursor-grab active:cursor-grabbing" />
+                          {!normalizedQuery && <GripVertical className="h-2.5 w-2.5 text-muted-foreground/20 group-hover/item:text-muted-foreground/60 transition-colors shrink-0 cursor-grab active:cursor-grabbing" />}
                           <item.icon className="shrink-0 h-4 w-4" />
                           <span className="truncate">{item.label}</span>
                           <div className="ml-auto flex items-center gap-1">
-                            {/* {item.maturity && <MaturityBadge level={item.maturity} />} */ }
+                            {item.maturity && item.maturity !== "production" && <MaturityBadge level={item.maturity} />}
                             {item.badge && (
                               <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full font-medium", colors.badgeBg, colors.badgeText)}>
                                 {item.badge}
                               </span>
                             )}
+                            <button
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleFavorite(item.id); }}
+                              className={cn(
+                                "transition-opacity",
+                                favorites.has(item.id)
+                                  ? "text-amber-400 opacity-100"
+                                  : "text-muted-foreground/40 opacity-0 group-hover/item:opacity-100"
+                              )}
+                            >
+                              <Star className={cn("h-3 w-3", favorites.has(item.id) && "fill-current")} />
+                            </button>
                           </div>
                         </Link>
                       )}
@@ -813,13 +1077,18 @@ export function Sidebar() {
                     for (const child of item.children) {
                       const childHrefBase = child.href.split("?")[0];
                       const isChildActive = pathname === childHrefBase || pathname.startsWith(childHrefBase + "/");
+                      const childIdx = navCounter++;
                       elements.push(
                         <div key={child.id} className="relative group/item">
                           <Link
+                            ref={(el) => { navItemRefs.current[childIdx] = el; }}
+                            tabIndex={focusedIndex === childIdx ? 0 : -1}
                             href={child.href}
+                            aria-current={isChildActive ? "page" : undefined}
                             className={cn(
                               "relative flex items-center gap-2 rounded-lg text-xs font-medium transition-all duration-200",
                               "pl-9 pr-2.5 py-1",
+                              "focus-visible:ring-2 focus-visible:ring-amber-500/40 focus-visible:outline-none",
                               isChildActive
                                 ? `${colors.activeBg} ${colors.activeText} border ${colors.activeBorder}`
                                 : "text-muted-foreground/70 hover:text-foreground hover:bg-muted/50 border border-transparent"
@@ -846,12 +1115,17 @@ export function Sidebar() {
       <div className={cn("border-t border-border pt-1", collapsed ? "px-1" : "px-2")}>
         {PINNED_ITEMS.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+          const pidx = navCounter++;
           const linkContent = (
             <Link
               key={item.id}
+              ref={(el) => { navItemRefs.current[pidx] = el; }}
+              tabIndex={focusedIndex === pidx ? 0 : -1}
               href={item.href}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
                 "relative flex items-center gap-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                "focus-visible:ring-2 focus-visible:ring-amber-500/40 focus-visible:outline-none",
                 collapsed ? "justify-center p-2" : "px-2.5 py-1.5",
                 isActive
                   ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"

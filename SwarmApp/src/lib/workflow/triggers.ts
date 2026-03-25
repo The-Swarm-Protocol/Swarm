@@ -261,13 +261,31 @@ async function checkIdempotency(policyId: string, eventId: string): Promise<bool
 
 /**
  * Evaluate a filter expression against event data.
+ *
+ * Only allows safe expressions: property access, comparisons, logical ops,
+ * and literals. No function calls, assignments, or arbitrary code.
  */
+const SAFE_FILTER_RE = /^[\s\w.'"` \d\-+*/%<>=!&|?:,[\]()]+$/;
+
+const FORBIDDEN_FILTER_PATTERNS = [
+  /\b(eval|Function|constructor|__proto__|prototype)\b/,
+  /\b(require|import|export|process|globalThis|window|document)\b/,
+  /\b(fetch|XMLHttpRequest|WebSocket|setTimeout|setInterval)\b/,
+  /[;{}]/,
+  /=(?!=)/,
+];
+
 function evaluateFilter(expression: string, event: Record<string, unknown>): boolean {
   try {
+    if (!SAFE_FILTER_RE.test(expression)) return false;
+    for (const pattern of FORBIDDEN_FILTER_PATTERNS) {
+      if (pattern.test(expression)) return false;
+    }
+    const frozen = Object.freeze({ ...event });
     const fn = new Function("event", `"use strict"; return !!(${expression});`);
-    return fn(event);
+    return fn(frozen);
   } catch {
-    return false; // Invalid expression = don't trigger
+    return false;
   }
 }
 

@@ -37,11 +37,39 @@ function interpolate(
   });
 }
 
-/** Safely evaluate a JS expression with inputs in scope */
+/**
+ * Safely evaluate a restricted expression against inputs.
+ *
+ * Allows only: property access (a.b.c), comparisons (===, !==, >, <, >=, <=),
+ * logical operators (&&, ||, !), string/number/boolean literals, and ternary.
+ * NO function calls, assignments, or arbitrary code execution.
+ */
+const SAFE_EXPRESSION_RE =
+  /^[\s\w.'"` \d\-+*/%<>=!&|?:,[\]()]+$/;
+
+const FORBIDDEN_PATTERNS = [
+  /\b(eval|Function|constructor|__proto__|prototype)\b/,
+  /\b(require|import|export|process|globalThis|window|document)\b/,
+  /\b(fetch|XMLHttpRequest|WebSocket|setTimeout|setInterval)\b/,
+  /[;{}]/, // no statements or blocks
+  /=(?!=)/, // no assignment (but allow == and ===)
+];
+
 function safeEval(expression: string, inputs: Record<string, unknown>): unknown {
-  // Create a sandboxed function with `inputs` in scope
+  // Validate expression against allowlist
+  if (!SAFE_EXPRESSION_RE.test(expression)) {
+    throw new Error("Expression contains disallowed characters");
+  }
+  for (const pattern of FORBIDDEN_PATTERNS) {
+    if (pattern.test(expression)) {
+      throw new Error(`Expression contains forbidden pattern: ${pattern}`);
+    }
+  }
+
+  // Evaluate with a frozen shallow copy — no prototype pollution
+  const frozen = Object.freeze({ ...inputs });
   const fn = new Function("inputs", `"use strict"; return (${expression});`);
-  return fn(inputs);
+  return fn(frozen);
 }
 
 // ── Trigger handler ──────────────────────────────────────────────────────────

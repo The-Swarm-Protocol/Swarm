@@ -7,8 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/contexts/SessionContext";
-
-const PLATFORM_ADMIN_ADDRESS = "0x723708273e811a07d90d2e81e799b9Ab27F0B549".toLowerCase();
+import { isPlatformAdmin } from "@/lib/platform-admins";
 
 interface RankingStats {
   highestScore: number;
@@ -42,7 +41,7 @@ interface RankedItem {
 
 export default function RankingsPage() {
   const { address: sessionAddress, authenticated } = useSession();
-  const isAdmin = sessionAddress?.toLowerCase() === PLATFORM_ADMIN_ADDRESS;
+  const isAdmin = isPlatformAdmin(sessionAddress);
 
   const [stats, setStats] = useState<RankingStats | null>(null);
   const [distribution, setDistribution] = useState<Record<string, number>>({});

@@ -20,8 +20,10 @@ import {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const orgId = searchParams.get("orgId");
-  const daysBack = parseInt(searchParams.get("daysBack") || "30");
-  const daysToPredict = parseInt(searchParams.get("daysToPredict") || "7");
+  const rawDaysBack = parseInt(searchParams.get("daysBack") || "30", 10);
+  const daysBack = isNaN(rawDaysBack) ? 30 : Math.max(1, Math.min(rawDaysBack, 90));
+  const rawPredict = parseInt(searchParams.get("daysToPredict") || "7", 10);
+  const daysToPredict = isNaN(rawPredict) ? 7 : Math.max(1, Math.min(rawPredict, 30));
 
   if (!orgId) {
     return Response.json(

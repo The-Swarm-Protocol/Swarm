@@ -17,6 +17,7 @@ import {
     type CreditWebhookEvent,
 } from "@/lib/credit-webhooks";
 import { rateLimit } from "@/app/api/v1/rate-limit";
+import { isPrivateHostname } from "@/lib/url-validation";
 
 const VALID_EVENTS: CreditWebhookEvent[] = ["score_change", "band_change", "policy_change"];
 const MAX_WEBHOOKS_PER_AGENT = 10;
@@ -48,11 +49,14 @@ export async function POST(request: NextRequest) {
         return Response.json({ error: "url is required" }, { status: 400 });
     }
 
-    // Validate URL is HTTPS
+    // Validate URL is HTTPS and not targeting private networks (SSRF protection)
     try {
         const parsed = new URL(url);
         if (parsed.protocol !== "https:") {
             return Response.json({ error: "Webhook URL must use HTTPS" }, { status: 400 });
+        }
+        if (isPrivateHostname(parsed.hostname)) {
+            return Response.json({ error: "Webhook URL cannot target private networks" }, { status: 400 });
         }
     } catch {
         return Response.json({ error: "Invalid webhook URL" }, { status: 400 });

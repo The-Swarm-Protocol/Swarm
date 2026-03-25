@@ -45,6 +45,7 @@ import {
 import { shortAddress } from "@/lib/chains";
 import { getAgentAvatarUrl } from "@/lib/agent-avatar";
 import { useSession } from "@/contexts/SessionContext";
+import { getTypeColor, getTypeLabel, getTypeDescription, getGroupedTypes, AGENT_TYPE_CATEGORIES } from "@/lib/agent-types";
 
 // ---------------------------------------------------------------------------
 // Error Boundary — prevents uncaught errors from crashing the entire React
@@ -93,26 +94,6 @@ class AgentDetailErrorBoundary extends React.Component<
   }
 }
 
-const AGENT_TYPES: Agent['type'][] = ['Research', 'Trading', 'Operations', 'Support', 'Analytics', 'Scout', 'Security', 'Creative', 'Engineering', 'DevOps', 'Marketing', 'Finance', 'Data', 'Coordinator', 'Legal', 'Communication'];
-
-const TYPE_COLORS: Record<string, string> = {
-  Research: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800",
-  Trading: "bg-emerald-100 text-emerald-700 border-green-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800",
-  Operations: "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800",
-  Support: "bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-950/40 dark:text-yellow-400 dark:border-yellow-800",
-  Analytics: "bg-cyan-100 text-cyan-700 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-400 dark:border-cyan-800",
-  Scout: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800",
-  Security: "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800",
-  Creative: "bg-pink-100 text-pink-700 border-pink-200 dark:bg-pink-950/40 dark:text-pink-400 dark:border-pink-800",
-  Engineering: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800",
-  DevOps: "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-800",
-  Marketing: "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200 dark:bg-fuchsia-950/40 dark:text-fuchsia-400 dark:border-fuchsia-800",
-  Finance: "bg-lime-100 text-lime-700 border-lime-200 dark:bg-lime-950/40 dark:text-lime-400 dark:border-lime-800",
-  Data: "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800",
-  Coordinator: "bg-teal-100 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-400 dark:border-teal-800",
-  Legal: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-950/40 dark:text-slate-400 dark:border-slate-800",
-  Communication: "bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800",
-};
 
 export default function AgentDetailPageWrapper() {
   return (
@@ -147,7 +128,8 @@ function AgentDetailPage() {
   // Edit state
   const [showEdit, setShowEdit] = useState(false);
   const [editName, setEditName] = useState('');
-  const [editType, setEditType] = useState<Agent['type']>('Research');
+  const [editType, setEditType] = useState('fullstack-developer');
+  const [editTypeSearch, setEditTypeSearch] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -627,7 +609,7 @@ function AgentDetailPage() {
           <div className="flex-1">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-3xl font-bold tracking-tight">{agent.name}</h1>
-              <Badge className={TYPE_COLORS[agent.type] || ""}>{agent.type}</Badge>
+              <Badge className={getTypeColor(agent.type)}>{getTypeLabel(agent.type)}</Badge>
               <span className={`text-sm flex items-center gap-1.5 ${agent.status === "online" ? "text-emerald-600 dark:text-emerald-400" :
                   agent.status === "busy" ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground"
                 }`}>
@@ -1554,12 +1536,40 @@ function AgentDetailPage() {
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">Agent Type *</label>
-              <Select value={editType} onValueChange={(value: Agent['type']) => setEditType(value)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {AGENT_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>{type}</SelectItem>
-                  ))}
+              <Select value={editType} onValueChange={(value: string) => setEditType(value)}>
+                <SelectTrigger>
+                  <SelectValue>{getTypeLabel(editType)}</SelectValue>
+                </SelectTrigger>
+                <SelectContent className="max-h-80">
+                  <div className="sticky top-0 z-10 bg-popover p-2 border-b">
+                    <Input
+                      placeholder="Search agent types..."
+                      value={editTypeSearch}
+                      onChange={(e) => setEditTypeSearch(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  {getGroupedTypes().map(({ category, info, types }) => {
+                    const filtered = editTypeSearch
+                      ? types.filter(t => t.label.toLowerCase().includes(editTypeSearch.toLowerCase()) || t.description.toLowerCase().includes(editTypeSearch.toLowerCase()) || t.tags?.some(tag => tag.includes(editTypeSearch.toLowerCase())))
+                      : types;
+                    if (filtered.length === 0) return null;
+                    return (
+                      <div key={category}>
+                        <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-[49px] bg-popover">
+                          {info.icon} {info.label}
+                        </div>
+                        {filtered.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium text-sm">{t.label}</span>
+                              <span className="text-[11px] text-muted-foreground">{t.description}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </div>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>

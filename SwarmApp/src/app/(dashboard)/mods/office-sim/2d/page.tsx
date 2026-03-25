@@ -1,18 +1,22 @@
 /** Office Sim — 2D Command Center View */
 "use client";
 
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
 import { useOffice } from "@/components/mods/office-sim/office-store";
 import { useOrg } from "@/contexts/OrgContext";
 import { Office2D } from "@/components/mods/office-sim/Office2D";
 import { AgentDetailDrawer } from "@/components/mods/office-sim/AgentDetailDrawer";
 import { OfficeToolbar } from "@/components/mods/office-sim/OfficeToolbar";
+import type { ToolbarPanel } from "@/components/mods/office-sim/OfficeToolbar";
+import { TaskBoardPanel } from "@/components/mods/office-sim/panels/TaskBoardPanel";
+import { DecisionInboxPanel } from "@/components/mods/office-sim/panels/DecisionInboxPanel";
+import { ReportHistoryPanel } from "@/components/mods/office-sim/panels/ReportHistoryPanel";
 
 export default function Office2DPage() {
   const { state, dispatch } = useOffice();
   const { currentOrg } = useOrg();
   const { activeCount, errorCount } = state.metrics;
-  const searchRef = useRef<HTMLInputElement | null>(null);
+  const [openPanel, setOpenPanel] = useState<ToolbarPanel>(null);
 
   /* ── Keyboard navigation ── */
   const handleKeyDown = useCallback(
@@ -37,13 +41,17 @@ export default function Office2DPage() {
           break;
         }
         case "Escape":
-          dispatch({ type: "SELECT_AGENT", id: null });
+          if (openPanel) {
+            setOpenPanel(null);
+          } else {
+            dispatch({ type: "SELECT_AGENT", id: null });
+          }
           break;
         case "/":
           e.preventDefault();
           // Focus the search input in toolbar
           const input = document.querySelector<HTMLInputElement>(
-            'input[placeholder="Search agents..."]',
+            'input[placeholder*="Search agents"]',
           );
           input?.focus();
           break;
@@ -51,7 +59,7 @@ export default function Office2DPage() {
           break;
       }
     },
-    [state.agents, state.selectedAgentId, dispatch],
+    [state.agents, state.selectedAgentId, dispatch, openPanel],
   );
 
   useEffect(() => {
@@ -62,7 +70,11 @@ export default function Office2DPage() {
   return (
     <div className="space-y-3">
       {/* Shared Toolbar */}
-      <OfficeToolbar view="2d" />
+      <OfficeToolbar
+        view="2d"
+        openPanel={openPanel}
+        onPanelChange={setOpenPanel}
+      />
 
       {/* Floor plan */}
       <Office2D />
@@ -89,6 +101,27 @@ export default function Office2DPage() {
 
       {/* Agent Detail Drawer */}
       <AgentDetailDrawer orgId={currentOrg?.id} />
+
+      {/* Panel Overlays */}
+      {openPanel === "task-board" && (
+        <TaskBoardPanel
+          tasks={[]}
+          onClose={() => setOpenPanel(null)}
+        />
+      )}
+      {openPanel === "decision-inbox" && (
+        <DecisionInboxPanel
+          items={[]}
+          onReply={async () => {}}
+          onClose={() => setOpenPanel(null)}
+        />
+      )}
+      {openPanel === "reports" && (
+        <ReportHistoryPanel
+          reports={[]}
+          onClose={() => setOpenPanel(null)}
+        />
+      )}
     </div>
   );
 }

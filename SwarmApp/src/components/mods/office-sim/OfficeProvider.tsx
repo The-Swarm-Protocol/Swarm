@@ -8,13 +8,17 @@ import {
   officeReducer,
   initialState,
   mapAgentStatus,
+  computeUtilization,
 } from "./office-store";
-import type { VisualAgent, Position, AgentVisualStatus } from "./types";
-import { DEFAULT_LAYOUT } from "./types";
+import type { VisualAgent, Position, AgentVisualStatus, Particle } from "./types";
+import { computeDynamicLayout, getStressTier, STRESS_COLORS } from "./types";
 import { classifyTransition, generateNarrative, shouldHold, getZoneForStatus } from "./engine/perception";
 import type { OfficeFurnitureData } from "./studio/furniture-types";
 import type { OfficeTextureData } from "./studio/texture-types";
+import type { OfficeArtPieceData } from "./studio/art-types";
+import { getOrgArt } from "./studio/art-firestore";
 import { useHubStream } from "@/hooks/useHubStream";
+import { detectLocale } from "./i18n";
 
 /* ═══════════════════════════════════════
    Position Assignment
@@ -31,11 +35,12 @@ interface RawAgent {
   asn?: string;
   description?: string;
   reportedSkills?: { skillId: string }[];
+  department?: string;
 }
 
 function assignPositions(
   agents: RawAgent[],
-  desks: typeof DEFAULT_LAYOUT.desks,
+  desks: { id: string; position: Position; assignedAgentId: string | null }[],
 ): VisualAgent[] {
   return agents.map((a, i) => {
     const desk = desks[i % desks.length];
@@ -46,6 +51,13 @@ function assignPositions(
       : zone === "corridor"
       ? { x: 20, y: desk.position.y }
       : desk.position;
+
+    const partial = {
+      status,
+      toolCallCount: 0,
+      childAgentIds: [] as string[],
+    };
+    const utilization = computeUtilization(partial);
 
     return {
       id: a.id,
@@ -65,6 +77,9 @@ function assignPositions(
       capabilities: a.capabilities || a.reportedSkills?.map(s => s.skillId) || [],
       bio: a.bio || a.description || null,
       asn: a.asn || null,
+      department: (a.department as VisualAgent["department"]) || null,
+      utilization,
+      stressTier: getStressTier(utilization),
     };
   });
 }
@@ -77,12 +92,15 @@ export function OfficeProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(officeReducer, initialState);
   const { currentOrg } = useOrg();
 
-  // Track SSE vs polling mode
   const [sseActive, setSseActive] = useState(false);
-
-  // Track previous agent states for perception engine
   const prevStatesRef = useRef<Map<string, AgentVisualStatus>>(new Map());
   const bubbleTimesRef = useRef<Map<string, number>>(new Map());
+  const prevAgentCountRef = useRef(0);
+
+  /* ── Auto-detect locale on mount ── */
+  useEffect(() => {
+    dispatch({ type: "SET_LOCALE", locale: detectLocale() });
+  }, []);
 
   /* ── SSE real-time stream (preferred) ── */
   useHubStream({
@@ -98,7 +116,6 @@ export function OfficeProvider({ children }: { children: React.ReactNode }) {
   const fetchAgents = useCallback(async () => {
     if (!currentOrg) return;
     try {
-      // Fetch hub-aware agents + avatar assets from unified registry in parallel
       const [agentRes, avatarRes] = await Promise.all([
         fetch(`/api/v1/mods/office-sim/hub-agents?orgId=${currentOrg.id}`),
         fetch(`/api/v1/plugins/assets?orgId=${currentOrg.id}&purpose=avatar`).catch(() => null),
@@ -107,18 +124,24 @@ export function OfficeProvider({ children }: { children: React.ReactNode }) {
       const data = await agentRes.json();
       const raw = (data.agents || []) as RawAgent[];
 
-      // Track hub connectivity
       if (typeof data.hubConnected === "boolean") {
         dispatch({ type: "SET_HUB_CONNECTED", hubConnected: data.hubConnected });
       }
+
+      // Dynamic layout: recompute when agent count changes
+      if (raw.length !== prevAgentCountRef.current) {
+        prevAgentCountRef.current = raw.length;
+        const dynamicLayout = computeDynamicLayout(raw.length);
+        dispatch({ type: "SET_LAYOUT", layout: dynamicLayout });
+      }
+
       const visual = assignPositions(raw, state.layout.desks);
 
-      // Merge avatar assets onto agents from unified registry
+      // Merge avatar assets
       if (avatarRes?.ok) {
         try {
           const avatarData = await avatarRes.json();
           const assets = (avatarData.assets || []) as { agentId?: string; kind: string; url: string }[];
-          // Group by agentId
           const assetsByAgent = new Map<string, typeof assets>();
           for (const asset of assets) {
             if (!asset.agentId) continue;
@@ -137,12 +160,10 @@ export function OfficeProvider({ children }: { children: React.ReactNode }) {
               }
             }
           }
-        } catch {
-          // Avatar parse failed — agents render with procedural fallback
-        }
+        } catch { /* procedural fallback */ }
       }
 
-      // Run perception engine on transitions
+      // Perception engine
       const now = Date.now();
       for (const agent of visual) {
         const prevStatus = prevStatesRef.current.get(agent.id);
@@ -156,7 +177,6 @@ export function OfficeProvider({ children }: { children: React.ReactNode }) {
             bubbleTimesRef.current.set(agent.id, now);
           }
 
-          // Record activity event
           dispatch({
             type: "PUSH_ACTIVITY",
             event: {
@@ -171,6 +191,36 @@ export function OfficeProvider({ children }: { children: React.ReactNode }) {
               description: `${agent.name}: ${prevStatus} → ${agent.status}`,
             },
           });
+
+          // Spawn particles for lifecycle events
+          const particleCount = eventType === "spawn" ? 8
+            : eventType === "error_onset" ? 6
+            : eventType === "recovery" ? 5
+            : 0;
+          if (particleCount > 0) {
+            const pType = eventType === "error_onset" ? "error" as const
+              : eventType === "spawn" ? "spark" as const
+              : "work" as const;
+            const pColor = eventType === "error_onset" ? STRESS_COLORS.overloaded.primary
+              : eventType === "spawn" ? "#60a5fa"
+              : STRESS_COLORS.normal.primary;
+            const newParticles: Particle[] = [];
+            for (let pi = 0; pi < particleCount; pi++) {
+              newParticles.push({
+                id: now + pi,
+                x: agent.position.x + 40,
+                y: agent.position.y + 30,
+                vx: (Math.random() - 0.5) * 3,
+                vy: -Math.random() * 2 - 1,
+                life: 1,
+                maxLife: 1.2 + Math.random() * 0.6,
+                color: pColor,
+                size: 2 + Math.random() * 2,
+                type: pType,
+              });
+            }
+            dispatch({ type: "SET_PARTICLES", particles: newParticles });
+          }
         }
         prevStatesRef.current.set(agent.id, agent.status);
       }
@@ -183,21 +233,18 @@ export function OfficeProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentOrg, state.layout.desks]);
 
-  /* ── Polling loop — initial fetch always, then slower interval when SSE is active ── */
+  /* ── Polling loop ── */
   useEffect(() => {
     fetchAgents();
-    // When SSE is active, poll less frequently (30s) as a safety net
-    // When SSE is not active, poll at 5s for near-real-time updates
     const interval = setInterval(fetchAgents, sseActive ? 30_000 : 5_000);
     return () => clearInterval(interval);
   }, [fetchAgents, sseActive]);
 
-  /* ── Fetch furniture + textures from unified asset registry when theme changes ── */
+  /* ── Fetch furniture + textures + art when theme changes ── */
   useEffect(() => {
     if (!currentOrg) return;
     const themeId = state.theme.id;
 
-    // Fetch furniture and textures in parallel from unified plugin assets API
     Promise.all([
       fetch(`/api/v1/plugins/assets?orgId=${currentOrg.id}&purpose=furniture&themeId=${themeId}`).catch(() => null),
       fetch(`/api/v1/plugins/assets?orgId=${currentOrg.id}&purpose=texture&themeId=${themeId}`).catch(() => null),
@@ -212,9 +259,7 @@ export function OfficeProvider({ children }: { children: React.ReactNode }) {
             }
           }
           dispatch({ type: "SET_FURNITURE", furniture: furnitureMap });
-        } catch {
-          // Furniture fetch failed gracefully
-        }
+        } catch { /* graceful */ }
       }
       if (textureRes?.ok) {
         try {
@@ -226,11 +271,16 @@ export function OfficeProvider({ children }: { children: React.ReactNode }) {
             }
           }
           dispatch({ type: "SET_TEXTURES", textures: textureMap });
-        } catch {
-          // Texture fetch failed gracefully
-        }
+        } catch { /* graceful */ }
       }
     });
+
+    // Fetch art data from Firestore directly (client-side)
+    getOrgArt(currentOrg.id, themeId)
+      .then((artMap) => {
+        dispatch({ type: "SET_ART", art: artMap });
+      })
+      .catch(() => { /* graceful — no art yet */ });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentOrg, state.theme.id]);
 

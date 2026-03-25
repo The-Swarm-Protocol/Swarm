@@ -17,8 +17,14 @@ import {
   checkBudgetAlerts,
   type AlertType,
 } from "@/lib/cost-intelligence";
+import { getWalletAddress, requireOrgMember } from "@/lib/auth-guard";
 
 export async function POST(request: NextRequest) {
+  const wallet = getWalletAddress(request);
+  if (!wallet) {
+    return Response.json({ error: "Authentication required" }, { status: 401 });
+  }
+
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -35,6 +41,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Verify caller is a member of the org
+  const orgAuth = await requireOrgMember(request, orgId as string);
+  if (!orgAuth.ok) {
+    return Response.json({ error: orgAuth.error }, { status: orgAuth.status || 403 });
+  }
+
   if (!["daily", "weekly", "monthly"].includes(alertType as string)) {
     return Response.json(
       { error: "alertType must be daily, weekly, or monthly" },
@@ -42,9 +54,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (threshold <= 0) {
+  if (threshold <= 0 || threshold > 1_000_000) {
     return Response.json(
-      { error: "threshold must be greater than 0" },
+      { error: "threshold must be between 0 and 1,000,000" },
       { status: 400 }
     );
   }
@@ -71,12 +83,22 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const wallet = getWalletAddress(request);
+  if (!wallet) {
+    return Response.json({ error: "Authentication required" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const orgId = searchParams.get("orgId");
   const check = searchParams.get("check") === "true";
 
   if (!orgId) {
     return Response.json({ error: "orgId is required" }, { status: 400 });
+  }
+
+  const orgAuth = await requireOrgMember(request, orgId);
+  if (!orgAuth.ok) {
+    return Response.json({ error: orgAuth.error }, { status: orgAuth.status || 403 });
   }
 
   try {

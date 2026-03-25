@@ -28,9 +28,14 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "url is required" }, { status: 400 });
   }
 
-  // Validate the URL is from Meshy
-  if (!url.startsWith("https://assets.meshy.ai/")) {
-    return Response.json({ error: "Only Meshy asset URLs are allowed" }, { status: 400 });
+  // Validate the URL is from Meshy (strict hostname check prevents SSRF)
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" || parsed.hostname !== "assets.meshy.ai") {
+      return Response.json({ error: "Only Meshy asset URLs are allowed" }, { status: 400 });
+    }
+  } catch {
+    return Response.json({ error: "Invalid URL" }, { status: 400 });
   }
 
   const orgAuth = await requireOrgMember(req, orgId);

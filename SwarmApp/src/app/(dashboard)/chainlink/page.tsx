@@ -30,9 +30,6 @@ import {
     CHAINLINK_EXAMPLES,
     CHAINLINK_AGENT_SKILLS,
     CHAINLINK_DOCS,
-    PLAYGROUND_MOCK_RESPONSES,
-    MOCK_ASN_PROFILES,
-    MOCK_FRAUD_ALERTS,
     ASN_SCORE_BANDS,
     generateASN,
     getScoreBand,
@@ -44,6 +41,11 @@ import {
     TOOL_EXECUTION_META,
     type PlaygroundExecutionResult,
 } from "@/lib/chainlink";
+import {
+    PLAYGROUND_MOCK_RESPONSES,
+    MOCK_ASN_PROFILES,
+    MOCK_FRAUD_ALERTS,
+} from "@/lib/chainlink-playground-data";
 import { shortAddress } from "@/lib/chains";
 import { getAgentsByOrg, type Agent } from "@/lib/firestore";
 import {

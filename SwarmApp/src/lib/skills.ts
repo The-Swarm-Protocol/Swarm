@@ -259,7 +259,11 @@ export interface ResolvedCapability {
 export type AgentCategory =
     | "trading" | "research" | "customer-support" | "governance"
     | "security" | "compliance" | "creative" | "engineering"
-    | "analytics" | "operations" | "general";
+    | "analytics" | "operations" | "general"
+    | "core-development" | "language-specialists" | "infrastructure"
+    | "quality-security" | "data-ai" | "developer-experience"
+    | "specialized-domains" | "business-product" | "meta-orchestration"
+    | "research-analysis";
 
 export type AgentListingStatus = "draft" | "review" | "approved" | "rejected" | "disabled";
 export type AgentDistribution = "config" | "rental" | "hire";
@@ -404,9 +408,12 @@ export interface CreatorProfile {
 }
 
 export const AGENT_CATEGORIES = [
-    "All", "Analytics", "Compliance", "Creative", "Customer Support",
-    "Engineering", "General", "Governance", "Operations", "Research",
-    "Security", "Trading",
+    "All", "Analytics", "Business & Product", "Compliance", "Core Development",
+    "Creative", "Customer Support", "Data & AI", "Developer Experience",
+    "Engineering", "General", "Governance", "Infrastructure",
+    "Language Specialists", "Meta & Orchestration", "Operations",
+    "Quality & Security", "Research", "Research & Analysis",
+    "Security", "Specialized Domains", "Trading",
 ];
 
 export const COMPUTE_CATEGORIES = [

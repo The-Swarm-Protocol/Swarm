@@ -121,6 +121,70 @@ const wsState = new Map();
 // agentId → { timestamps: number[] }
 const rateLimits = new Map();
 
+// ── Selective WebSocket Batching ────────────────────────────────────────────
+// High-frequency event types get batched; status/message events go immediate.
+
+const BATCH_INTERVAL_HF = parseInt(optionalEnv("WS_BATCH_INTERVAL_HF", "250"), 10);   // 250ms for typing/presence
+const BATCH_INTERVAL_MF = parseInt(optionalEnv("WS_BATCH_INTERVAL_MF", "150"), 10);    // 150ms for position/vitals
+
+/** Message types that should be batched (high-frequency, loss-tolerant) */
+const BATCHED_TYPES = new Set([
+  "typing",
+  "agent:online",
+  "agent:offline",
+  "message:ack",
+  "vitals",
+  "position",
+]);
+
+/** Per-ws batch buffer: ws → Map<batchKey, latestMessage> */
+const wsBatchBuffers = new Map();
+
+/** Accumulate a message for batched delivery. Latest-wins per key. */
+function enqueueBatched(ws, msg) {
+  if (!wsBatchBuffers.has(ws)) {
+    wsBatchBuffers.set(ws, new Map());
+  }
+  const buf = wsBatchBuffers.get(ws);
+  // Key: type + source identifier (dedupes same-type from same agent)
+  const key = `${msg.type}:${msg.agentId || msg.channelId || ""}`;
+  buf.set(key, msg);
+}
+
+/** Flush all batch buffers to their respective WebSockets */
+function flushBatches() {
+  for (const [ws, buf] of wsBatchBuffers) {
+    if (buf.size === 0) continue;
+    if (ws.readyState !== 1) {
+      wsBatchBuffers.delete(ws);
+      continue;
+    }
+    // Send as a single "batch" envelope
+    const items = Array.from(buf.values());
+    ws.send(JSON.stringify({ type: "batch", items, ts: Date.now() }));
+    buf.clear();
+  }
+}
+
+// Flush interval — use the faster of the two intervals
+const batchFlushInterval = setInterval(flushBatches, Math.min(BATCH_INTERVAL_HF, BATCH_INTERVAL_MF));
+
+/** Send a message to a ws, using batching for high-freq types */
+function sendToWs(ws, msg) {
+  if (ws.readyState !== 1) return;
+  const msgType = typeof msg === "object" ? msg.type : undefined;
+  if (msgType && BATCHED_TYPES.has(msgType)) {
+    enqueueBatched(ws, msg);
+  } else {
+    ws.send(typeof msg === "string" ? msg : JSON.stringify(msg));
+  }
+}
+
+/** Clean up batch buffer when a ws disconnects */
+function cleanupBatchBuffer(ws) {
+  wsBatchBuffers.delete(ws);
+}
+
 // ── Heartbeat ───────────────────────────────────────────────────────────────
 const HEARTBEAT_INTERVAL_MS = 30_000; // ping every 30s
 
@@ -228,12 +292,12 @@ async function checkRateLimit(agentId) {
 function broadcastToChannel(channelId, message, excludeWs = null) {
   // Local broadcast to all subscribers on this instance
   const subs = channelSubscribers.get(channelId);
-  const data = typeof message === "string" ? message : JSON.stringify(message);
+  const msgObj = typeof message === "string" ? JSON.parse(message) : message;
 
   if (subs) {
     for (const ws of subs) {
-      if (ws !== excludeWs && ws.readyState === 1) {
-        ws.send(data);
+      if (ws !== excludeWs) {
+        sendToWs(ws, msgObj);
       }
     }
   }
@@ -1100,6 +1164,9 @@ wss.on("connection", async (ws, _req) => {
   ws.on("close", async () => {
     log("info", "Agent disconnected", { agentId, agentName });
 
+    // Clean up batch buffer for this ws
+    cleanupBatchBuffer(ws);
+
     // Clean up Firestore listeners
     for (const unsub of state.unsubs) {
       try { unsub(); } catch { /* ignore */ }
@@ -1320,12 +1387,16 @@ if (pubsubReady) {
 // Graceful shutdown handler
 process.on("SIGTERM", async () => {
   log("info", "SIGTERM received — shutting down gracefully");
+  clearInterval(batchFlushInterval);
+  flushBatches(); // final flush
   await closePubSub();
   process.exit(0);
 });
 
 process.on("SIGINT", async () => {
   log("info", "SIGINT received — shutting down gracefully");
+  clearInterval(batchFlushInterval);
+  flushBatches(); // final flush
   await closePubSub();
   process.exit(0);
 });

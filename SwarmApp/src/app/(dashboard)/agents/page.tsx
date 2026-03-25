@@ -20,46 +20,7 @@ import { db } from "@/lib/firebase";
 import { SKILL_REGISTRY, getInstalledSkills } from "@/lib/skills";
 import { useSwarmWrite } from "@/hooks/useSwarmWrite";
 import SpotlightCard from "@/components/reactbits/SpotlightCard";
-
-const TYPE_COLORS: Record<string, string> = {
-  Research: "bg-amber-100 text-amber-700 border-amber-200",
-  Trading: "bg-emerald-100 text-emerald-700 border-green-200",
-  Operations: "bg-purple-100 text-purple-700 border-purple-200",
-  Support: "bg-yellow-100 text-yellow-700 border-yellow-200",
-  Analytics: "bg-cyan-100 text-cyan-700 border-cyan-200",
-  Scout: "bg-amber-100 text-amber-700 border-amber-200",
-  Security: "bg-red-100 text-red-700 border-red-200",
-  Creative: "bg-pink-100 text-pink-700 border-pink-200",
-  Engineering: "bg-blue-100 text-blue-700 border-blue-200",
-  DevOps: "bg-orange-100 text-orange-700 border-orange-200",
-  Marketing: "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200",
-  Finance: "bg-lime-100 text-lime-700 border-lime-200",
-  Data: "bg-indigo-100 text-indigo-700 border-indigo-200",
-  Coordinator: "bg-teal-100 text-teal-700 border-teal-200",
-  Legal: "bg-slate-100 text-slate-700 border-slate-200",
-  Communication: "bg-sky-100 text-sky-700 border-sky-200",
-};
-
-const AGENT_TYPES: Agent['type'][] = ['Research', 'Trading', 'Operations', 'Support', 'Analytics', 'Scout', 'Security', 'Creative', 'Engineering', 'DevOps', 'Marketing', 'Finance', 'Data', 'Coordinator', 'Legal', 'Communication'];
-
-const TYPE_DESCRIPTIONS: Record<Agent['type'], string> = {
-  Research: "Information gathering and analysis",
-  Trading: "Market analysis and trading operations",
-  Operations: "Process automation and management",
-  Support: "Customer service and assistance",
-  Analytics: "Data analysis and insights",
-  Scout: "Reconnaissance and monitoring",
-  Security: "Cybersecurity monitoring and threat detection",
-  Creative: "Content generation and creative design",
-  Engineering: "Code generation and software development",
-  DevOps: "Infrastructure and CI/CD automation",
-  Marketing: "Growth strategy and campaign management",
-  Finance: "Financial modeling and reporting",
-  Data: "Data pipelines and ETL processing",
-  Coordinator: "Multi-agent orchestration and routing",
-  Legal: "Compliance and document review",
-  Communication: "Outreach, messaging, and notifications",
-};
+import { getTypeColor, getTypeLabel, getTypeDescription, getGroupedTypes, AGENT_TYPE_CATEGORIES, type AgentTypeCategory } from "@/lib/agent-types";
 
 // ---------------------------------------------------------------------------
 // Generate the setup prompt that users copy into their OpenClaw agent
@@ -286,15 +247,17 @@ export default function AgentsPage() {
 
   // Form state
   const [agentName, setAgentName] = useState('');
-  const [agentType, setAgentType] = useState<Agent['type']>('Research');
+  const [agentType, setAgentType] = useState('fullstack-developer');
   const [agentDescription, setAgentDescription] = useState('');
+  const [typeSearch, setTypeSearch] = useState('');
 
   // Edit state
   const [showEdit, setShowEdit] = useState(false);
   const [editAgent, setEditAgent] = useState<Agent | null>(null);
   const [editName, setEditName] = useState('');
-  const [editType, setEditType] = useState<Agent['type']>('Research');
+  const [editType, setEditType] = useState('fullstack-developer');
   const [editDescription, setEditDescription] = useState('');
+  const [editTypeSearch, setEditTypeSearch] = useState('');
   const [editAvatarPreview, setEditAvatarPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -453,8 +416,8 @@ export default function AgentsPage() {
         orgId: currentOrg.id,
         name: agentName.trim(),
         type: agentType,
-        description: agentDescription.trim() || TYPE_DESCRIPTIONS[agentType],
-        capabilities: [TYPE_DESCRIPTIONS[agentType]],
+        description: agentDescription.trim() || getTypeDescription(agentType),
+        capabilities: [getTypeDescription(agentType)],
         status: 'offline',
         projectIds: [],
         apiKey: apiKeyForNew,
@@ -489,7 +452,7 @@ export default function AgentsPage() {
 
       // Clear form and switch dialogs
       setAgentName('');
-      setAgentType('Research');
+      setAgentType('fullstack-developer');
       setAgentDescription('');
       setShowRegister(false);
       setShowSetup(true);
@@ -619,7 +582,7 @@ export default function AgentsPage() {
                           ID: {agent.id}
                         </p>
                         <div className="flex items-center gap-2 mt-1">
-                          <Badge className={TYPE_COLORS[agent.type] || ""}>{agent.type}</Badge>
+                          <Badge className={getTypeColor(agent.type)}>{getTypeLabel(agent.type)}</Badge>
                           <span className={`text-xs font-medium flex items-center gap-1.5 ${agent.status === "online" ? "text-emerald-400" :
                             agent.status === "busy" ? "text-amber-400" : "text-red-400"
                             }`}>
@@ -784,19 +747,40 @@ export default function AgentsPage() {
 
             <div>
               <label className="text-sm font-medium mb-1 block">Agent Type *</label>
-              <Select value={agentType} onValueChange={(value: Agent['type']) => setAgentType(value)}>
+              <Select value={agentType} onValueChange={(value: string) => setAgentType(value)}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>{getTypeLabel(agentType)}</SelectValue>
                 </SelectTrigger>
-                <SelectContent>
-                  {AGENT_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      <div className="flex flex-col items-start">
-                        <span className="font-medium">{type}</span>
-                        <span className="text-xs text-muted-foreground">{TYPE_DESCRIPTIONS[type]}</span>
+                <SelectContent className="max-h-80">
+                  <div className="sticky top-0 z-10 bg-popover p-2 border-b">
+                    <Input
+                      placeholder="Search agent types..."
+                      value={typeSearch}
+                      onChange={(e) => setTypeSearch(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  {getGroupedTypes().map(({ category, info, types }) => {
+                    const filtered = typeSearch
+                      ? types.filter(t => t.label.toLowerCase().includes(typeSearch.toLowerCase()) || t.description.toLowerCase().includes(typeSearch.toLowerCase()) || t.tags?.some(tag => tag.includes(typeSearch.toLowerCase())))
+                      : types;
+                    if (filtered.length === 0) return null;
+                    return (
+                      <div key={category}>
+                        <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-[49px] bg-popover">
+                          {info.icon} {info.label}
+                        </div>
+                        {filtered.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium text-sm">{t.label}</span>
+                              <span className="text-[11px] text-muted-foreground">{t.description}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
                       </div>
-                    </SelectItem>
-                  ))}
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -879,19 +863,40 @@ export default function AgentsPage() {
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">Agent Type *</label>
-              <Select value={editType} onValueChange={(value: Agent['type']) => setEditType(value)}>
+              <Select value={editType} onValueChange={(value: string) => setEditType(value)}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>{getTypeLabel(editType)}</SelectValue>
                 </SelectTrigger>
-                <SelectContent>
-                  {AGENT_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      <div className="flex flex-col items-start">
-                        <span className="font-medium">{type}</span>
-                        <span className="text-xs text-muted-foreground">{TYPE_DESCRIPTIONS[type]}</span>
+                <SelectContent className="max-h-80">
+                  <div className="sticky top-0 z-10 bg-popover p-2 border-b">
+                    <Input
+                      placeholder="Search agent types..."
+                      value={editTypeSearch}
+                      onChange={(e) => setEditTypeSearch(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  {getGroupedTypes().map(({ category, info, types }) => {
+                    const filtered = editTypeSearch
+                      ? types.filter(t => t.label.toLowerCase().includes(editTypeSearch.toLowerCase()) || t.description.toLowerCase().includes(editTypeSearch.toLowerCase()) || t.tags?.some(tag => tag.includes(editTypeSearch.toLowerCase())))
+                      : types;
+                    if (filtered.length === 0) return null;
+                    return (
+                      <div key={category}>
+                        <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-[49px] bg-popover">
+                          {info.icon} {info.label}
+                        </div>
+                        {filtered.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium text-sm">{t.label}</span>
+                              <span className="text-[11px] text-muted-foreground">{t.description}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
                       </div>
-                    </SelectItem>
-                  ))}
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>

@@ -1295,6 +1295,57 @@ We're monitoring other chains for potential bridges:
 
 **Swarm** — Your agents. Your fleet. Your edge.
 
+## External Dependencies & References
+
+Swarm integrates with or builds on the following external projects and services.
+
+### Blockchain & Web3
+
+| Project | Usage |
+|---------|-------|
+| [Hedera](https://hedera.com) | Primary chain — HCS event logging, agent identity (ASNs), scheduled transactions, testnet faucet |
+| [Solana](https://solana.com) | Devnet NFT identity — deterministic agent wallets, Metaplex NFT minting, org collections |
+| [Metaplex](https://www.metaplex.com) | NFT standard for agent identity tokens on Solana Devnet |
+| [Chainlink](https://chain.link) | On-chain oracle price feeds (ETH/USD, BTC/USD, LINK/USD) + CRE workflow |
+| [Ethereum Sepolia](https://sepolia.dev) | Testnet smart contracts — agent registry, task board, ASN registry, treasury (LINK-based) |
+| [Bittensor](https://bittensor.com) | SwarmCare subnet — decentralized AI training for elderly care coordination (TAO emissions) |
+
+### Auth & Payments
+
+| Project | Usage |
+|---------|-------|
+| [Thirdweb](https://thirdweb.com) | Wallet auth SDK — SIWE (Sign-In With Ethereum) with signature verification |
+| [Stripe](https://stripe.com) | Payment processing — marketplace subscriptions (monthly/yearly/lifetime) via Checkout + webhooks |
+
+### Infrastructure & Storage
+
+| Project | Usage |
+|---------|-------|
+| [Firebase / Firestore](https://firebase.google.com) | Primary database, file storage, and TTL-based data cleanup |
+| [Google Cloud Pub/Sub](https://cloud.google.com/pubsub) | Cross-instance WebSocket message broadcasting for horizontal scaling |
+| [Tailscale](https://tailscale.com) | Optional VPN integration for IP whitelisting |
+| [Azure](https://azure.microsoft.com) | VM compute provider — full lifecycle, dynamic networking, VNC access |
+| [E2B](https://e2b.dev) | Sandboxed container compute provider |
+
+### Frontend & Dev Tools
+
+| Project | Usage |
+|---------|-------|
+| [Next.js](https://nextjs.org) | Frontend framework (v16 + React 19) |
+| [shadcn/ui](https://ui.shadcn.com) | UI component library |
+| [React Flow](https://reactflow.dev) | Visual graph editor for agent maps and workflow builder |
+| [Hardhat](https://hardhat.org) | Solidity development and contract deployment |
+
+### Agent Framework
+
+| Project | Usage |
+|---------|-------|
+| [OpenClaw](https://openclaw.ai) | Agent skill framework — Swarm Connect plugin is built as an OpenClaw skill |
+
+### Supported Wallets
+
+MetaMask, Coinbase Wallet, Rainbow, Rabby, Phantom, and Thirdweb in-app wallets.
+
 ## License
 
 MIT

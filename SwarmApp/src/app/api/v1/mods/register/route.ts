@@ -9,13 +9,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { upsertModService, removeModService } from "@/lib/mod-gateway/registry";
 import type { ModServiceRegistration } from "@/lib/mod-gateway/types";
 
-const REGISTRATION_SECRET = process.env.MOD_REGISTRATION_SECRET || "dev-registration-secret";
+const REGISTRATION_SECRET = process.env.MOD_REGISTRATION_SECRET;
 
 function verifySecret(req: NextRequest): boolean {
+  if (!REGISTRATION_SECRET) {
+    console.warn("[mods/register] MOD_REGISTRATION_SECRET not configured — rejecting all requests");
+    return false;
+  }
   const auth = req.headers.get("authorization");
   if (!auth) return false;
   const token = auth.replace("Bearer ", "");
-  return token === REGISTRATION_SECRET;
+  if (token.length !== REGISTRATION_SECRET.length) return false;
+  // Timing-safe comparison
+  const { timingSafeEqual } = require("crypto");
+  try {
+    return timingSafeEqual(Buffer.from(token), Buffer.from(REGISTRATION_SECRET));
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(req: NextRequest) {

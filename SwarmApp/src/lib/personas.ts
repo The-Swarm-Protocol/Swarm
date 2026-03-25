@@ -7,6 +7,7 @@
 
 import type { AgentPackage, AgentIdentityConfig } from "./skills";
 import type { SOULConfig } from "./soul";
+import { getTypeLabel } from "./agent-types";
 
 // ═══════════════════════════════════════════════════════════════
 // Utility — bridge AgentIdentityConfig → SOULConfig
@@ -72,7 +73,7 @@ export const PERSONA_REGISTRY: AgentPackage[] = [
         distributions: ["config"],
         pricing: { configPurchase: 49, currency: "USD" },
         identity: {
-            agentType: "Operations",
+            agentType: "workflow-orchestrator",
             persona: "Senior operations director who orchestrates agent teams with precision and strategic oversight.",
             personality: ["strategic", "decisive", "organized", "commanding", "analytical"],
             rules: [
@@ -144,7 +145,7 @@ export const PERSONA_REGISTRY: AgentPackage[] = [
         distributions: ["config"],
         pricing: { currency: "USD" },
         identity: {
-            agentType: "Research",
+            agentType: "research-analyst",
             persona: "Methodical research analyst who produces thorough, cited analysis with academic rigor.",
             personality: ["methodical", "curious", "thorough", "objective", "patient"],
             rules: [
@@ -216,7 +217,7 @@ export const PERSONA_REGISTRY: AgentPackage[] = [
         distributions: ["config"],
         pricing: { configPurchase: 39, currency: "USD" },
         identity: {
-            agentType: "Security",
+            agentType: "security-auditor",
             persona: "Adversarial-minded security auditor who identifies vulnerabilities before attackers do.",
             personality: ["vigilant", "precise", "skeptical", "methodical", "persistent"],
             rules: [
@@ -288,7 +289,7 @@ export const PERSONA_REGISTRY: AgentPackage[] = [
         distributions: ["config"],
         pricing: { configPurchase: 79, currency: "USD" },
         identity: {
-            agentType: "Trading",
+            agentType: "fintech-engineer",
             persona: "Disciplined quantitative strategist who prioritizes capital preservation over speculative gains.",
             personality: ["calculated", "adaptive", "disciplined", "patient", "analytical"],
             rules: [
@@ -361,7 +362,7 @@ export const PERSONA_REGISTRY: AgentPackage[] = [
         distributions: ["config"],
         pricing: { configPurchase: 29, currency: "USD" },
         identity: {
-            agentType: "Creative",
+            agentType: "content-marketer",
             persona: "Brand-aware content creator who adapts voice across platforms while maintaining consistency.",
             personality: ["imaginative", "empathetic", "witty", "adaptable", "observant"],
             rules: [
@@ -433,7 +434,7 @@ export const PERSONA_REGISTRY: AgentPackage[] = [
         distributions: ["config"],
         pricing: { configPurchase: 49, currency: "USD" },
         identity: {
-            agentType: "Engineering",
+            agentType: "devops-engineer",
             persona: "Systems-minded DevOps engineer who prioritizes reliability, automation, and boring technology.",
             personality: ["systematic", "pragmatic", "reliable", "thorough", "calm"],
             rules: [
@@ -506,7 +507,7 @@ export const PERSONA_REGISTRY: AgentPackage[] = [
         distributions: ["config"],
         pricing: { configPurchase: 59, currency: "USD" },
         identity: {
-            agentType: "Operations",
+            agentType: "compliance-auditor",
             persona: "Governance-focused compliance officer who ensures every action is documented, auditable, and defensible.",
             personality: ["meticulous", "principled", "cautious", "thorough", "authoritative"],
             rules: [
@@ -578,7 +579,7 @@ export const PERSONA_REGISTRY: AgentPackage[] = [
         distributions: ["config"],
         pricing: { currency: "USD" },
         identity: {
-            agentType: "Creative",
+            agentType: "ux-researcher",
             persona: "Bold creative director who challenges conventions and turns abstract ideas into tangible concepts.",
             personality: ["spontaneous", "bold", "collaborative", "visionary", "energetic"],
             rules: [

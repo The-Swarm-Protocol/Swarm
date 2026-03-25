@@ -2,17 +2,29 @@
  * POST /api/cron/[id]/pause
  *
  * Toggle pause state of a cron job.
- * Body: { paused: boolean }
+ * Body: { orgId, paused: boolean }
  */
 
 import { NextRequest } from "next/server";
 import { updateCronJob } from "@/lib/cron";
+import { getWalletAddress, requireOrgMember, unauthorized, forbidden } from "@/lib/auth-guard";
+import { rateLimit } from "@/app/api/v1/rate-limit";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const ip = request.headers.get("x-forwarded-for") || "unknown";
+  const limited = await rateLimit(`cron:${ip}`);
+  if (limited) return limited;
+
+  // Auth: require authenticated user
+  const wallet = getWalletAddress(request);
+  if (!wallet) {
+    return unauthorized("Authentication required");
+  }
+
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -20,7 +32,15 @@ export async function POST(
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { paused } = body;
+  const { orgId, paused } = body;
+
+  // Verify org membership if orgId provided
+  if (orgId) {
+    const auth = await requireOrgMember(request, orgId as string);
+    if (!auth.ok) {
+      return auth.status === 403 ? forbidden(auth.error) : unauthorized(auth.error);
+    }
+  }
 
   if (typeof paused !== "boolean") {
     return Response.json(

@@ -8,13 +8,25 @@
 
 import { NextRequest } from "next/server";
 import { getSecrets, storeSecret } from "@/lib/secrets";
+import { requireOrgMember, unauthorized, forbidden } from "@/lib/auth-guard";
+import { rateLimit } from "@/app/api/v1/rate-limit";
 
 export async function GET(request: NextRequest) {
+  const ip = request.headers.get("x-forwarded-for") || "unknown";
+  const limited = await rateLimit(`secrets:${ip}`);
+  if (limited) return limited;
+
   const { searchParams } = new URL(request.url);
   const orgId = searchParams.get("orgId");
 
   if (!orgId) {
     return Response.json({ error: "orgId is required" }, { status: 400 });
+  }
+
+  // Auth: caller must be a member of the org
+  const auth = await requireOrgMember(request, orgId);
+  if (!auth.ok) {
+    return auth.status === 403 ? forbidden(auth.error) : unauthorized(auth.error);
   }
 
   try {
@@ -48,6 +60,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const ip = request.headers.get("x-forwarded-for") || "unknown";
+  const limited = await rateLimit(`secrets:${ip}`);
+  if (limited) return limited;
+
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -64,6 +80,12 @@ export async function POST(request: NextRequest) {
       },
       { status: 400 }
     );
+  }
+
+  // Auth: caller must be a member of the org
+  const auth = await requireOrgMember(request, orgId as string);
+  if (!auth.ok) {
+    return auth.status === 403 ? forbidden(auth.error) : unauthorized(auth.error);
   }
 
   try {

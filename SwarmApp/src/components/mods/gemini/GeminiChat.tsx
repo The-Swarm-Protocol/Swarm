@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Sparkles, User, Loader2, ImagePlus, X } from "lucide-react";
+import { Send, Sparkles, User, Loader2, ImagePlus, X, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -11,40 +11,6 @@ interface ChatMessage {
   content: string;
   image?: string; // base64
   timestamp: Date;
-}
-
-const MOCK_RESPONSES: Record<string, string> = {
-  hello: "Hey! I'm your Gemini Live Agent — I can analyze screenshots, plan UI actions, and help automate browser tasks. Drop a screenshot or describe what you need!",
-  help: "Here's what I can do:\n\n• **Analyze UI** — Upload a screenshot and I'll identify all interactive elements\n• **Plan Actions** — Describe a task and I'll create a step-by-step action plan\n• **Execute** — Run planned actions on a cloud desktop\n• **Navigate** — Open URLs, click buttons, fill forms\n\nTry uploading a screenshot and asking me to do something with it!",
-  screenshot: "I can see the screenshot! Here's what I notice:\n\n• **Navigation bar** at the top with several menu items\n• **Main content area** with interactive elements\n• **Action buttons** — looks like there are a few clickable targets\n\nWhat would you like me to do with this interface?",
-};
-
-function getMockResponse(input: string, hasImage: boolean): string {
-  const lower = input.toLowerCase().trim();
-
-  if (hasImage) return MOCK_RESPONSES.screenshot;
-  if (lower === "hello" || lower === "hi" || lower === "hey") return MOCK_RESPONSES.hello;
-  if (lower.includes("help") || lower === "?") return MOCK_RESPONSES.help;
-
-  if (lower.includes("click") || lower.includes("tap") || lower.includes("press"))
-    return `Sure, I can handle that. To click on the target element I'd need a screenshot of the current UI state. You can:\n\n1. **Upload a screenshot** using the image button\n2. **Use the UI Agent tab** for the full analyze → plan → execute workflow\n\nWant me to walk you through it?`;
-
-  if (lower.includes("navigate") || lower.includes("open") || lower.includes("go to"))
-    return `I can navigate to URLs by opening them in the browser on a cloud desktop. Here's what I'd do:\n\n1. Launch \`xdg-open\` with the target URL\n2. Wait for the page to load\n3. Take a screenshot to confirm\n\nDo you have a computer selected for live execution, or should I demo it?`;
-
-  if (lower.includes("plan") || lower.includes("automate") || lower.includes("workflow"))
-    return `I'd love to help plan that out! To create an action plan, I need:\n\n• A **screenshot** of the starting UI state\n• A **description** of the goal you want to achieve\n\nI'll then generate a step-by-step plan with click, type, scroll, and navigate actions. You can review and execute them on a cloud desktop.`;
-
-  if (lower.includes("who") || lower.includes("what are you"))
-    return "I'm **Gemini Live Agent** — a multimodal AI assistant powered by Google's Gemini 2.5 Flash model. I specialize in understanding user interfaces from screenshots and automating browser interactions.\n\nI'm part of the Swarm Protocol mod system, which means I can be installed, configured, and connected to cloud desktops for real execution.";
-
-  // Default
-  const defaults = [
-    `Interesting! I can help with that. For best results, upload a screenshot of the UI you're working with — I'll analyze it and suggest actions.\n\nYou can also switch to the **UI Agent** tab for the full analysis workflow.`,
-    `Got it! I work best with visual context. Try sharing a screenshot and I'll identify all the interactive elements and plan the next steps for you.`,
-    `I understand what you're looking for. Let me know if you'd like me to:\n\n• **Analyze** a screenshot for UI elements\n• **Plan** a sequence of actions to achieve a goal\n• **Execute** actions on a cloud desktop\n\nJust upload a screenshot to get started!`,
-  ];
-  return defaults[Math.floor(Math.random() * defaults.length)];
 }
 
 export function GeminiChat() {
@@ -59,6 +25,7 @@ export function GeminiChat() {
   const [input, setInput] = useState("");
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -84,21 +51,65 @@ export function GeminiChat() {
     };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
-    const hadImage = !!pendingImage;
+    const imageData = pendingImage;
     setPendingImage(null);
     setIsTyping(true);
 
-    // Simulate typing delay
-    await new Promise((r) => setTimeout(r, 800 + Math.random() * 1200));
+    try {
+      // Build history from last 10 messages (skip welcome)
+      const recent = messages.slice(-10);
+      const history = recent
+        .filter((m) => m.id !== "welcome")
+        .map((m) => ({
+          role: m.role === "user" ? "user" as const : "model" as const,
+          text: m.content,
+        }));
 
-    const reply: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: getMockResponse(text, hadImage),
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, reply]);
-    setIsTyping(false);
+      // Strip data URL prefix for base64 if present
+      let base64Image: string | undefined;
+      if (imageData) {
+        base64Image = imageData.includes(",") ? imageData.split(",")[1] : imageData;
+      }
+
+      const res = await fetch("/api/mods/gemini/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: text || "Analyze this screenshot",
+          image: base64Image,
+          history,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to get response");
+      }
+
+      if (data.demo && !demoMode) {
+        setDemoMode(true);
+      }
+
+      const reply: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: data.reply,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, reply]);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Something went wrong";
+      const reply: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: `Sorry, I encountered an error: ${errorMsg}\n\nPlease check that the Gemini API key is configured and try again.`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, reply]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -121,6 +132,16 @@ export function GeminiChat() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-14rem)] rounded-xl border border-border bg-card/50 overflow-hidden">
+      {/* Demo mode banner */}
+      {demoMode && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-400 text-xs">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            Demo mode — <code className="text-[10px] bg-amber-500/10 px-1 rounded">GOOGLE_GENAI_API_KEY</code> is not configured. Responses are limited.
+          </span>
+        </div>
+      )}
+
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
         {messages.map((msg) => (

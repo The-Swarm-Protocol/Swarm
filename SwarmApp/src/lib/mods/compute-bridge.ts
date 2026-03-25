@@ -114,6 +114,8 @@ export interface ModActionResult {
   message: string;
   durationMs: number;
   data?: Record<string, unknown>;
+  /** True when the result is simulated (no real compute target). */
+  demo?: boolean;
 }
 
 export interface ModExecutionResult {
@@ -232,13 +234,14 @@ export async function executeModActions(opts: {
 
 /**
  * Mock execution when no computer is available.
- * Returns simulated success for all actions.
+ * Returns simulated success for all actions, clearly flagged as demo.
  */
 export function mockExecuteActions(actions: PlannedAction[]): ModActionResult[] {
   return actions.map((action, i) => ({
     action,
     status: "success" as const,
-    message: `Step ${i + 1}: ${action.description} — simulated`,
-    durationMs: 50,
+    message: `[Demo] Step ${i + 1}: ${action.description} — simulated`,
+    durationMs: 0,
+    demo: true,
   }));
 }

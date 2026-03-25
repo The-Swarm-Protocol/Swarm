@@ -14,11 +14,17 @@ import {
 } from "@/lib/memory-templates";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getWalletAddress, requireOrgMember } from "@/lib/auth-guard";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ agentId: string }> }
 ) {
+  const wallet = getWalletAddress(request);
+  if (!wallet) {
+    return Response.json({ error: "Authentication required" }, { status: 401 });
+  }
+
   const { agentId } = await params;
   let body: Record<string, unknown>;
   try {
@@ -34,6 +40,12 @@ export async function POST(
       { error: "orgId and entry are required" },
       { status: 400 }
     );
+  }
+
+  // Verify caller is a member of the org
+  const orgAuth = await requireOrgMember(request, orgId as string);
+  if (!orgAuth.ok) {
+    return Response.json({ error: orgAuth.error }, { status: orgAuth.status || 403 });
   }
 
   try {

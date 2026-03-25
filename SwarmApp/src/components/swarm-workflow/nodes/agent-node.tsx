@@ -5,15 +5,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { AGENT_TYPE_ICONS, formatCostCents } from '@/lib/swarm-workflow';
-
-const TYPE_COLORS: Record<string, string> = {
-  Research: 'bg-amber-100 text-amber-700 border-amber-200',
-  Trading: 'bg-emerald-100 text-emerald-700 border-green-200',
-  Operations: 'bg-purple-100 text-purple-700 border-purple-200',
-  Support: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-  Analytics: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-  Scout: 'bg-amber-100 text-amber-700 border-amber-200',
-};
+import { getTypeColor, getTypeLabel } from '@/lib/agent-types';
 
 export function AgentNode({ data, selected }: NodeProps) {
   const agentType = data.agentType as string;
@@ -38,8 +30,8 @@ export function AgentNode({ data, selected }: NodeProps) {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold truncate">{data.agentName as string}</p>
             <div className="flex items-center gap-1.5">
-              <Badge className={cn('text-[10px] py-0', TYPE_COLORS[agentType] || '')}>
-                {AGENT_TYPE_ICONS[agentType as keyof typeof AGENT_TYPE_ICONS]} {agentType}
+              <Badge className={cn('text-[10px] py-0', getTypeColor(agentType))}>
+                {AGENT_TYPE_ICONS[agentType as keyof typeof AGENT_TYPE_ICONS] || '🤖'} {getTypeLabel(agentType)}
               </Badge>
               <span className={cn('w-1.5 h-1.5 rounded-full',
                 agentStatus === 'online' ? 'bg-emerald-500' :

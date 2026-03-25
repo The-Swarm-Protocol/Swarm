@@ -10,12 +10,23 @@ import { getAgentSOUL, updateAgentSOUL, getDefaultSOUL } from "@/lib/soul";
 import { getDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Agent } from "@/lib/firestore";
+import { getWalletAddress, requireOrgMember, unauthorized, forbidden } from "@/lib/auth-guard";
+import { rateLimit } from "@/app/api/v1/rate-limit";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params;
+  const ip = request.headers.get("x-forwarded-for") || "unknown";
+  const limited = await rateLimit(`soul:${ip}`);
+  if (limited) return limited;
+
+  // Auth: require wallet address — agent must belong to caller's org
+  const wallet = getWalletAddress(request);
+  if (!wallet) {
+    return unauthorized("Authentication required");
+  }
 
   try {
     const soulConfig = await getAgentSOUL(agentId);
@@ -28,6 +39,13 @@ export async function GET(
       }
 
       const agent = { id: agentDoc.id, ...agentDoc.data() } as Agent;
+
+      // Verify caller is a member of the agent's org
+      const auth = await requireOrgMember(request, agent.orgId);
+      if (!auth.ok) {
+        return auth.status === 403 ? forbidden(auth.error) : unauthorized(auth.error);
+      }
+
       const defaultSOUL = getDefaultSOUL(agent.name, agent.type);
 
       return Response.json({
@@ -59,6 +77,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: agentId } = await params;
+  const ip = request.headers.get("x-forwarded-for") || "unknown";
+  const limited = await rateLimit(`soul:${ip}`);
+  if (limited) return limited;
 
   let body: Record<string, unknown>;
   try {
@@ -71,6 +92,12 @@ export async function PUT(
 
   if (!orgId) {
     return Response.json({ error: "orgId is required" }, { status: 400 });
+  }
+
+  // Auth: caller must be a member of the org
+  const auth = await requireOrgMember(request, orgId as string);
+  if (!auth.ok) {
+    return auth.status === 403 ? forbidden(auth.error) : unauthorized(auth.error);
   }
 
   if (!soulConfig || typeof soulConfig !== "string") {

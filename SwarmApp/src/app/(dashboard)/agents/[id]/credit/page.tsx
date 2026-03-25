@@ -28,8 +28,7 @@ import { ScoreDrivers } from "@/components/credit/score-drivers";
 import { ConfidenceIndicator } from "@/components/credit/confidence-indicator";
 import { TierBadgeTooltip } from "@/components/credit/tier-badge-tooltip";
 import { CreditAuditTable } from "@/components/credit/credit-audit-table";
-
-const PLATFORM_ADMIN = "0x723708273e811a07d90d2e81e799b9Ab27F0B549".toLowerCase();
+import { isPlatformAdmin } from "@/lib/platform-admins";
 
 export default function AgentCreditPage({ params }: { params: Promise<{ id: string }> }) {
     const resolvedParams = use(params);
@@ -45,7 +44,7 @@ export default function AgentCreditPage({ params }: { params: Promise<{ id: stri
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const isAdmin = sessionAddress?.toLowerCase() === PLATFORM_ADMIN;
+    const isAdmin = isPlatformAdmin(sessionAddress);
 
     useEffect(() => {
         if (!currentOrg?.id) return;

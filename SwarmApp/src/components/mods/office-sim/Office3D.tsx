@@ -577,6 +577,7 @@ export function Office3D() {
             theme={theme}
             furniture={state.furniture}
             textures={state.textures}
+            art={state.art}
           />
         </Suspense>
 

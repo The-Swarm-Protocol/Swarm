@@ -1,18 +1,24 @@
 /** OfficeEnvironment — Composes floor, walls, ceiling, and AI-generated furniture */
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useMemo, useEffect, useRef } from "react";
+import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { OfficeTheme } from "./themes";
 import type { OfficeFurnitureData } from "./studio/furniture-types";
 import type { OfficeTextureData } from "./studio/texture-types";
+import type { OfficeArtPieceData } from "./studio/art-types";
+import { DEFAULT_ART_SLOTS, ART_PIPELINE, ART_3D_SCALES } from "./studio/art-types";
 import { ThemedFloor } from "./ThemedFloor";
 import { GltfFurniture } from "./GltfFurniture";
+import { ArtPlane } from "./ArtPlane";
+import { ArtPlaceholder } from "./ArtPlaceholder";
 
 interface OfficeEnvironmentProps {
   theme: OfficeTheme;
   furniture?: Map<string, OfficeFurnitureData>;
   textures?: Map<string, OfficeTextureData>;
+  art?: Map<string, OfficeArtPieceData>;
 }
 
 /** Default positions for furniture categories in the 3D scene */
@@ -93,10 +99,43 @@ function Ceiling({ theme }: { theme: OfficeTheme }) {
   );
 }
 
+/** Simple GLTF loader for art pieces (no category/scale assumptions from furniture) */
+function GltfArt({
+  modelUrl,
+  position,
+  rotation,
+  scale,
+}: {
+  modelUrl: string;
+  position: [number, number, number];
+  rotation?: [number, number, number];
+  scale: [number, number, number];
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const { scene } = useGLTF(modelUrl);
+  const clonedScene = useMemo(() => scene.clone(true), [scene]);
+
+  useEffect(() => {
+    if (!groupRef.current) return;
+    // Center the model
+    const box = new THREE.Box3().setFromObject(clonedScene);
+    const center = box.getCenter(new THREE.Vector3());
+    clonedScene.position.sub(center);
+    clonedScene.position.y += box.getSize(new THREE.Vector3()).y / 2;
+  }, [clonedScene]);
+
+  return (
+    <group ref={groupRef} position={position} rotation={rotation} scale={scale}>
+      <primitive object={clonedScene} />
+    </group>
+  );
+}
+
 export function OfficeEnvironment({
   theme,
   furniture,
   textures,
+  art,
 }: OfficeEnvironmentProps) {
   const floorTextureUrl = textures?.get("wood-floor")?.textureUrl
     || textures?.get("tile-floor")?.textureUrl
@@ -123,6 +162,53 @@ export function OfficeEnvironment({
             />
           </Suspense>
         ));
+      })}
+
+      {/* Render AI-generated art pieces */}
+      {DEFAULT_ART_SLOTS.map((slot) => {
+        const artData = art?.get(slot.id);
+        const pipeline = ART_PIPELINE[slot.category];
+        const is3D = pipeline === "meshy";
+
+        if (artData?.modelUrl && is3D) {
+          // 3D art: render as GLTF model
+          const scale = ART_3D_SCALES[slot.category] || [0.5, 0.5, 0.5];
+          return (
+            <Suspense key={slot.id} fallback={null}>
+              <GltfArt
+                modelUrl={artData.modelUrl}
+                position={slot.three.position}
+                rotation={slot.three.rotation}
+                scale={scale}
+              />
+            </Suspense>
+          );
+        }
+
+        if (artData?.imageUrl && !is3D) {
+          // 2D art: render as textured plane
+          return (
+            <Suspense key={slot.id} fallback={null}>
+              <ArtPlane
+                imageUrl={artData.imageUrl}
+                position={slot.three.position}
+                rotation={slot.three.rotation}
+                size={slot.three.planeSize}
+              />
+            </Suspense>
+          );
+        }
+
+        // Empty slot: wireframe placeholder
+        return (
+          <ArtPlaceholder
+            key={slot.id}
+            position={slot.three.position}
+            rotation={slot.three.rotation}
+            size={slot.three.planeSize}
+            is3D={is3D}
+          />
+        );
       })}
     </group>
   );

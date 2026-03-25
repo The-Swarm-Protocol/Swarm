@@ -5,9 +5,8 @@ import Link from "next/link";
 import { ChevronLeft, DollarSign, TrendingUp, Server, Users, BarChart3, MousePointer, Eye, ShieldAlert } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useSession } from "@/contexts/SessionContext";
+import { isPlatformAdmin } from "@/lib/platform-admins";
 import type { PricingSettings, ProfitabilitySummary } from "@/lib/compute/types";
-
-const PLATFORM_ADMIN_ADDRESS = "0x723708273e811a07d90d2e81e799b9Ab27F0B549".toLowerCase();
 
 interface AnalyticsData {
   computeEvents: { event: string; count: number }[];
@@ -20,7 +19,7 @@ interface AnalyticsData {
 
 export default function ComputeAdminPage() {
   const { address: sessionAddress, authenticated } = useSession();
-  const isAdmin = sessionAddress?.toLowerCase() === PLATFORM_ADMIN_ADDRESS;
+  const isAdmin = isPlatformAdmin(sessionAddress);
 
   const [pricing, setPricing] = useState<PricingSettings | null>(null);
   const [profit, setProfit] = useState<ProfitabilitySummary | null>(null);

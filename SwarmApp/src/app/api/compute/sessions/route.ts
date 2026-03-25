@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
 
   const computerId = req.nextUrl.searchParams.get("computerId") || undefined;
   const workspaceId = req.nextUrl.searchParams.get("workspaceId") || undefined;
-  const limit = parseInt(req.nextUrl.searchParams.get("limit") || "50");
+  const rawLimit = parseInt(req.nextUrl.searchParams.get("limit") || "50", 10);
+  const limit = isNaN(rawLimit) ? 50 : Math.max(1, Math.min(rawLimit, 200));
 
   if (!computerId && !workspaceId) {
     return Response.json({ error: "computerId or workspaceId required" }, { status: 400 });

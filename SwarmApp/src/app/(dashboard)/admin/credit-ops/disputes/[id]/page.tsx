@@ -6,8 +6,7 @@ import Link from "next/link";
 import { ShieldAlert, Loader2, ArrowLeft, Clock, Search, Scale, Gavel, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/contexts/SessionContext";
-
-const PLATFORM_ADMIN_ADDRESS = "0x723708273e811a07d90d2e81e799b9Ab27F0B549".toLowerCase();
+import { isPlatformAdmin } from "@/lib/platform-admins";
 
 interface DisputeDetail {
   id: string;
@@ -25,7 +24,7 @@ interface DisputeDetail {
 export default function DisputeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { address: sessionAddress, authenticated } = useSession();
-  const isAdmin = sessionAddress?.toLowerCase() === PLATFORM_ADMIN_ADDRESS;
+  const isAdmin = isPlatformAdmin(sessionAddress);
 
   const [item, setItem] = useState<DisputeDetail | null>(null);
   const [loading, setLoading] = useState(true);

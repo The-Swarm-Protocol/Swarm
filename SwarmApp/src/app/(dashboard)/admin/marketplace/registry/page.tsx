@@ -9,8 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useSession } from "@/contexts/SessionContext";
-
-const PLATFORM_ADMIN_ADDRESS = (process.env.NEXT_PUBLIC_ADMIN_ADDRESS || "").toLowerCase();
+import { isPlatformAdmin } from "@/lib/platform-admins";
 
 interface VerifiedItem {
   id: string;
@@ -40,7 +39,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 export default function RegistryPage() {
   const { address: sessionAddress, authenticated } = useSession();
-  const isAdmin = sessionAddress?.toLowerCase() === PLATFORM_ADMIN_ADDRESS;
+  const isAdmin = isPlatformAdmin(sessionAddress);
 
   const [items, setItems] = useState<VerifiedItem[]>([]);
   const [loading, setLoading] = useState(true);

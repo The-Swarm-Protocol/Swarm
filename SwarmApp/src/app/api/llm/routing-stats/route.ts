@@ -20,7 +20,8 @@ import { getRoutingStats } from "@/lib/model-router";
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const orgId = searchParams.get("orgId");
-  const daysBack = parseInt(searchParams.get("daysBack") || "7", 10);
+  const rawDays = parseInt(searchParams.get("daysBack") || "7", 10);
+  const daysBack = isNaN(rawDays) ? 7 : Math.max(1, Math.min(rawDays, 90));
 
   if (!orgId) {
     return Response.json({ error: "orgId is required" }, { status: 400 });

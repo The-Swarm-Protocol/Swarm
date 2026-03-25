@@ -94,6 +94,91 @@ export async function submitPixelArtWorkflow(
 }
 
 /* ═══════════════════════════════════════
+   Submit sprite sheet workflow (animated)
+   ═══════════════════════════════════════ */
+
+/**
+ * Generate a 4-direction × 6-frame sprite sheet for walk-cycle animation.
+ * Output: 288×256 PNG (48px × 6 cols, 64px × 4 rows).
+ * Rows: down, left, right, up.
+ */
+export async function submitSpriteSheetWorkflow(
+  prompt: string,
+  frameW: number = 48,
+  frameH: number = 64,
+  cols: number = 6,
+  rows: number = 4,
+): Promise<string> {
+  const endpoint = getEndpoint();
+
+  const totalW = frameW * cols; // 288
+  const totalH = frameH * rows; // 256
+
+  const styledPrompt = `pixel art character sprite sheet, ${prompt}, 4 directional walk cycle grid (row 1: facing down, row 2: facing left, row 3: facing right, row 4: facing up), ${cols} frames per direction, RPG game asset, transparent background, organized grid layout, consistent character across all frames, retro pixel art, 8-bit style, ${totalW}x${totalH}`;
+  const negativePrompt = "blurry, realistic, photograph, 3d render, text, watermark, frame, border, single frame only, not a sprite sheet, random poses";
+
+  const workflow: Record<string, unknown> = {
+    "1": {
+      class_type: "CheckpointLoaderSimple",
+      inputs: {
+        ckpt_name: process.env.COMFYUI_CHECKPOINT || "sd_xl_base_1.0.safetensors",
+      },
+    },
+    "2": {
+      class_type: "CLIPTextEncode",
+      inputs: { text: styledPrompt, clip: ["1", 1] },
+    },
+    "3": {
+      class_type: "CLIPTextEncode",
+      inputs: { text: negativePrompt, clip: ["1", 1] },
+    },
+    "4": {
+      class_type: "EmptyLatentImage",
+      inputs: { width: totalW * 4, height: totalH * 4, batch_size: 1 },
+    },
+    "5": {
+      class_type: "KSampler",
+      inputs: {
+        model: ["1", 0],
+        positive: ["2", 0],
+        negative: ["3", 0],
+        latent_image: ["4", 0],
+        seed: Math.floor(Math.random() * 2 ** 32),
+        steps: 30,
+        cfg: 8.0,
+        sampler_name: "euler_ancestral",
+        scheduler: "normal",
+        denoise: 1.0,
+      },
+    },
+    "6": {
+      class_type: "VAEDecode",
+      inputs: { samples: ["5", 0], vae: ["1", 2] },
+    },
+    "7": {
+      class_type: "SaveImage",
+      inputs: { images: ["6", 0], filename_prefix: "spritesheet" },
+    },
+  };
+
+  const clientId = crypto.randomUUID();
+
+  const res = await fetch(`${endpoint}/prompt`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt: workflow, client_id: clientId }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`ComfyUI sprite sheet submit failed ${res.status}: ${body}`);
+  }
+
+  const data: ComfyUIPromptResponse = await res.json();
+  return data.prompt_id;
+}
+
+/* ═══════════════════════════════════════
    Poll prompt status
    ═══════════════════════════════════════ */
 

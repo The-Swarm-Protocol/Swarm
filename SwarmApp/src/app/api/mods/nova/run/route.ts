@@ -72,14 +72,14 @@ export async function POST(req: NextRequest) {
       const successCount = executedSteps.filter((s) => s.status === "success").length;
       statusLabel = successCount === executedSteps.length ? "success" : successCount > 0 ? "partial" : "failed";
     } else {
-      // Demo mode — mock execution
+      // Demo mode — no real compute target
       const mockResults = mockExecuteActions(plannedActions);
       executedSteps = steps.map((step, i) => ({
         ...step,
         status: (mockResults[i]?.status || "success") as NovaWorkflowStep["status"],
         startedAt: new Date().toISOString(),
         completedAt: new Date(Date.now() + 50).toISOString(),
-        output: `Simulated: ${step.action.description}`,
+        output: `[Demo] ${step.action.description} — simulated`,
       }));
       statusLabel = "success";
     }

@@ -9,18 +9,23 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getModService } from "./registry";
 import { verifyModAccess } from "./subscription-guard";
 
-const GATEWAY_SECRET = process.env.MOD_GATEWAY_SECRET || "dev-gateway-secret";
+const GATEWAY_SECRET = process.env.MOD_GATEWAY_SECRET;
 
-/** Create a simple HMAC-based service token for mod-to-platform auth */
+/** Create an HMAC-signed service token for mod-to-platform auth */
 function createServiceToken(payload: {
   orgId: string;
   wallet: string;
   modSlug: string;
   exp: number;
 }): string {
-  // Simple base64 token with signature — in production, use proper JWT
   const data = JSON.stringify(payload);
-  return Buffer.from(data).toString("base64url");
+  if (!GATEWAY_SECRET) {
+    console.warn("[mod-gateway] MOD_GATEWAY_SECRET not configured — using unsigned token");
+    return Buffer.from(data).toString("base64url");
+  }
+  const { createHmac } = require("crypto");
+  const sig = createHmac("sha256", GATEWAY_SECRET).update(data).digest("base64url");
+  return `${Buffer.from(data).toString("base64url")}.${sig}`;
 }
 
 /** Proxy a request to a mod service */
@@ -68,7 +73,7 @@ export async function proxyToMod(
   // Build forwarded headers
   const headers: Record<string, string> = {
     "Authorization": `Bearer ${token}`,
-    "X-Gateway-Secret": GATEWAY_SECRET,
+    ...(GATEWAY_SECRET ? { "X-Gateway-Secret": GATEWAY_SECRET } : {}),
     "X-Org-Id": context.orgId,
     "X-Wallet-Address": context.wallet,
     "X-Mod-Slug": modSlug,

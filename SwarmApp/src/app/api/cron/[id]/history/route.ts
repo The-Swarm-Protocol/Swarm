@@ -14,7 +14,8 @@ export async function GET(
 ) {
   const { id } = await params;
   const { searchParams } = new URL(request.url);
-  const limit = parseInt(searchParams.get("limit") || "50");
+  const rawLimit = parseInt(searchParams.get("limit") || "50", 10);
+  const limit = isNaN(rawLimit) ? 50 : Math.max(1, Math.min(rawLimit, 500));
 
   try {
     const history = await getCronExecutionHistory(id, limit);

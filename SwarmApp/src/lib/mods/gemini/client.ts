@@ -9,6 +9,11 @@ import type { GeminiAnalysis, GeminiPlan } from "./types";
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-preview-04-17";
 
+/** Whether the API key is configured. Safe to call from any context. */
+export function isGeminiConfigured(): boolean {
+  return !!process.env.GOOGLE_GENAI_API_KEY;
+}
+
 /**
  * Lazy-initialise the Google GenAI client.
  * Throws at call time (not import time) if the key is missing.
@@ -125,5 +130,54 @@ Keep the plan to at most 8 actions. Be specific about targets.`;
       estimatedSteps: 0,
     };
   }
+}
+
+/**
+ * General chat completion. Used by the GeminiChat component.
+ * Supports optional image input for multimodal conversations.
+ */
+export async function chat(
+  message: string,
+  imageBase64?: string,
+  history?: { role: "user" | "model"; text: string }[],
+): Promise<string> {
+  const ai = getClient();
+
+  const systemPrompt = `You are Gemini Live Agent — a multimodal AI assistant that helps users analyze UIs, plan browser automation actions, and execute tasks on cloud desktops. You are part of the Swarm Protocol mod system.
+
+You can:
+- Analyze screenshots to identify interactive UI elements
+- Plan step-by-step action sequences (click, type, scroll, navigate)
+- Execute planned actions on cloud desktops
+- Help users automate browser workflows
+
+Be concise, helpful, and suggest practical next steps. If the user shares a screenshot, describe what you see and suggest actions.`;
+
+  const contents: Array<{ role: string; parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> }> = [];
+
+  // Add history
+  if (history?.length) {
+    for (const msg of history) {
+      contents.push({ role: msg.role, parts: [{ text: msg.text }] });
+    }
+  }
+
+  // Build current user message parts
+  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
+    { text: message },
+  ];
+  if (imageBase64) {
+    const mimeType = imageBase64.startsWith("/9j/") ? "image/jpeg" : "image/png";
+    parts.push({ inlineData: { mimeType, data: imageBase64 } });
+  }
+  contents.push({ role: "user", parts });
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL,
+    config: { systemInstruction: systemPrompt },
+    contents,
+  });
+
+  return response.text ?? "I wasn't able to generate a response. Please try again.";
 }
 

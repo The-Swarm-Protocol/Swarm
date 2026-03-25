@@ -8,8 +8,14 @@
 
 import { NextRequest } from "next/server";
 import { generateDailySummary } from "@/lib/daily-summary";
+import { getWalletAddress, requireOrgMember } from "@/lib/auth-guard";
 
 export async function POST(request: NextRequest) {
+  const wallet = getWalletAddress(request);
+  if (!wallet) {
+    return Response.json({ error: "Authentication required" }, { status: 401 });
+  }
+
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -24,6 +30,12 @@ export async function POST(request: NextRequest) {
       { error: "orgId, agentId, and agentName are required" },
       { status: 400 }
     );
+  }
+
+  // Verify caller is a member of the org
+  const orgAuth = await requireOrgMember(request, orgId as string);
+  if (!orgAuth.ok) {
+    return Response.json({ error: orgAuth.error }, { status: orgAuth.status || 403 });
   }
 
   try {

@@ -159,8 +159,14 @@ function renderMarkdown(markdown: string): string {
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code class="bg-gray-700 px-1.5 py-0.5 rounded text-sm">$1</code>');
 
-  // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-blue-400 hover:underline" target="_blank" rel="noopener">$1</a>');
+  // Links — only allow safe protocols (no javascript:, data:, vbscript:)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text: string, href: string) => {
+    const trimmed = href.trim().toLowerCase();
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("mailto:") || trimmed.startsWith("/") || trimmed.startsWith("#")) {
+      return `<a href="${href}" class="text-blue-400 hover:underline" target="_blank" rel="noopener">${text}</a>`;
+    }
+    return text; // Strip unsafe links, keep text
+  });
 
   // Unordered lists
   html = html.replace(/^\s*[-*]\s+(.*)$/gim, '<li class="ml-4">$1</li>');

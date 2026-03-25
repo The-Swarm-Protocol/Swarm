@@ -1,4 +1,91 @@
-/** Office Sim — Theme definitions for visual customization */
+/** Office Sim — Theme definitions with department-specific colors and derive-from-accent */
+
+import type { DepartmentId } from "./types";
+
+/* ═══════════════════════════════════════
+   Color Utilities
+   ═══════════════════════════════════════ */
+
+/** Parse hex string to [r, g, b] */
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  return [
+    parseInt(h.slice(0, 2), 16),
+    parseInt(h.slice(2, 4), 16),
+    parseInt(h.slice(4, 6), 16),
+  ];
+}
+
+/** RGB to hex string */
+function rgbToHex(r: number, g: number, b: number): string {
+  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+  return `#${clamp(r).toString(16).padStart(2, "0")}${clamp(g).toString(16).padStart(2, "0")}${clamp(b).toString(16).padStart(2, "0")}`;
+}
+
+/** Linearly blend two hex colors. t=0 → a, t=1 → b */
+export function blendColor(a: string, b: string, t: number): string {
+  const [ar, ag, ab] = hexToRgb(a);
+  const [br, bg, bb] = hexToRgb(b);
+  return rgbToHex(
+    ar + (br - ar) * t,
+    ag + (bg - ag) * t,
+    ab + (bb - ab) * t,
+  );
+}
+
+/** Check if a color is light (YIQ brightness formula) */
+export function isLightColor(hex: string): boolean {
+  const [r, g, b] = hexToRgb(hex);
+  return (r * 299 + g * 587 + b * 114) / 1000 > 128;
+}
+
+/** Auto-pick black or white text for contrast */
+export function contrastTextColor(bgHex: string): string {
+  return isLightColor(bgHex) ? "#1a1a2e" : "#e8e8f0";
+}
+
+/**
+ * Derive a full 4-color palette from a single accent color + brightness tone.
+ * tone: 0 = very dark, 100 = very bright
+ */
+export function deriveFromAccent(
+  accent: string,
+  tone: number,
+): { floor1: string; floor2: string; wall: string; accent: string } {
+  const t = Math.max(0, Math.min(100, tone)) / 100;
+  const darkBase = "#0a0a14";
+  return {
+    floor1: blendColor(darkBase, accent, t * 0.25),
+    floor2: blendColor(darkBase, accent, t * 0.18),
+    wall: blendColor(darkBase, accent, t * 0.35),
+    accent,
+  };
+}
+
+/* ═══════════════════════════════════════
+   Department Color Schemes
+   ═══════════════════════════════════════ */
+
+export interface DepartmentColors {
+  floor: string;
+  wall: string;
+  accent: string;
+  label: string;
+}
+
+export const DEFAULT_DEPARTMENT_COLORS: Record<DepartmentId, DepartmentColors> = {
+  engineering: { floor: "#1a1d2e", wall: "#242840", accent: "#3b82f6", label: "#93c5fd" },
+  design: { floor: "#2a1a2e", wall: "#3d2440", accent: "#e040fb", label: "#f0abfc" },
+  operations: { floor: "#1a2a1e", wall: "#243d28", accent: "#22c55e", label: "#86efac" },
+  qa: { floor: "#2a2a1a", wall: "#3d3d24", accent: "#eab308", label: "#fde047" },
+  research: { floor: "#1a2a2e", wall: "#243d40", accent: "#06b6d4", label: "#67e8f9" },
+  security: { floor: "#2a1a1a", wall: "#3d2424", accent: "#ef4444", label: "#fca5a5" },
+  unassigned: { floor: "#1a1a1e", wall: "#2a2a30", accent: "#6b7280", label: "#9ca3af" },
+};
+
+/* ═══════════════════════════════════════
+   Theme Interface
+   ═══════════════════════════════════════ */
 
 export interface OfficeTheme {
   id: string;
@@ -42,10 +129,26 @@ export interface OfficeTheme {
   svgRoomServer: { bg: string; border: string };
   svgRoomErrorBay: { bg: string; border: string };
 
+  // Department color overrides (optional per-department customization)
+  departmentColors?: Partial<Record<DepartmentId, DepartmentColors>>;
+
   // AI generation prompt hints (used by Meshy/ComfyUI)
   furnitureStylePrompt: string;
   textureStylePrompt: string;
+  artStylePrompt: string;
 }
+
+/** Get colors for a department, falling back to defaults */
+export function getDepartmentColors(
+  theme: OfficeTheme,
+  department: DepartmentId,
+): DepartmentColors {
+  return theme.departmentColors?.[department] ?? DEFAULT_DEPARTMENT_COLORS[department];
+}
+
+/* ═══════════════════════════════════════
+   Theme Presets
+   ═══════════════════════════════════════ */
 
 export const THEME_PRESETS: OfficeTheme[] = [
   {
@@ -88,6 +191,7 @@ export const THEME_PRESETS: OfficeTheme[] = [
 
     furnitureStylePrompt: "modern minimalist startup office, light wood and steel, Scandinavian design",
     textureStylePrompt: "warm oak wood grain, natural matte finish, Scandinavian",
+    artStylePrompt: "warm modern art, earth tones, Scandinavian gallery aesthetic",
   },
   {
     id: "corporate-tower",
@@ -129,6 +233,7 @@ export const THEME_PRESETS: OfficeTheme[] = [
 
     furnitureStylePrompt: "corporate executive office, glass and brushed steel, premium modern",
     textureStylePrompt: "polished concrete, cool grey, professional corporate",
+    artStylePrompt: "corporate fine art, sleek contemporary, gallery exhibition quality",
   },
   {
     id: "cyberpunk-den",
@@ -170,6 +275,7 @@ export const THEME_PRESETS: OfficeTheme[] = [
 
     furnitureStylePrompt: "cyberpunk futuristic, neon purple and cyan LED accents, dark metal, sci-fi",
     textureStylePrompt: "dark metal grating with neon light bleed, cyberpunk, industrial",
+    artStylePrompt: "cyberpunk digital art, neon glow, glitch aesthetic, vaporwave",
   },
   {
     id: "cozy-studio",
@@ -211,5 +317,6 @@ export const THEME_PRESETS: OfficeTheme[] = [
 
     furnitureStylePrompt: "cozy indie studio, reclaimed wood, plants, vintage brass accents, warm",
     textureStylePrompt: "worn reclaimed wood, warm tones, rustic cottage",
+    artStylePrompt: "cozy handmade art, watercolor, botanical illustration, warm tones",
   },
 ];

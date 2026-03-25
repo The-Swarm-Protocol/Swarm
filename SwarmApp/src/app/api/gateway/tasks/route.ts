@@ -13,6 +13,7 @@ import {
 import { enqueueTask, getTask } from "@/lib/gateway/store";
 import { getRedis } from "@/lib/redis";
 import type { TaskPriority, TaskResourceRequirements } from "@/lib/gateway/types";
+import { validateCallbackUrl } from "@/lib/url-validation";
 
 interface EnqueueBody {
   orgId: string;
@@ -62,6 +63,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Validate callbackUrl if provided (SSRF protection)
+  if (body.callbackUrl) {
+    const cbCheck = validateCallbackUrl(body.callbackUrl);
+    if (!cbCheck.ok) {
+      return Response.json(
+        { error: `Invalid callbackUrl: ${cbCheck.error}` },
+        { status: 400 },
+      );
+    }
+  }
+
   // Idempotency check
   if (body.idempotencyKey) {
     const redis = getRedis();
@@ -87,8 +99,8 @@ export async function POST(req: NextRequest) {
       payload: body.payload,
       priority: body.priority || "normal",
       resources: body.resources || {},
-      timeoutMs: body.timeoutMs || 60_000,
-      maxRetries: body.maxRetries ?? 2,
+      timeoutMs: Math.max(1_000, Math.min(body.timeoutMs || 60_000, 600_000)),
+      maxRetries: Math.max(0, Math.min(body.maxRetries ?? 2, 10)),
       idempotencyKey: body.idempotencyKey,
       sourceRef: body.sourceRef,
       callbackUrl: body.callbackUrl,

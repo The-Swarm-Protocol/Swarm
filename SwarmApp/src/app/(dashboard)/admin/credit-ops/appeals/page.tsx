@@ -5,8 +5,7 @@ import Link from "next/link";
 import { ShieldAlert, Loader2, RefreshCw, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/contexts/SessionContext";
-
-const PLATFORM_ADMIN_ADDRESS = "0x723708273e811a07d90d2e81e799b9Ab27F0B549".toLowerCase();
+import { isPlatformAdmin } from "@/lib/platform-admins";
 
 interface Appeal {
   id: string;
@@ -37,7 +36,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 export default function AppealsPage() {
   const { address: sessionAddress, authenticated } = useSession();
-  const isAdmin = sessionAddress?.toLowerCase() === PLATFORM_ADMIN_ADDRESS;
+  const isAdmin = isPlatformAdmin(sessionAddress);
 
   const [items, setItems] = useState<Appeal[]>([]);
   const [loading, setLoading] = useState(true);

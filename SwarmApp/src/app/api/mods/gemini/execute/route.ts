@@ -53,9 +53,9 @@ export async function POST(req: NextRequest) {
       results = execution.results;
       summary = execution.summary;
     } else {
-      // Demo mode — mock execution
+      // Demo mode — no real compute target
       results = mockExecuteActions(actions);
-      summary = `${results.length} of ${results.length} actions simulated (demo mode)`;
+      summary = `[Demo] ${results.length} of ${results.length} actions simulated — select a computer for live execution`;
     }
 
     const events: ModRunEvent[] = results.map((r, i) => ({

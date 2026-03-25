@@ -14,7 +14,8 @@ export async function GET(
 ) {
   const { agentId } = await params;
   const { searchParams } = new URL(request.url);
-  const hoursBack = parseInt(searchParams.get("hoursBack") || "24");
+  const rawHours = parseInt(searchParams.get("hoursBack") || "24", 10);
+  const hoursBack = isNaN(rawHours) ? 24 : Math.max(1, Math.min(rawHours, 720));
 
   try {
     const history = await getVitalsHistory(agentId, hoursBack);

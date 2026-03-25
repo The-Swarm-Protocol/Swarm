@@ -73,12 +73,11 @@ export async function GET(req: NextRequest) {
         }
 
         if (getPath) {
-            // Read a specific file safely
-            const safePath = path.normalize(getPath).replace(/^(\.\.(\/|\\|$))+/, '');
-            const targetFile = path.join(workspaceDir, safePath);
+            // Resolve to absolute path (handles ../ traversal) and strip null bytes
+            const targetFile = path.resolve(workspaceDir, getPath.replace(/\0/g, ''));
 
-            // Additional path traversal guard
-            if (!targetFile.startsWith(workspaceDir)) {
+            // Strict containment — must be within workspaceDir
+            if (!targetFile.startsWith(workspaceDir + path.sep) && targetFile !== workspaceDir) {
                 return NextResponse.json({ error: 'Invalid path' }, { status: 403 });
             }
 
@@ -111,11 +110,11 @@ export async function POST(req: NextRequest) {
 
         if (!targetPath) return NextResponse.json({ error: 'Path is required' }, { status: 400 });
 
-        const safePath = path.normalize(targetPath).replace(/^(\.\.(\/|\\|$))+/, '');
-        const absolutePath = path.join(workspaceDir, safePath);
+        // Resolve to absolute path (handles ../ traversal) and strip null bytes
+        const absolutePath = path.resolve(workspaceDir, targetPath.replace(/\0/g, ''));
 
-        // Prevent deletion/editing of absolute root paths manually
-        if (!absolutePath.startsWith(workspaceDir)) {
+        // Strict containment — must be within workspaceDir
+        if (!absolutePath.startsWith(workspaceDir + path.sep) && absolutePath !== workspaceDir) {
             return NextResponse.json({ error: 'Invalid path' }, { status: 403 });
         }
 
