@@ -109,6 +109,87 @@ export const ART_EXAMPLE_PROMPTS: Record<ArtCategory, string[]> = {
 };
 
 /* ═══════════════════════════════════════
+   Default Art Prompts per Theme
+   ═══════════════════════════════════════ */
+
+/**
+ * Theme-aware default prompts for each art slot.
+ * Used by generate-office to auto-populate all art
+ * without requiring user input.
+ *
+ * Keys are theme IDs, values map slot IDs to prompts.
+ * If a theme is missing, falls back to "default".
+ */
+export const DEFAULT_ART_PROMPTS: Record<string, Record<string, string>> = {
+  default: {
+    "art-back-wall-left": "Abstract expressionist oil painting, bold gestural brushstrokes, warm palette",
+    "art-back-wall-center": "Large panoramic landscape, rolling hills and cloudy sky, impressionist style",
+    "art-back-wall-right": "Motivational typography poster, minimalist design, clean lines",
+    "art-left-wall": "Flowing abstract mural, gradient waves of color, organic shapes",
+    "art-sculpture-right": "Modern abstract chrome sculpture, organic flowing form on a pedestal",
+    "art-trophy": "Polished golden trophy cup with laurel wreath, achievement award",
+    "art-plant-custom": "Lush monstera plant in a matte ceramic pot, tropical leaves",
+    "art-desk-ornament-1": "Miniature globe on a brass stand, vintage desk ornament",
+  },
+  "startup-loft": {
+    "art-back-wall-left": "Abstract oil painting with warm earth tones, amber and burnt sienna, Scandinavian gallery",
+    "art-back-wall-center": "Large panoramic Nordic landscape, birch forest at golden hour, soft warm light",
+    "art-back-wall-right": "Startup culture poster, minimalist typography 'Build. Ship. Iterate.' on cream paper",
+    "art-left-wall": "Flowing abstract mural, warm amber and wood tones, honey and gold gradient waves",
+    "art-sculpture-right": "Smooth polished wood sculpture, abstract organic form, Danish modern design",
+    "art-trophy": "Handcrafted brass startup award trophy, geometric faceted design, Scandinavian modern",
+    "art-plant-custom": "Large fiddle leaf fig tree in a woven rattan basket planter, loft interior",
+    "art-desk-ornament-1": "Small brass kinetic desk toy, Newton's cradle, warm metallic finish",
+  },
+  "corporate-tower": {
+    "art-back-wall-left": "Minimalist abstract painting, steel blue and white geometric blocks, corporate fine art",
+    "art-back-wall-center": "Large glass and steel cityscape at twilight, photorealistic, executive suite quality",
+    "art-back-wall-right": "Corporate annual report infographic poster, clean blue data visualization design",
+    "art-left-wall": "Monochrome mural, architectural blueprint style, glass tower silhouettes, cool blue tones",
+    "art-sculpture-right": "Polished stainless steel abstract sculpture, Brancusi-inspired, reflective surface",
+    "art-trophy": "Crystal achievement award with laser-etched corporate logo, faceted glass, premium",
+    "art-plant-custom": "Tall snake plant in a sleek brushed aluminum planter, corporate lobby style",
+    "art-desk-ornament-1": "Crystal paperweight with holographic facets, executive desk accessory",
+  },
+  "cyberpunk-den": {
+    "art-back-wall-left": "Glitch art digital painting, neon purple and cyan, corrupted pixel aesthetic, cyberpunk",
+    "art-back-wall-center": "Neon-lit futuristic cityscape, rain-slicked streets, holographic billboards, Blade Runner",
+    "art-back-wall-right": "Cyberpunk propaganda poster, neon magenta on black, Japanese kanji, hacker aesthetic",
+    "art-left-wall": "Digital mural of circuit board patterns morphing into a neural network, neon glow, dark metal",
+    "art-sculpture-right": "Cybernetic chrome skull sculpture with glowing LED eye sockets, dark metal base",
+    "art-trophy": "Neon-accented black acrylic trophy, glowing purple edge lighting, hacker trophy",
+    "art-plant-custom": "Bioluminescent alien plant in a hexagonal glass terrarium, cyan glow, sci-fi",
+    "art-desk-ornament-1": "Miniature holographic pyramid projector, spinning neon wireframe, cyberpunk gadget",
+  },
+  "cozy-studio": {
+    "art-back-wall-left": "Watercolor botanical illustration, ferns and wildflowers, soft green and cream tones",
+    "art-back-wall-center": "Large cozy cottage landscape, garden path with lavender, watercolor, warm afternoon light",
+    "art-back-wall-right": "Hand-lettered inspirational quote poster on kraft paper, botanical border, indie studio",
+    "art-left-wall": "Botanical mural, trailing ivy and climbing roses, vintage botanical illustration style",
+    "art-sculpture-right": "Hand-thrown ceramic vase sculpture, earthy glaze, organic asymmetric form, wabi-sabi",
+    "art-trophy": "Handmade wooden award plaque, reclaimed wood, burned-in lettering, artisan craft",
+    "art-plant-custom": "Overflowing hanging pothos plant in a macramé hanger, trailing vines, boho style",
+    "art-desk-ornament-1": "Small zen garden with raked sand and smooth river stones, bamboo tray",
+  },
+};
+
+/**
+ * Get the default prompt for a slot + theme combination.
+ * Falls back to the default theme, then to the first example prompt.
+ */
+export function getDefaultArtPrompt(themeId: string, slotId: string, category: ArtCategory): string {
+  const themePrompts = DEFAULT_ART_PROMPTS[themeId] || DEFAULT_ART_PROMPTS.default;
+  if (themePrompts[slotId]) return themePrompts[slotId];
+
+  // Fallback: default theme
+  const fallback = DEFAULT_ART_PROMPTS.default[slotId];
+  if (fallback) return fallback;
+
+  // Last resort: first example prompt for the category
+  return ART_EXAMPLE_PROMPTS[category]?.[0] || `${ART_LABELS[category]}, high quality, office decor`;
+}
+
+/* ═══════════════════════════════════════
    Art Slot Definitions
    ═══════════════════════════════════════ */
 

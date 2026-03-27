@@ -1,14 +1,20 @@
 /**
  * POST /api/v1/mods/office-sim/generate-office
  *
- * Batch-create furniture + texture generation tasks for a theme.
- * Creates ~8 tasks (6 furniture categories + 2 textures).
+ * Batch-create ALL generation tasks for a complete office setup:
+ *   - Furniture (Meshy 3D): desk, chair, plant, whiteboard, coffee-machine, lamp
+ *   - Textures (ComfyUI/Replicate): wood-floor, concrete-wall
+ *   - Art — 2D pieces (ComfyUI): wall paintings, poster, mural
+ *   - Art — 3D pieces (Meshy): sculpture, trophy, plant, vase, desk ornament
+ *
+ * Uses theme-aware default prompts so no manual input is needed.
  *
  * Auth: x-wallet-address
  *
  * Body:
  *   orgId   — Organization ID (required)
  *   themeId — Theme ID (required)
+ *   skip    — Optional array of task types to skip: "furniture" | "texture" | "art"
  */
 
 import { NextRequest } from "next/server";
@@ -25,6 +31,10 @@ import {
   getActiveTextureTask,
 } from "@/components/mods/office-sim/studio/texture-firestore";
 import {
+  createArtTask,
+  getActiveArtTask,
+} from "@/components/mods/office-sim/studio/art-firestore";
+import {
   FURNITURE_LABELS,
   type FurnitureCategory,
 } from "@/components/mods/office-sim/studio/furniture-types";
@@ -32,6 +42,12 @@ import {
   TEXTURE_LABELS,
   type TextureMaterial,
 } from "@/components/mods/office-sim/studio/texture-types";
+import {
+  DEFAULT_ART_SLOTS,
+  ART_PIPELINE,
+  ART_LABELS,
+  getDefaultArtPrompt,
+} from "@/components/mods/office-sim/studio/art-types";
 import { THEME_PRESETS } from "@/components/mods/office-sim/themes";
 
 /** Essential furniture for a complete office look */
@@ -56,7 +72,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Authentication required" }, { status: 401 });
   }
 
-  let body: { orgId?: string; themeId?: string };
+  let body: { orgId?: string; themeId?: string; skip?: string[] };
   try {
     body = await req.json();
   } catch {
@@ -65,6 +81,7 @@ export async function POST(req: NextRequest) {
 
   const orgId = body.orgId?.trim();
   const themeId = body.themeId?.trim();
+  const skipTypes = new Set(body.skip || []);
 
   if (!orgId || !themeId) {
     return Response.json(
@@ -91,11 +108,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const taskIds: { type: "furniture" | "texture"; id: string; category: string }[] = [];
+  const taskIds: { type: "furniture" | "texture" | "art"; id: string; category: string; pipeline?: string }[] = [];
   const skipped: string[] = [];
 
-  // Create furniture tasks
-  if (hasMeshy) {
+  // ── Furniture (Meshy 3D) ───────────────────────────────
+  if (hasMeshy && !skipTypes.has("furniture")) {
     for (const category of BATCH_FURNITURE) {
       const existing = await getActiveFurnitureTask(orgId, themeId, category);
       if (existing) {
@@ -119,8 +136,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Create texture tasks
-  if (hasImageGen) {
+  // ── Textures (ComfyUI/Replicate 2D) ───────────────────
+  if (hasImageGen && !skipTypes.has("texture")) {
     const provider = getProvider();
     for (const material of BATCH_TEXTURES) {
       const existing = await getActiveTextureTask(orgId, themeId, material);
@@ -145,11 +162,68 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ── Art — all 8 default slots (Meshy 3D + ComfyUI 2D) ─
+  if (!skipTypes.has("art")) {
+    for (const slot of DEFAULT_ART_SLOTS) {
+      const pipeline = ART_PIPELINE[slot.category];
+
+      // Skip if the required pipeline isn't configured
+      if (pipeline === "meshy" && !hasMeshy) {
+        skipped.push(`art:${slot.id}:no-meshy`);
+        continue;
+      }
+      if (pipeline === "comfyui" && !hasImageGen) {
+        skipped.push(`art:${slot.id}:no-comfyui`);
+        continue;
+      }
+
+      // Skip if already has an active task
+      const existing = await getActiveArtTask(orgId, themeId, slot.id);
+      if (existing) {
+        skipped.push(`art:${slot.id}`);
+        taskIds.push({ type: "art", id: existing.id, category: slot.category, pipeline });
+        continue;
+      }
+
+      // Build prompt: theme-specific default + style hint
+      const defaultPrompt = getDefaultArtPrompt(themeId, slot.id, slot.category);
+      const label = ART_LABELS[slot.category];
+      const prompt = `${label}: ${defaultPrompt}, ${theme.artStylePrompt}, high quality`;
+
+      const taskId = await createArtTask({
+        orgId,
+        themeId,
+        slotId: slot.id,
+        category: slot.category,
+        pipeline,
+        prompt,
+        requestedBy: wallet,
+        status: "pending",
+        ...(pipeline === "meshy"
+          ? { meshy: { status: "pending" } }
+          : { comfyui: { status: "pending" } }),
+      });
+      taskIds.push({ type: "art", id: taskId, category: slot.category, pipeline });
+    }
+  }
+
+  // ── Summary ────────────────────────────────────────────
+  const artTasks = taskIds.filter((t) => t.type === "art");
+  const meshyArt = artTasks.filter((t) => t.pipeline === "meshy");
+  const comfyuiArt = artTasks.filter((t) => t.pipeline === "comfyui");
+
   return Response.json({
     ok: true,
     themeId,
     tasks: taskIds,
     skipped,
     total: taskIds.length,
+    breakdown: {
+      furniture: taskIds.filter((t) => t.type === "furniture").length,
+      textures: taskIds.filter((t) => t.type === "texture").length,
+      art: artTasks.length,
+      artMeshy3D: meshyArt.length,
+      artComfyUI2D: comfyuiArt.length,
+    },
   });
 }
