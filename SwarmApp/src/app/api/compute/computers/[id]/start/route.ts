@@ -9,8 +9,9 @@
 import { NextRequest } from "next/server";
 import { requireOrgMember, getWalletAddress } from "@/lib/auth-guard";
 import { getComputer, getComputers, updateComputer, getEntitlement } from "@/lib/compute/firestore";
-import { getComputeProvider } from "@/lib/compute/provider";
+import { getComputeProvider, ProviderCredentialError, checkProviderAvailability } from "@/lib/compute/provider";
 import { startComputeSession } from "@/lib/compute/sessions";
+import { pollUntilHealthy } from "@/lib/compute/health";
 
 export async function POST(
   req: NextRequest,
@@ -102,6 +103,20 @@ export async function POST(
     }
   }
 
+  // ── Provider availability check ──
+  const availability = checkProviderAvailability(computer.provider);
+  if (!availability.available) {
+    return Response.json(
+      {
+        error: "Compute provider unavailable",
+        provider: computer.provider,
+        reason: availability.reason,
+        message: `Cannot start — ${availability.reason}. Configure the required credentials or change the instance provider.`,
+      },
+      { status: 503 },
+    );
+  }
+
   await updateComputer(id, { status: "starting" });
 
   const provider = getComputeProvider(computer.provider);
@@ -133,8 +148,10 @@ export async function POST(
       });
     }
 
-    await updateComputer(id, { status: "running", lastActiveAt: new Date() });
-
+    // Don't mark as "running" yet — launch async health check polling.
+    // The health check will poll the provider until the instance is truly
+    // ready (PowerState/running + VNC/SSH reachable), then mark "running".
+    // If it times out after 10 minutes, it marks "error".
     const sessionId = await startComputeSession(
       id,
       computer.workspaceId,
@@ -143,17 +160,25 @@ export async function POST(
       computer.modelKey,
     );
 
-    return Response.json({ ok: true, sessionId });
+    // Fire-and-forget: health check runs in the background
+    pollUntilHealthy(id).catch((err) => {
+      console.error(`[compute/start] Health check failed for ${id}:`, err);
+    });
+
+    return Response.json({
+      ok: true,
+      sessionId,
+      status: "starting",
+      message: "Instance is starting. Health checks will promote to 'running' once the provider confirms the instance is ready.",
+    });
   } catch (err) {
     console.error("[compute/start] Failed:", err);
 
-    // Extract detailed error message
     const errorMessage = err instanceof Error ? err.message : String(err);
-    const stackTrace = err instanceof Error ? err.stack : undefined;
 
     console.error("[compute/start] Error details:", {
       message: errorMessage,
-      stack: stackTrace,
+      stack: err instanceof Error ? err.stack : undefined,
       provider: computer.provider,
       hasInstanceId: !!computer.providerInstanceId,
     });
@@ -167,11 +192,16 @@ export async function POST(
       }
     });
 
+    // Provide actionable error messages based on error type
+    const isCredentialError = err instanceof ProviderCredentialError
+      || errorMessage.includes("credentials")
+      || errorMessage.includes("authentication");
+
     return Response.json({
       error: "Failed to start computer",
       details: errorMessage,
       provider: computer.provider,
-      suggestion: errorMessage.includes("credentials") || errorMessage.includes("authentication")
+      suggestion: isCredentialError
         ? "Check Azure credentials in environment variables"
         : errorMessage.includes("quota") || errorMessage.includes("limit")
         ? "Check Azure subscription quotas and limits"

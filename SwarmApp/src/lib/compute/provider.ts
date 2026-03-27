@@ -28,6 +28,67 @@ export interface ComputeProvider {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// Provider Availability
+// ═══════════════════════════════════════════════════════════════
+
+export interface ProviderAvailability {
+  provider: string;
+  available: boolean;
+  reason?: string;
+  label: string;
+}
+
+/**
+ * Check whether a provider has the required credentials configured.
+ * Returns availability status with a human-readable reason if unavailable.
+ */
+export function checkProviderAvailability(providerKey: string): ProviderAvailability {
+  const cred = PROVIDER_CREDENTIALS[providerKey];
+  const labels: Record<string, string> = {
+    e2b: "E2B Desktop",
+    azure: "Microsoft Azure",
+    aws: "AWS EC2",
+    gcp: "GCP Compute Engine",
+    "swarm-node": "Swarm Node",
+    stub: "Development (Stub)",
+  };
+
+  const label = labels[providerKey] || providerKey;
+
+  // Stub provider is always "available" in dev but must be flagged
+  if (providerKey === "stub") {
+    return {
+      provider: providerKey,
+      available: false,
+      reason: "Stub provider is for development only — no real instances will be created",
+      label,
+    };
+  }
+
+  if (!cred) {
+    return { provider: providerKey, available: true, label };
+  }
+
+  if (!process.env[cred.envVar]) {
+    return {
+      provider: providerKey,
+      available: false,
+      reason: `Missing required credential: ${cred.label}`,
+      label,
+    };
+  }
+
+  return { provider: providerKey, available: true, label };
+}
+
+/**
+ * Check availability for all known providers.
+ */
+export function getAllProviderAvailability(): ProviderAvailability[] {
+  return ["e2b", "azure", "aws", "gcp", "swarm-node", "stub"].map(checkProviderAvailability);
+}
+
+// ═══════════════════════════════════════════════════════════════
 // E2B Desktop Provider
 // ═══════════════════════════════════════════════════════════════
 

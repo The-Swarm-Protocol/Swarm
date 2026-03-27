@@ -11,6 +11,7 @@ import {
   createComputer,
   getWorkspace,
 } from "@/lib/compute/firestore";
+import { checkProviderAvailability } from "@/lib/compute/provider";
 import { SIZE_PRESETS, DEFAULT_AUTO_STOP_MINUTES, DEFAULT_RESOLUTION, PROVIDER_SIZE_MAP, PROVIDER_REGION_MAP, PROVIDER_BASE_IMAGES } from "@/lib/compute/types";
 import type { SizeKey, Region, ControllerType, ModelKey, ComputerMode, ProviderKey } from "@/lib/compute/types";
 
@@ -112,6 +113,23 @@ export async function POST(req: NextRequest) {
 
   // Resolve provider: body > workspace default > env > e2b
   const resolvedProvider = (bodyProvider || ws.defaultProvider || process.env.COMPUTE_PROVIDER || "e2b") as import("@/lib/compute/types").ProviderKey;
+
+  // ── Provider availability check ──
+  // Fail loudly if the resolved provider is stub or has missing credentials.
+  // This prevents phantom instances from being created in Firestore.
+  const availability = checkProviderAvailability(resolvedProvider);
+  if (!availability.available) {
+    return Response.json(
+      {
+        error: "Compute provider unavailable",
+        provider: resolvedProvider,
+        providerLabel: availability.label,
+        reason: availability.reason,
+        message: `Cannot create instances — ${availability.reason}. Configure the required credentials or select a different provider.`,
+      },
+      { status: 503 },
+    );
+  }
 
   const id = await createComputer({
     workspaceId,

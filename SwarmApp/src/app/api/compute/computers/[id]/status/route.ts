@@ -6,6 +6,7 @@
 import { NextRequest } from "next/server";
 import { getWalletAddress } from "@/lib/auth-guard";
 import { getComputer } from "@/lib/compute/firestore";
+import { probeInstanceHealth } from "@/lib/compute/health";
 
 export async function GET(
   req: NextRequest,
@@ -55,6 +56,13 @@ export async function GET(
     };
   }
 
+  // Live health probe for running/starting instances (opt-in via ?probe=true)
+  const doProbe = req.nextUrl.searchParams.get("probe") === "true";
+  let healthProbe = null;
+  if (doProbe && computer.providerInstanceId && (computer.status === "running" || computer.status === "starting")) {
+    healthProbe = await probeInstanceHealth(computer);
+  }
+
   return Response.json({
     id: computer.id,
     name: computer.name,
@@ -77,6 +85,15 @@ export async function GET(
       canStop: computer.status === "running",
       canRestart: computer.status === "running",
       suggestedAction,
+      ...(healthProbe && {
+        probe: {
+          healthy: healthProbe.healthy,
+          providerState: healthProbe.providerState,
+          vncReachable: healthProbe.vncReachable,
+          sshReachable: healthProbe.sshReachable,
+          probeMs: healthProbe.durationMs,
+        },
+      }),
     },
 
     resources: {
