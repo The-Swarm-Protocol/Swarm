@@ -4,6 +4,7 @@
 
 [build.environment]
   NODE_OPTIONS = "--max-old-space-size=3072"
+  NEXT_PRIVATE_WORKER_THREADS = "1"
   SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
 
 

@@ -24,6 +24,13 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Limit build concurrency to reduce peak memory (573 routes OOM on Netlify).
+  experimental: {
+    cpus: 1,
+    workerThreads: false,
+  },
+  // Disable source maps in production to reduce memory during build.
+  productionBrowserSourceMaps: false,
 };
 
 export default nextConfig;
