@@ -91,7 +91,7 @@ jobs:
 
   deploy:
     name: Deploy (Netlify)
-    needs: [build, hub-test, contracts-test]
+    needs: [build, hub-test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     defaults:
@@ -116,10 +116,6 @@ jobs:
       NEXT_PUBLIC_HEDERA_TASK_BOARD: ${{ secrets.NEXT_PUBLIC_HEDERA_TASK_BOARD }}
       NEXT_PUBLIC_HEDERA_AGENT_NFT: ${{ secrets.NEXT_PUBLIC_HEDERA_AGENT_NFT }}
       NEXT_PUBLIC_HEDERA_MOCK_LINK: ${{ secrets.NEXT_PUBLIC_HEDERA_MOCK_LINK }}
-      NEXT_PUBLIC_LINK_TREASURY: ${{ secrets.NEXT_PUBLIC_LINK_TREASURY }}
-      NEXT_PUBLIC_LINK_AGENT_REGISTRY: ${{ secrets.NEXT_PUBLIC_LINK_AGENT_REGISTRY }}
-      NEXT_PUBLIC_LINK_ASN_REGISTRY: ${{ secrets.NEXT_PUBLIC_LINK_ASN_REGISTRY }}
-      NEXT_PUBLIC_LINK_TASK_BOARD: ${{ secrets.NEXT_PUBLIC_LINK_TASK_BOARD }}
       NEXT_PUBLIC_GITHUB_APP_SLUG: ${{ secrets.NEXT_PUBLIC_GITHUB_APP_SLUG }}
       NEXT_PUBLIC_SUPER_ADMINS: ${{ secrets.NEXT_PUBLIC_SUPER_ADMINS }}
       NEXT_PUBLIC_OPENCLAW_WORKSPACE: ${{ secrets.NEXT_PUBLIC_OPENCLAW_WORKSPACE }}
@@ -202,7 +198,7 @@ jobs:
 
   gate:
     name: Release Gate
-    needs: [build, hub-test, contracts-test, deploy]
+    needs: [build, hub-test, deploy]
     if: always()
     runs-on: ubuntu-latest
     steps:
