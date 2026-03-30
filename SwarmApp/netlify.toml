@@ -1,19 +1,14 @@
 [build]
   # Build skipped — handled by GitHub Actions (Netlify OOMs on 573 routes).
-  # Netlify CLI deploys the pre-built .next directory from CI.
-  # `ignore` returns exit 0 → Netlify skips auto-builds on push.
-  # `netlify-cli deploy --prod` bypasses ignore (direct deploy, not a build).
+  # GH Actions runs `npm run build` then `netlify-cli deploy --prod --dir=.next`.
+  # The plugin-nextjs is NOT needed here — `netlify deploy` uploads pre-built output directly.
   ignore = "exit 0"
-  command = "echo 'Deployed from GitHub Actions'"
+  command = "echo 'Skipped — deployed from GitHub Actions'"
   publish = ".next"
 
 [build.environment]
   NODE_OPTIONS = "--max-old-space-size=3072"
   SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
-
-
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
 
 # ── Security headers ──
 [[headers]]
