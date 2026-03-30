@@ -5,7 +5,7 @@
  * Consumed by API routes, enforcement middleware, and webhooks.
  *
  * Depends on:
- *   - chainlink.ts: getScoreBand(), getDefaultPolicy(), PolicyState, ScoreBandInfo
+ *   - credit-scoring.ts: getScoreBand(), getDefaultPolicy(), PolicyState, ScoreBandInfo
  *   - hedera-hcs-client.ts: ScoreEvent, getReputationTopicId()
  *   - credit-cache.ts: getCached, setCache, invalidateCache
  *   - firebase.ts: Firestore db

@@ -41,14 +41,6 @@ export const CONTRACTS = {
   AGENT_IDENTITY_NFT: process.env.NEXT_PUBLIC_HEDERA_AGENT_NFT || "0x09F7D7717a67783298d5Ca6C0fe036C39951D337",
 } as const;
 
-// Legacy Sepolia contracts (kept for backward compatibility)
-export const SEPOLIA_CONTRACTS = {
-  TASK_BOARD: CHAIN_CONFIGS.sepolia?.contracts?.linkTaskBoard || "",
-  AGENT_REGISTRY: CHAIN_CONFIGS.sepolia?.contracts?.linkAgentRegistry || "",
-  ASN_REGISTRY: CHAIN_CONFIGS.sepolia?.contracts?.linkASNRegistry || "",
-  AGENT_TREASURY: CHAIN_CONFIGS.sepolia?.contracts?.linkTreasury || "",
-} as const;
-
 // Legacy compatibility exports
 export const HEDERA_CONTRACTS = CONTRACTS;
 export const HEDERA_GAS_LIMIT = DEFAULT_GAS_LIMIT;

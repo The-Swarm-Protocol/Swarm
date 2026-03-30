@@ -6,7 +6,7 @@
  *
  * Depends on:
  *   - credit-service.ts: getCreditProfileCached()
- *   - chainlink.ts: getDefaultPolicy(), PolicyState
+ *   - credit-scoring.ts: getDefaultPolicy(), PolicyState
  *   - firebase.ts: Firestore queries for task counts
  */
 

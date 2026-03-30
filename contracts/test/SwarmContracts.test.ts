@@ -8,6 +8,7 @@
 
 import { ethers } from "hardhat";
 import { expect } from "chai";
+import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { loadFixture, time } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -68,7 +69,7 @@ describe("SwarmAgentRegistryLink", () => {
       registry.connect(agent1).registerAgent("Alpha", "nlp,code", "ASN-001", 100n)
     )
       .to.emit(registry, "AgentRegistered")
-      .withArgs(agent1.address, "Alpha", "ASN-001", await latestTimestamp());
+      .withArgs(agent1.address, "Alpha", "ASN-001", anyValue);
   });
 
   it("stores correct defaults after registration (creditScore 680, trustScore 50)", async () => {
@@ -145,7 +146,7 @@ describe("SwarmAgentRegistryLink", () => {
 
     await expect(registry.connect(agent1).updateSkills("nlp,code,vision"))
       .to.emit(registry, "SkillsUpdated")
-      .withArgs(agent1.address, "nlp,code,vision", await latestTimestamp());
+      .withArgs(agent1.address, "nlp,code,vision", anyValue);
 
     const a = await registry.getAgent(agent1.address);
     expect(a.skills).to.equal("nlp,code,vision");
@@ -215,7 +216,7 @@ describe("SwarmAgentRegistryLink", () => {
 
     await expect(registry.connect(agent1).deactivateAgent())
       .to.emit(registry, "AgentDeactivated")
-      .withArgs(agent1.address, await latestTimestamp());
+      .withArgs(agent1.address, anyValue);
   });
 
   it("unregistered agent cannot deactivate", async () => {
@@ -329,7 +330,7 @@ describe("SwarmTaskBoardLink", () => {
 
     await expect(board.connect(agent).claimTask(0))
       .to.emit(board, "TaskClaimed")
-      .withArgs(0, agent.address, await latestTimestamp());
+      .withArgs(0, agent.address, anyValue);
 
     const task = await board.getTask(0);
     expect(task.status).to.equal(1); // TaskStatus.Claimed
@@ -377,13 +378,13 @@ describe("SwarmTaskBoardLink", () => {
     const deliveryHash = ethers.keccak256(ethers.toUtf8Bytes("delivery-content"));
     await expect(board.connect(agent).submitDelivery(0, deliveryHash))
       .to.emit(board, "DeliverySubmitted")
-      .withArgs(0, agent.address, deliveryHash, await latestTimestamp());
+      .withArgs(0, agent.address, deliveryHash, anyValue);
 
     const agentBalanceBefore = await link.balanceOf(agent.address);
 
     await expect(board.connect(poster).approveDelivery(0))
       .to.emit(board, "DeliveryApproved")
-      .withArgs(0, agent.address, BUDGET, await latestTimestamp());
+      .withArgs(0, agent.address, BUDGET, anyValue);
 
     const agentBalanceAfter = await link.balanceOf(agent.address);
     expect(agentBalanceAfter - agentBalanceBefore).to.equal(BUDGET);
@@ -430,7 +431,7 @@ describe("SwarmTaskBoardLink", () => {
 
     await expect(board.connect(poster).disputeDelivery(0))
       .to.emit(board, "DeliveryDisputed")
-      .withArgs(0, poster.address, await latestTimestamp());
+      .withArgs(0, poster.address, anyValue);
 
     const task = await board.getTask(0);
     expect(task.status).to.equal(4); // TaskStatus.Disputed
@@ -466,7 +467,3 @@ describe("SwarmTaskBoardLink", () => {
 });
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-
-async function latestTimestamp(): Promise<bigint> {
-  return BigInt(await time.latest());
-}

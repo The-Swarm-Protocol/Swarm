@@ -6,7 +6,6 @@ import {
   getCurrencyDecimals,
   getChainById,
   getExplorerTxUrl,
-  LINK_TOKEN_SEPOLIA,
 } from "../chains";
 
 describe("toNative", () => {
@@ -99,8 +98,3 @@ describe("getExplorerTxUrl", () => {
   });
 });
 
-describe("constants", () => {
-  it("LINK_TOKEN_SEPOLIA is a valid address", () => {
-    expect(LINK_TOKEN_SEPOLIA).toMatch(/^0x[a-fA-F0-9]{40}$/);
-  });
-});

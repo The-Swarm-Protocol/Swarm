@@ -17,7 +17,7 @@ import {
     HEDERA_CONTRACTS,
     HEDERA_GAS_LIMIT,
 } from "@/lib/swarm-contracts";
-import { AGENT_REGISTRY_ABI as LINK_AGENT_REGISTRY_ABI } from "@/lib/swarm-contracts";
+import { AGENT_REGISTRY_ABI } from "@/lib/swarm-contracts";
 import { requirePlatformAdmin, forbidden } from "@/lib/auth-guard";
 import { recordCreditAudit } from "@/lib/credit-audit-log";
 import { fireWebhooks } from "@/lib/credit-webhooks";
@@ -39,7 +39,7 @@ async function updateCreditOnChain(
         const wallet = new ethers.Wallet(privateKey, provider);
         const registry = new ethers.Contract(
             HEDERA_CONTRACTS.AGENT_REGISTRY,
-            LINK_AGENT_REGISTRY_ABI,
+            AGENT_REGISTRY_ABI,
             wallet,
         );
         const tx = await registry.updateCredit(agentAddr, creditScore, trustScore, {
