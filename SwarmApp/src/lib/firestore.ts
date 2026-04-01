@@ -181,6 +181,18 @@ export interface Agent {
   nftOwnerEvmAddress?: string;
   /** Deterministic Solana wallet address for this agent */
   solanaAddress?: string;
+  /** Flow blockchain wallet address */
+  flowAddress?: string;
+  /** Flow ASN on-chain registration tx hash */
+  flowOnChainTxHash?: string;
+  /** Flow ASN on-chain registration status */
+  flowOnChainRegistered?: boolean;
+  /** Flow EVM wallet address (chain 747/545) */
+  flowEvmAddress?: string;
+  /** Flow staking delegation status */
+  flowStakingActive?: boolean;
+  /** Flow achievement badge count */
+  flowAchievementCount?: number;
   /** Number of completed tasks (denormalized counter) */
   tasksCompleted?: number;
   /** Resolved credit policy tier (cached, updated on score change) */
